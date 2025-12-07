@@ -45,5 +45,13 @@ class Setting extends Model
     {
         return static::pluck('value', 'key')->toArray();
     }
+
+    /**
+     * Get all settings (alias for allAsArray)
+     */
+    public static function getSettings(): array
+    {
+        return static::allAsArray();
+    }
 }
 

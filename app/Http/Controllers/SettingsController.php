@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\InfosimplesSetting;
+use App\Models\Setting;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -12,51 +14,102 @@ class SettingsController extends Controller
     {
         $this->ensureAdmin();
 
-        $infosimples = InfosimplesSetting::current();
+        $settings = Setting::getSettings();
 
         return Inertia::render('Settings/Index', [
-            'infosimples' => [
+            'tiny' => [
                 'settings' => [
-                    'enabled' => (bool) $infosimples->enabled,
-                    'has_token' => !empty($infosimples->token),
-                    'cache_months' => $infosimples->cache_months,
-                    'timeout' => $infosimples->timeout,
-                    'updated_at' => optional($infosimples->updated_at)->format('d/m/Y H:i'),
+                    'enabled' => (bool) ($settings['tiny_enabled'] ?? false),
+                    'has_token' => !empty($settings['tiny_token'] ?? null),
+                    'url_base' => $settings['tiny_url_base'] ?? 'https://api.tiny.com.br/api2',
+                    'updated_at' => $settings['tiny_updated_at'] ?? null,
                 ],
-                'cache_ttl_options' => $this->cacheOptions(),
-                'default_timeout_options' => $this->timeoutOptions(),
             ],
-            // Add more integrations here as needed
-            // 'other_integration' => [...],
         ]);
+    }
+
+    public function updateTiny(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $validated = $request->validate([
+            'enabled' => 'boolean',
+            'token' => 'nullable|string',
+            'remove_token' => 'nullable|boolean',
+            'url_base' => 'nullable|string|url',
+        ]);
+
+        Setting::set('tiny_enabled', $validated['enabled'] ?? false);
+        
+        if (!empty($validated['remove_token'])) {
+            Setting::set('tiny_token', null);
+        } elseif (!empty($validated['token'])) {
+            Setting::set('tiny_token', encrypt($validated['token']));
+        }
+
+        if (!empty($validated['url_base'])) {
+            Setting::set('tiny_url_base', $validated['url_base']);
+        }
+
+        Setting::set('tiny_updated_at', now()->format('d/m/Y H:i'));
+
+        return back()->with('success', 'Configuracoes salvas com sucesso!');
+    }
+
+    public function testTiny()
+    {
+        $this->ensureAdmin();
+
+        $settings = Setting::getSettings();
+        $token = $settings['tiny_token'] ?? null;
+        
+        if (!$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token nao configurado.',
+            ]);
+        }
+
+        try {
+            $decryptedToken = decrypt($token);
+            $urlBase = $settings['tiny_url_base'] ?? 'https://api.tiny.com.br/api2';
+
+            // Testar conexao listando produtos
+            $response = Http::timeout(30)->asForm()->post("{$urlBase}/produtos.pesquisa.php", [
+                'token' => $decryptedToken,
+                'formato' => 'json',
+                'pesquisa' => '',
+            ]);
+
+            $data = $response->json();
+
+            if (isset($data['retorno']['status']) && $data['retorno']['status'] === 'OK') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conexao estabelecida com sucesso!',
+                    'data' => [
+                        'status' => $data['retorno']['status'],
+                        'registros' => $data['retorno']['numero_paginas'] ?? 0,
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $data['retorno']['erros'][0]['erro'] ?? 'Erro desconhecido na API.',
+                'data' => $data['retorno'] ?? null,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao conectar: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     protected function ensureAdmin(): void
     {
         abort_unless(auth()->user()?->role === 'admin', 403);
-    }
-
-    protected function cacheOptions(): array
-    {
-        return [
-            ['value' => 1, 'label' => '1 mês (30 dias)'],
-            ['value' => 2, 'label' => '2 meses (60 dias)'],
-            ['value' => 3, 'label' => '3 meses (90 dias)'],
-            ['value' => 4, 'label' => '4 meses (120 dias)'],
-            ['value' => 5, 'label' => '5 meses (150 dias)'],
-            ['value' => 6, 'label' => '6 meses (180 dias)'],
-        ];
-    }
-
-    protected function timeoutOptions(): array
-    {
-        return [
-            ['value' => 30, 'label' => '30 segundos'],
-            ['value' => 60, 'label' => '60 segundos'],
-            ['value' => 120, 'label' => '120 segundos'],
-            ['value' => 180, 'label' => '180 segundos'],
-            ['value' => 300, 'label' => '300 segundos'],
-            ['value' => 600, 'label' => '600 segundos'],
-        ];
     }
 }

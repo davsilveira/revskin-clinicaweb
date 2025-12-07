@@ -1,260 +1,335 @@
-import { useForm, Link } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
-import DashboardLayout from '@/Layouts/DashboardLayout';
+import Input from '@/Components/Form/Input';
+import Checkbox from '@/Components/Form/Checkbox';
+import Toast from '@/Components/Toast';
 
-export default function IntegracoesTiny({ settings, lastSync }) {
+export default function TinySettings({ settings, onToast }) {
+    const [toast, setToast] = useState(null);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
-    const [syncing, setSyncing] = useState(false);
+    const [removeToken, setRemoveToken] = useState(false);
 
-    const { data, setData, put, processing } = useForm({
-        tiny_api_token: settings?.tiny_api_token || '',
-        tiny_enabled: settings?.tiny_enabled ?? false,
+    const { data, setData, put, processing, errors, transform } = useForm({
+        enabled: settings.enabled || false,
+        token: '',
+        remove_token: false,
+        url_base: settings.url_base || 'https://api.tiny.com.br/api2',
     });
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        put('/integracoes/tiny');
+    transform((data) => {
+        const transformed = {
+            enabled: data.enabled,
+            url_base: data.url_base,
+        };
+
+        if (data.remove_token) {
+            transformed.remove_token = true;
+        } else if (data.token && data.token.trim() !== '') {
+            transformed.token = data.token;
+        }
+
+        return transformed;
+    });
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+
+        put('/settings/integrations/tiny', {
+            preserveScroll: true,
+            onSuccess: () => {
+                const payload = { message: 'Configuracoes salvas com sucesso!', type: 'success' };
+                setToast(payload);
+                if (onToast) onToast(payload);
+                setData('token', '');
+                setData('remove_token', false);
+                setRemoveToken(false);
+            },
+            onError: () => {
+                const payload = { message: 'Erro ao salvar configuracoes.', type: 'error' };
+                setToast(payload);
+                if (onToast) onToast(payload);
+            },
+        });
     };
 
-    const testConnection = async () => {
+    const handleTestConnection = async () => {
         setTesting(true);
         setTestResult(null);
         try {
-            const response = await fetch('/integracoes/tiny/test', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                },
+            const response = await window.axios.post('/settings/integrations/tiny/test');
+            const isSuccess = response.data?.success;
+            const payload = {
+                message: response.data?.message ?? 'Teste de conexao concluido.',
+                type: isSuccess ? 'success' : 'warning',
+            };
+            setTestResult({
+                success: isSuccess,
+                message: response.data?.message,
+                data: response.data?.data,
             });
-            const result = await response.json();
-            setTestResult(result);
+            setToast(payload);
+            if (onToast) onToast(payload);
         } catch (error) {
-            setTestResult({ success: false, message: 'Erro ao testar conexão' });
+            const payload = {
+                message: error.response?.data?.message ?? 'Falha ao testar conexao com Tiny ERP.',
+                type: 'error',
+            };
+            setTestResult({
+                success: false,
+                message: payload.message,
+            });
+            setToast(payload);
+            if (onToast) onToast(payload);
         } finally {
             setTesting(false);
         }
     };
 
-    const syncProdutos = async () => {
-        setSyncing(true);
-        try {
-            const response = await fetch('/integracoes/tiny/sync-produtos', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                },
-            });
-            const result = await response.json();
-            alert(result.message || 'Sincronização concluída');
-        } catch (error) {
-            alert('Erro ao sincronizar produtos');
-        } finally {
-            setSyncing(false);
-        }
-    };
-
     return (
-        <DashboardLayout>
-            <div className="p-6 max-w-4xl mx-auto">
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900">Integração Tiny ERP</h1>
-                    <p className="text-gray-600 mt-1">
-                        Configure a integração com o Tiny ERP para sincronizar produtos e criar propostas
+        <div className="space-y-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900">Integracao Tiny ERP</h2>
+                    <p className="mt-1 text-sm text-gray-600">
+                        Configure o acesso a API do Tiny ERP para sincronizacao de produtos, clientes e propostas.
                     </p>
+                    {settings.updated_at && (
+                        <p className="mt-2 text-xs text-gray-500">
+                            Ultima atualizacao: {settings.updated_at}
+                        </p>
+                    )}
                 </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={handleTestConnection}
+                        disabled={testing || !settings.has_token}
+                        className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        {testing ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Testando...
+                            </>
+                        ) : (
+                            'Testar conexao'
+                        )}
+                    </button>
+                </div>
+            </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Configurações */}
-                    <div className="lg:col-span-2">
-                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Configurações da API</h2>
-                            
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Token da API Tiny
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={data.tiny_api_token}
-                                        onChange={(e) => setData('tiny_api_token', e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                        placeholder="Cole o token da API aqui"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Obtenha o token em: Tiny ERP → Configurações → Tokens
-                                    </p>
-                                </div>
+            {testResult && (
+                <div className={`p-4 rounded-lg ${testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                    <div className="flex items-start gap-3">
+                        {testResult.success ? (
+                            <svg className="w-5 h-5 text-green-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        ) : (
+                            <svg className="w-5 h-5 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        )}
+                        <div>
+                            <p className={`font-medium ${testResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                                {testResult.success ? 'Conexao estabelecida com sucesso!' : 'Falha na conexao'}
+                            </p>
+                            <p className={`text-sm mt-1 ${testResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                                {testResult.message}
+                            </p>
+                            {testResult.data && (
+                                <pre className="mt-2 text-xs bg-white/50 p-2 rounded overflow-auto max-h-32">
+                                    {JSON.stringify(testResult.data, null, 2)}
+                                </pre>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                                <div>
-                                    <label className="flex items-center gap-3">
-                                        <input
-                                            type="checkbox"
-                                            checked={data.tiny_enabled}
-                                            onChange={(e) => setData('tiny_enabled', e.target.checked)}
-                                            className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+                        <div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox
+                                    checked={data.enabled}
+                                    onChange={(event) => setData('enabled', event.target.checked)}
+                                />
+                                <span className="text-sm font-medium text-gray-700">Ativar integracao</span>
+                            </label>
+                            <p className="mt-1 text-xs text-gray-500">
+                                Quando desativada, nenhuma sincronizacao sera feita com o Tiny ERP.
+                            </p>
+                            {errors.enabled && <p className="mt-1 text-sm text-red-600">{errors.enabled}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Token de acesso (API Key)
+                            </label>
+                            {settings.has_token && !data.token && !removeToken ? (
+                                <div className="space-y-2">
+                                    <div className="relative">
+                                        <Input
+                                            value="********************************"
+                                            disabled
+                                            className="bg-gray-50 text-gray-500 cursor-not-allowed"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">
-                                            Habilitar integração
-                                        </span>
-                                    </label>
-                                    <p className="text-xs text-gray-500 mt-1 ml-7">
-                                        Quando habilitada, as receitas finalizadas poderão gerar propostas no Tiny
-                                    </p>
-                                </div>
-
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        type="submit"
-                                        disabled={processing}
-                                        className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                                    >
-                                        {processing ? 'Salvando...' : 'Salvar Configurações'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={testConnection}
-                                        disabled={testing || !data.tiny_api_token}
-                                        className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                                    >
-                                        {testing ? 'Testando...' : 'Testar Conexão'}
-                                    </button>
-                                </div>
-
-                                {testResult && (
-                                    <div className={`p-4 rounded-lg ${
-                                        testResult.success 
-                                            ? 'bg-green-50 border border-green-200' 
-                                            : 'bg-red-50 border border-red-200'
-                                    }`}>
-                                        <div className="flex items-center gap-2">
-                                            {testResult.success ? (
-                                                <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            )}
-                                            <span className={`font-medium ${
-                                                testResult.success ? 'text-green-800' : 'text-red-800'
-                                            }`}>
-                                                {testResult.message}
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
+                                                Configurado
                                             </span>
                                         </div>
                                     </div>
-                                )}
+                                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                                        <Checkbox
+                                            checked={removeToken}
+                                            onChange={(event) => {
+                                                setRemoveToken(event.target.checked);
+                                                setData('remove_token', event.target.checked);
+                                            }}
+                                        />
+                                        <span className="text-xs text-gray-600">
+                                            Remover token atual e inserir um novo.
+                                        </span>
+                                    </label>
+                                </div>
+                            ) : (
+                                <Input
+                                    type="password"
+                                    value={data.token}
+                                    onChange={(event) => {
+                                        setData('token', event.target.value);
+                                        if (event.target.value) {
+                                            setRemoveToken(false);
+                                            setData('remove_token', false);
+                                        }
+                                    }}
+                                    placeholder={settings.has_token ? "Digite um novo token para substituir" : "Informe o token fornecido pelo Tiny"}
+                                    error={errors.token}
+                                />
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">
+                                Obtenha o token em: Tiny ERP {'->'} Configuracoes {'->'} Integradores {'->'} Tokens de API
+                            </p>
+                        </div>
+
+                        <div>
+                            <Input
+                                label="URL Base da API"
+                                value={data.url_base}
+                                onChange={(event) => setData('url_base', event.target.value)}
+                                placeholder="https://api.tiny.com.br/api2"
+                                error={errors.url_base}
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Normalmente nao precisa alterar. Use o padrao: https://api.tiny.com.br/api2
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                className="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            >
+                                {processing ? 'Salvando...' : 'Salvar configuracoes'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
                             </div>
-                        </form>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Funcionalidades</h2>
+                                <p className="text-sm text-gray-500">O que a integracao permite</p>
+                            </div>
+                        </div>
+                        <ul className="space-y-3 text-sm text-gray-600">
+                            <li className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Sincronizar produtos do Tiny
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Sincronizar clientes/pacientes
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Criar propostas/orcamentos
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Consultar estoque
+                            </li>
+                        </ul>
                     </div>
 
-                    {/* Sidebar */}
-                    <div className="space-y-6">
-                        {/* Status */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h3 className="font-semibold text-gray-900 mb-4">Status</h3>
-                            
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-500">Integração</span>
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                        settings?.tiny_enabled
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                        {settings?.tiny_enabled ? 'Ativa' : 'Inativa'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-500">Token configurado</span>
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                        settings?.tiny_api_token
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
-                                    }`}>
-                                        {settings?.tiny_api_token ? 'Sim' : 'Não'}
-                                    </span>
-                                </div>
-                                {lastSync && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-500">Última sinc.</span>
-                                        <span className="text-sm text-gray-900">
-                                            {new Date(lastSync).toLocaleString('pt-BR')}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-3">Como obter o Token</h2>
+                        <ol className="space-y-2 text-sm text-gray-600 list-decimal list-inside">
+                            <li>Acesse o painel do Tiny ERP</li>
+                            <li>Va em Configuracoes {'>'} Integradores</li>
+                            <li>Clique em "Tokens de API"</li>
+                            <li>Gere um novo token ou copie existente</li>
+                            <li>Cole o token no campo acima</li>
+                        </ol>
+                        <a
+                            href="https://tiny.com.br/login"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 inline-flex items-center text-sm text-emerald-600 hover:text-emerald-700"
+                        >
+                            Acessar Tiny ERP
+                            <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                        </a>
+                    </div>
 
-                        {/* Ações */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h3 className="font-semibold text-gray-900 mb-4">Ações</h3>
-                            
-                            <div className="space-y-3">
-                                <button
-                                    onClick={syncProdutos}
-                                    disabled={syncing || !settings?.tiny_enabled}
-                                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {syncing ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                            </svg>
-                                            Sincronizando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
-                                            Sincronizar Produtos
-                                        </>
-                                    )}
-                                </button>
-
-                                <Link
-                                    href="/integracoes/tiny/pedidos"
-                                    className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                    </svg>
-                                    Ver Pedidos
-                                </Link>
-                            </div>
-                        </div>
-
-                        {/* Help */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                            <div className="flex items-start gap-3">
-                                <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <div>
-                                    <p className="text-sm font-medium text-blue-900">Precisa de ajuda?</p>
-                                    <p className="text-sm text-blue-700 mt-1">
-                                        Consulte a documentação da API Tiny em{' '}
-                                        <a 
-                                            href="https://tiny.com.br/ajuda/api/inicio" 
-                                            target="_blank"
-                                            className="underline"
-                                        >
-                                            tiny.com.br/ajuda/api
-                                        </a>
-                                    </p>
-                                </div>
+                    <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                        <div className="flex items-start gap-3">
+                            <svg className="w-5 h-5 text-amber-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <div>
+                                <p className="font-medium text-amber-800">Importante</p>
+                                <p className="text-sm text-amber-700 mt-1">
+                                    Mantenha o token seguro. Nao compartilhe com terceiros.
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </DashboardLayout>
+
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
+        </div>
     );
 }
-

@@ -104,12 +104,12 @@ Route::middleware(['auth'])->group(function () {
 
         // Settings
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-
-        // Settings - Infosimples integration
-        Route::put('/settings/integrations/infosimples', [InfosimplesIntegrationController::class, 'update'])
-            ->name('settings.infosimples.update');
-        Route::post('/settings/integrations/infosimples/test', [InfosimplesIntegrationController::class, 'testConnection'])
-            ->name('settings.infosimples.test');
+        
+        // Settings - Tiny ERP integration
+        Route::put('/settings/integrations/tiny', [SettingsController::class, 'updateTiny'])
+            ->name('settings.tiny.update');
+        Route::post('/settings/integrations/tiny/test', [SettingsController::class, 'testTiny'])
+            ->name('settings.tiny.test');
 
         // Exports
         Route::get('/exports', [ExportController::class, 'index'])->name('exports.index');

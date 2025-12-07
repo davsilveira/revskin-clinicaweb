@@ -1,33 +1,30 @@
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
-import InfosimplesSettings from '@/Pages/Settings/Integrations/Infosimples';
+import TinySettings from '@/Pages/Settings/Integrations/Tiny';
 import Toast from '@/Components/Toast';
 
-export default function SettingsIndex({ infosimples }) {
-    const [activeTab, setActiveTab] = useState('infosimples');
+export default function SettingsIndex({ tiny }) {
+    const [activeTab, setActiveTab] = useState('tiny');
     const [toast, setToast] = useState(null);
 
-    // Define tabs - add more integrations here
     const tabs = [
-        { key: 'infosimples', label: 'Infosimples', enabled: true },
-        // Add more tabs as needed:
-        // { key: 'other', label: 'Other Integration', enabled: true },
+        { key: 'tiny', label: 'Tiny ERP', enabled: true },
     ];
 
     const enabledTabs = tabs.filter(tab => tab.enabled);
 
     return (
         <>
-            <Head title="Configurações" />
+            <Head title="Configuracoes" />
 
             <DashboardLayout>
-                <div className="space-y-6">
+                <div className="space-y-6 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">Configuracoes</h1>
                             <p className="mt-1 text-sm text-gray-600">
-                                Gerencie as integrações e configurações do sistema.
+                                Gerencie as integracoes e configuracoes do sistema.
                             </p>
                         </div>
                     </div>
@@ -42,7 +39,7 @@ export default function SettingsIndex({ infosimples }) {
                                         onClick={() => setActiveTab(tab.key)}
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                                             activeTab === tab.key
-                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                ? 'bg-emerald-600 text-white shadow-sm'
                                                 : 'text-gray-600 hover:bg-gray-100'
                                         }`}
                                     >
@@ -53,19 +50,14 @@ export default function SettingsIndex({ infosimples }) {
                         </div>
 
                         <div className="p-6">
-                            {activeTab === 'infosimples' && (
-                                <InfosimplesSettings
-                                    settings={infosimples.settings}
-                                    cache_ttl_options={infosimples.cache_ttl_options}
-                                    default_timeout_options={infosimples.default_timeout_options}
+                            {activeTab === 'tiny' && (
+                                <TinySettings
+                                    settings={tiny?.settings || {}}
                                     onToast={setToast}
                                 />
                             )}
-
-                            {/* Add more integration components here */}
                         </div>
                     </div>
-
                 </div>
             </DashboardLayout>
 
