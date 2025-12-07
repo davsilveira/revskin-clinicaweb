@@ -1,293 +1,368 @@
-import { Link, router } from '@inertiajs/react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { router } from '@inertiajs/react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 
-export default function AssistenteRegras({ casos, tratamentos, produtos }) {
-    const [activeTab, setActiveTab] = useState('casos');
-    const [editingCaso, setEditingCaso] = useState(null);
-    const [editingTratamento, setEditingTratamento] = useState(null);
-    
-    // Form states
-    const [casoForm, setCasoForm] = useState({ nome: '', descricao: '', ativo: true });
-    const [tratamentoForm, setTratamentoForm] = useState({
-        caso_clinico_id: '',
-        produto_id: '',
-        quantidade: 1,
-        posologia: '',
-        ordem: 1,
-    });
+// Colunas da Tabela de Karnaugh
+const COLUNAS = [
+    { id: 'caso_clinico', title: 'Caso Clínico', width: 120, fixed: true },
+    { id: 'creme_noite', title: 'Creme da Noite', width: 180 },
+    { id: 'creme_dia', title: 'Creme do Dia', width: 180 },
+    { id: 'creme_dia_verao', title: 'Creme Dia Verão', width: 150 },
+    { id: 'creme_dia_inverno', title: 'Creme Dia Inverno', width: 150 },
+    { id: 'limpeza_syndet', title: 'Limpeza Syndet', width: 180 },
+    { id: 'creme_olhos', title: 'Creme dos Olhos', width: 140 },
+    { id: 'base_tonalite', title: 'Base Tonalité', width: 150 },
+    { id: 'serum_vitamina_c', title: 'Sérum Vit. C', width: 140 },
+    { id: 'locao_clareadora', title: 'Loção Clareadora', width: 150 },
+    { id: 'gel_secativo', title: 'Gel Secativo', width: 140 },
+    { id: 'creme_firmador', title: 'Creme Firmador', width: 170 },
+    { id: 'serum_anti_queda', title: 'Sérum Anti-Queda', width: 150 },
+    { id: 'duo_mask', title: 'Duo Mask', width: 120 },
+    { id: 'protetor_solar', title: 'Protetor Solar', width: 180 },
+    { id: 'creme_noite_maos', title: 'Creme Noite Mãos', width: 180 },
+    { id: 'creme_dia_maos', title: 'Creme Dia Mãos', width: 170 },
+    { id: 'creme_corpo', title: 'Creme do Corpo', width: 140 },
+];
 
-    const handleSaveCaso = () => {
-        if (editingCaso) {
-            router.put(`/assistente/casos-clinicos/${editingCaso.id}`, casoForm, {
-                onSuccess: () => {
-                    setEditingCaso(null);
-                    setCasoForm({ nome: '', descricao: '', ativo: true });
-                },
-            });
-        } else {
-            router.post('/assistente/casos-clinicos', casoForm, {
-                onSuccess: () => {
-                    setCasoForm({ nome: '', descricao: '', ativo: true });
-                },
-            });
+// Componente de célula editável
+function EditableCell({ value, onChange, isFirst }) {
+    const [editing, setEditing] = useState(false);
+    const [tempValue, setTempValue] = useState(value);
+
+    const handleBlur = () => {
+        setEditing(false);
+        if (tempValue !== value) {
+            onChange(tempValue);
         }
     };
 
-    const handleDeleteCaso = (id) => {
-        if (confirm('Tem certeza que deseja excluir este caso clínico?')) {
-            router.delete(`/assistente/casos-clinicos/${id}`);
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+        }
+        if (e.key === 'Escape') {
+            setTempValue(value);
+            setEditing(false);
         }
     };
 
-    const editCaso = (caso) => {
-        setEditingCaso(caso);
-        setCasoForm({
-            nome: caso.nome,
-            descricao: caso.descricao || '',
-            ativo: caso.ativo,
+    if (editing) {
+        return (
+            <input
+                type="text"
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                className="w-full h-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-emerald-500 bg-white"
+            />
+        );
+    }
+
+    return (
+        <div
+            onClick={() => setEditing(true)}
+            className={`px-2 py-1 text-sm cursor-text min-h-[28px] ${
+                isFirst ? 'font-medium text-gray-900 bg-gray-50' : 'text-gray-700'
+            } ${value ? '' : 'text-gray-400'}`}
+        >
+            {value || (isFirst ? '' : '-')}
+        </div>
+    );
+}
+
+export default function TabelaKarnaugh({ regras: regrasIniciais = [] }) {
+    const [regras, setRegras] = useState(regrasIniciais);
+    const [hasChanges, setHasChanges] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [search, setSearch] = useState('');
+    const [selectedRows, setSelectedRows] = useState(new Set());
+
+    // Filtrar regras pela busca
+    const regrasFiltradas = useMemo(() => {
+        if (!search.trim()) return regras;
+        const termo = search.toLowerCase();
+        return regras.filter(r => 
+            r.caso_clinico?.toLowerCase().includes(termo) ||
+            Object.values(r.produtos || {}).some(v => v?.toLowerCase().includes(termo))
+        );
+    }, [regras, search]);
+
+    // Handler para edição de células
+    const onCellChange = useCallback((regraId, colId, novoValor) => {
+        setRegras(prev => {
+            return prev.map(regra => {
+                if (regra.id !== regraId) return regra;
+                
+                if (colId === 'caso_clinico') {
+                    return { ...regra, caso_clinico: novoValor };
+                }
+                
+                return {
+                    ...regra,
+                    produtos: {
+                        ...regra.produtos,
+                        [colId]: novoValor,
+                    },
+                };
+            });
         });
-    };
+        setHasChanges(true);
+    }, []);
+
+    // Adicionar nova linha
+    const addRow = useCallback(() => {
+        const novoId = Math.max(0, ...regras.map(r => r.id || 0)) + 1;
+        setRegras(prev => [
+            ...prev,
+            {
+                id: novoId,
+                caso_clinico: `NOVO${novoId}`,
+                produtos: {},
+            },
+        ]);
+        setHasChanges(true);
+    }, [regras]);
+
+    // Toggle seleção de linha
+    const toggleRowSelection = useCallback((id) => {
+        setSelectedRows(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    }, []);
+
+    // Selecionar/desselecionar todas
+    const toggleAllRows = useCallback(() => {
+        if (selectedRows.size === regrasFiltradas.length) {
+            setSelectedRows(new Set());
+        } else {
+            setSelectedRows(new Set(regrasFiltradas.map(r => r.id)));
+        }
+    }, [selectedRows, regrasFiltradas]);
+
+    // Excluir linhas selecionadas
+    const deleteSelectedRows = useCallback(() => {
+        if (selectedRows.size === 0) return;
+        if (!confirm(`Deseja excluir ${selectedRows.size} linha(s)?`)) return;
+
+        setRegras(prev => prev.filter(r => !selectedRows.has(r.id)));
+        setSelectedRows(new Set());
+        setHasChanges(true);
+    }, [selectedRows]);
+
+    // Salvar alterações
+    const salvar = useCallback(async () => {
+        setSaving(true);
+        router.post('/assistente/regras', { regras }, {
+            preserveState: true,
+            onSuccess: () => {
+                setHasChanges(false);
+                setSaving(false);
+            },
+            onError: () => {
+                setSaving(false);
+            },
+        });
+    }, [regras]);
 
     return (
         <DashboardLayout>
             <div className="p-6">
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900">Regras do Assistente</h1>
-                    <p className="text-gray-600 mt-1">
-                        Configure os casos clínicos e tratamentos do assistente de receitas
-                    </p>
-                </div>
-
-                {/* Tabs */}
-                <div className="border-b border-gray-200 mb-6">
-                    <nav className="flex gap-8">
-                        <button
-                            onClick={() => setActiveTab('casos')}
-                            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${
-                                activeTab === 'casos'
-                                    ? 'border-emerald-500 text-emerald-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                            }`}
-                        >
-                            Casos Clínicos
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('tratamentos')}
-                            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${
-                                activeTab === 'tratamentos'
-                                    ? 'border-emerald-500 text-emerald-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                            }`}
-                        >
-                            Tratamentos
-                        </button>
-                    </nav>
-                </div>
-
-                {/* Casos Clínicos */}
-                {activeTab === 'casos' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Form */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                                {editingCaso ? 'Editar Caso Clínico' : 'Novo Caso Clínico'}
-                            </h2>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Nome *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={casoForm.nome}
-                                        onChange={(e) => setCasoForm({ ...casoForm, nome: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                        placeholder="Ex: Acne Leve"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Descrição
-                                    </label>
-                                    <textarea
-                                        value={casoForm.descricao}
-                                        onChange={(e) => setCasoForm({ ...casoForm, descricao: e.target.value })}
-                                        rows={3}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                    />
-                                </div>
-
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={casoForm.ativo}
-                                        onChange={(e) => setCasoForm({ ...casoForm, ativo: e.target.checked })}
-                                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                                    />
-                                    <span className="text-sm text-gray-700">Ativo</span>
-                                </label>
-
-                                <div className="flex gap-2">
-                                    {editingCaso && (
-                                        <button
-                                            onClick={() => {
-                                                setEditingCaso(null);
-                                                setCasoForm({ nome: '', descricao: '', ativo: true });
-                                            }}
-                                            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                        >
-                                            Cancelar
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={handleSaveCaso}
-                                        disabled={!casoForm.nome}
-                                        className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-                                    >
-                                        {editingCaso ? 'Atualizar' : 'Adicionar'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Lista */}
-                        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="p-4 border-b border-gray-200">
-                                <h3 className="font-semibold text-gray-900">
-                                    Casos Cadastrados ({casos?.length || 0})
-                                </h3>
-                            </div>
-
-                            {casos?.length > 0 ? (
-                                <div className="divide-y divide-gray-200">
-                                    {casos.map((caso) => (
-                                        <div key={caso.id} className="p-4 hover:bg-gray-50 flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium text-gray-900">{caso.nome}</span>
-                                                    {!caso.ativo && (
-                                                        <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">
-                                                            Inativo
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {caso.descricao && (
-                                                    <p className="text-sm text-gray-500 mt-1">{caso.descricao}</p>
-                                                )}
-                                                <p className="text-xs text-gray-400 mt-1">
-                                                    {caso.tratamentos_count || 0} tratamento(s)
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => editCaso(caso)}
-                                                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteCaso(caso.id)}
-                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-12 text-center text-gray-500">
-                                    <p>Nenhum caso clínico cadastrado</p>
-                                </div>
-                            )}
-                        </div>
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Tabela de Karnaugh</h1>
+                        <p className="text-gray-600 mt-1">
+                            Gerencie as regras de prescrição automática do assistente
+                        </p>
                     </div>
-                )}
-
-                {/* Tratamentos */}
-                {activeTab === 'tratamentos' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-lg font-semibold text-gray-900">
-                                Tratamentos por Caso Clínico
-                            </h2>
-                            <p className="text-sm text-gray-500">
-                                Configure quais produtos são sugeridos para cada caso
-                            </p>
-                        </div>
-
-                        {casos?.length > 0 ? (
-                            <div className="space-y-6">
-                                {casos.map((caso) => (
-                                    <div key={caso.id} className="border border-gray-200 rounded-lg p-4">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h3 className="font-medium text-gray-900">{caso.nome}</h3>
-                                            <span className="text-sm text-gray-500">
-                                                {caso.tratamentos?.length || 0} produto(s)
-                                            </span>
-                                        </div>
-
-                                        {caso.tratamentos?.length > 0 ? (
-                                            <div className="space-y-2">
-                                                {caso.tratamentos.map((tratamento, index) => (
-                                                    <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                                                        <div>
-                                                            <span className="font-medium text-gray-900">
-                                                                {tratamento.produto?.nome}
-                                                            </span>
-                                                            {tratamento.posologia && (
-                                                                <span className="text-sm text-gray-500 ml-2">
-                                                                    - {tratamento.posologia}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-sm text-gray-500">
-                                                            Qtd: {tratamento.quantidade}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm text-gray-500 text-center py-4">
-                                                Nenhum tratamento configurado para este caso
-                                            </p>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12 text-gray-500">
-                                <p>Cadastre casos clínicos primeiro para configurar os tratamentos</p>
-                            </div>
-                        )}
-
-                        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="flex items-start gap-3">
-                                <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <div className="flex gap-3">
+                        {hasChanges && (
+                            <span className="px-3 py-2 text-sm text-amber-700 bg-amber-50 rounded-lg flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
-                                <div>
-                                    <p className="text-sm font-medium text-blue-900">
-                                        Interface avançada em desenvolvimento
-                                    </p>
-                                    <p className="text-sm text-blue-700 mt-1">
-                                        Uma interface estilo planilha (Glide Data Grid) será implementada para facilitar
-                                        a gestão das regras de tratamento, similar à Tabela de Karnaugh do sistema anterior.
-                                    </p>
-                                </div>
-                            </div>
+                                Alterações não salvas
+                            </span>
+                        )}
+                        <button
+                            onClick={salvar}
+                            disabled={!hasChanges || saving}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {saving ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Salvando...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Salvar Alterações
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Toolbar */}
+                <div className="bg-white rounded-t-xl border border-b-0 border-gray-200 p-4 flex justify-between items-center">
+                    <div className="flex gap-3">
+                        <button
+                            onClick={addRow}
+                            className="px-3 py-1.5 text-sm bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Nova Linha
+                        </button>
+                        <button
+                            onClick={deleteSelectedRows}
+                            disabled={selectedRows.size === 0}
+                            className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Excluir ({selectedRows.size})
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500">
+                            {regrasFiltradas.length} de {regras.length} regras
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Buscar..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 w-64"
+                        />
+                    </div>
+                </div>
+
+                {/* Table */}
+                <div className="bg-white border border-gray-200 rounded-b-xl overflow-hidden">
+                    <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 380px)' }}>
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50 sticky top-0 z-10">
+                                <tr>
+                                    <th className="w-10 px-3 py-3 bg-gray-50">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedRows.size === regrasFiltradas.length && regrasFiltradas.length > 0}
+                                            onChange={toggleAllRows}
+                                            className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                        />
+                                    </th>
+                                    <th className="w-10 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                                        #
+                                    </th>
+                                    {COLUNAS.map((col) => (
+                                        <th
+                                            key={col.id}
+                                            className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 whitespace-nowrap"
+                                            style={{ minWidth: col.width }}
+                                        >
+                                            {col.title}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-100">
+                                {regrasFiltradas.length > 0 ? (
+                                    regrasFiltradas.map((regra, index) => (
+                                        <tr 
+                                            key={regra.id} 
+                                            className={`hover:bg-gray-50 ${selectedRows.has(regra.id) ? 'bg-emerald-50' : ''}`}
+                                        >
+                                            <td className="px-3 py-1">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRows.has(regra.id)}
+                                                    onChange={() => toggleRowSelection(regra.id)}
+                                                    className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                                />
+                                            </td>
+                                            <td className="px-3 py-1 text-xs text-gray-400">
+                                                {index + 1}
+                                            </td>
+                                            {COLUNAS.map((col, colIndex) => (
+                                                <td key={col.id} className="border-r border-gray-100 last:border-r-0">
+                                                    <EditableCell
+                                                        value={col.id === 'caso_clinico' ? regra.caso_clinico : regra.produtos?.[col.id] || ''}
+                                                        onChange={(val) => onCellChange(regra.id, col.id, val)}
+                                                        isFirst={colIndex === 0}
+                                                    />
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={COLUNAS.length + 2} className="px-6 py-12 text-center">
+                                            <div className="text-gray-500">
+                                                <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                                <p className="font-medium">Nenhuma regra encontrada</p>
+                                                <p className="text-sm mt-1">Clique em "Nova Linha" para adicionar uma regra</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Legenda */}
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="text-sm font-medium text-blue-900 mb-2">Legenda dos Códigos de Caso Clínico</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-blue-800">
+                        <div>
+                            <strong>P</strong> = Pele <br/>
+                            <span className="text-xs">SM = Seca/Mista, O = Oleosa</span>
+                        </div>
+                        <div>
+                            <strong>R</strong> = Rugas <br/>
+                            <span className="text-xs">1 = Leve, 2 = Moderado, 3 = Intenso</span>
+                        </div>
+                        <div>
+                            <strong>A</strong> = Acne <br/>
+                            <span className="text-xs">1 = Leve, 2 = Moderado, 3 = Intenso</span>
+                        </div>
+                        <div>
+                            <strong>M</strong> = Manchas <br/>
+                            <span className="text-xs">Quando presente no código</span>
                         </div>
                     </div>
-                )}
+                </div>
+
+                {/* Instruções */}
+                <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">Como usar</h3>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                        <li>• Clique em qualquer célula para editar</li>
+                        <li>• Pressione <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs">Enter</kbd> para confirmar ou <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs">Esc</kbd> para cancelar</li>
+                        <li>• Selecione linhas usando os checkboxes à esquerda</li>
+                        <li>• Não esqueça de salvar as alterações!</li>
+                    </ul>
+                </div>
             </div>
         </DashboardLayout>
     );
 }
-

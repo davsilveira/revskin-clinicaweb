@@ -152,82 +152,101 @@ class AssistenteReceitaController extends Controller
     }
 
     /**
-     * Admin: Show rules management (spreadsheet).
+     * Admin: Show Karnaugh table (spreadsheet).
      */
     public function regras(): Response
     {
+        // Carregar regras do banco ou do arquivo JSON inicial
         $regras = AssistenteRegra::orderBy('id')->get();
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome']);
+        
+        // Se não houver regras no banco, carregar do arquivo JSON de seed
+        if ($regras->isEmpty()) {
+            $jsonPath = database_path('seeders/karnaugh_data.json');
+            if (file_exists($jsonPath)) {
+                $regras = collect(json_decode(file_get_contents($jsonPath), true));
+            }
+        } else {
+            // Converter para formato esperado pelo frontend
+            $regras = $regras->map(function ($regra) {
+                return [
+                    'id' => $regra->id,
+                    'caso_clinico' => $regra->linha_id,
+                    'produtos' => $regra->produtos ?? [],
+                ];
+            });
+        }
 
         return Inertia::render('AssistenteReceita/Regras', [
             'regras' => $regras,
-            'produtos' => $produtos,
-            'tipoPeleOptions' => AssistenteCasoClinico::getTipoPeleOptions(),
-            'intensidadeOptions' => AssistenteCasoClinico::getIntensidadeOptions(),
-            'faixaEtariaOptions' => AssistenteCasoClinico::getFaixaEtariaOptions(),
         ]);
     }
 
     /**
-     * Admin: Save rules from spreadsheet.
+     * Admin: Save Karnaugh table rules.
      */
     public function salvarRegras(Request $request)
     {
         $validated = $request->validate([
             'regras' => 'required|array',
-            'regras.*.id' => 'nullable|exists:assistente_regras,id',
-            'regras.*.linha_id' => 'nullable|string',
-            'regras.*.condicoes' => 'required|array',
-            'regras.*.produtos' => 'required|array',
-            'regras.*.observacoes' => 'nullable|string',
-            'regras.*.ativo' => 'boolean',
+            'regras.*.id' => 'nullable|integer',
+            'regras.*.caso_clinico' => 'required|string',
+            'regras.*.produtos' => 'nullable|array',
         ]);
 
-        // Get existing IDs
-        $existingIds = collect($validated['regras'])
+        // Get IDs from request
+        $requestIds = collect($validated['regras'])
             ->pluck('id')
             ->filter()
             ->toArray();
 
         // Delete rules not in the list
-        AssistenteRegra::whereNotIn('id', $existingIds)->delete();
+        AssistenteRegra::whereNotIn('id', $requestIds)->delete();
 
         // Update or create rules
         foreach ($validated['regras'] as $regraData) {
-            if (!empty($regraData['id'])) {
-                AssistenteRegra::find($regraData['id'])->update([
-                    'linha_id' => $regraData['linha_id'] ?? null,
-                    'condicoes' => $regraData['condicoes'],
-                    'produtos' => $regraData['produtos'],
-                    'observacoes' => $regraData['observacoes'] ?? null,
-                    'ativo' => $regraData['ativo'] ?? true,
-                ]);
+            $data = [
+                'linha_id' => $regraData['caso_clinico'],
+                'condicoes' => $this->parseCasoClinico($regraData['caso_clinico']),
+                'produtos' => $regraData['produtos'] ?? [],
+                'ativo' => true,
+            ];
+
+            if (!empty($regraData['id']) && AssistenteRegra::find($regraData['id'])) {
+                AssistenteRegra::find($regraData['id'])->update($data);
             } else {
-                AssistenteRegra::create([
-                    'linha_id' => $regraData['linha_id'] ?? null,
-                    'condicoes' => $regraData['condicoes'],
-                    'produtos' => $regraData['produtos'],
-                    'observacoes' => $regraData['observacoes'] ?? null,
-                    'ativo' => $regraData['ativo'] ?? true,
-                ]);
+                AssistenteRegra::create($data);
             }
         }
 
-        return back()->with('success', 'Regras salvas com sucesso!');
+        return back()->with('success', 'Tabela de Karnaugh salva com sucesso!');
     }
 
     /**
-     * Admin: List casos clinicos.
+     * Parse caso clínico code into conditions.
      */
-    public function casos(): Response
+    private function parseCasoClinico(string $codigo): array
     {
-        $casos = AssistenteCasoClinico::with('tratamentos.itens.produto')
-            ->orderBy('codigo')
-            ->paginate(20);
-
-        return Inertia::render('AssistenteReceita/Casos', [
-            'casos' => $casos,
-        ]);
+        // Exemplo: PSM1R1A1 = Pele Seca/Mista, Rugas 1, Acne 1
+        $condicoes = [];
+        
+        if (preg_match('/^P(SM|O)(\d)/', $codigo, $matches)) {
+            $condicoes['tipo_pele'] = $matches[1] === 'SM' ? 'seca_mista' : 'oleosa';
+        }
+        
+        if (preg_match('/R(\d)/', $codigo, $matches)) {
+            $condicoes['rugas'] = (int) $matches[1];
+        }
+        
+        if (preg_match('/A(\d)/', $codigo, $matches)) {
+            $condicoes['acne'] = (int) $matches[1];
+        }
+        
+        if (preg_match('/M(\d)?/', $codigo, $matches)) {
+            $condicoes['manchas'] = isset($matches[1]) ? (int) $matches[1] : 1;
+        }
+        
+        return $condicoes;
     }
+
 }
 

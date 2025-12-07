@@ -125,11 +125,9 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('produtos', ProdutoController::class);
         Route::resource('tabelas-preco', TabelaPrecoController::class);
         
-        // Assistente - Gestão de Regras (admin only)
+        // Assistente - Tabela de Karnaugh (admin only)
         Route::get('/assistente/regras', [AssistenteReceitaController::class, 'regras'])->name('assistente.regras');
         Route::post('/assistente/regras', [AssistenteReceitaController::class, 'salvarRegras'])->name('assistente.regras.salvar');
-        Route::get('/assistente/casos', [AssistenteReceitaController::class, 'casos'])->name('assistente.casos');
-        Route::resource('assistente/casos-clinicos', AssistenteReceitaController::class)->names('assistente.casos-clinicos');
 
         // Relatórios
         Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
