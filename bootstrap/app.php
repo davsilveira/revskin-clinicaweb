@@ -17,9 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+            'medico' => \App\Http\Middleware\EnsureUserIsMedico::class,
+            'callcenter' => \App\Http\Middleware\EnsureUserIsCallcenter::class,
+            'role' => \App\Http\Middleware\CheckRole::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
-

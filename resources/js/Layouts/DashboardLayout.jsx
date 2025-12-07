@@ -8,16 +8,32 @@ export default function DashboardLayout({ children }) {
     const { auth } = usePage().props;
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showProfileDrawer, setShowProfileDrawer] = useState(false);
+    const [expandedMenus, setExpandedMenus] = useState({});
 
     const handleLogout = () => {
         router.post('/logout');
     };
 
     const isActive = (path) => {
-        return window.location.pathname === path;
+        return window.location.pathname === path || window.location.pathname.startsWith(path + '/');
+    };
+
+    const toggleMenu = (menu) => {
+        setExpandedMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
     };
 
     const isAdmin = auth.user.role === 'admin';
+    const isMedico = auth.user.role === 'medico';
+    const isCallcenter = auth.user.role === 'callcenter';
+
+    const getRoleLabel = (role) => {
+        const labels = {
+            admin: 'Administrador',
+            medico: 'Médico',
+            callcenter: 'Call Center',
+        };
+        return labels[role] || role;
+    };
 
     return (
         <div className="min-h-screen flex bg-gray-50">
@@ -26,24 +42,24 @@ export default function DashboardLayout({ children }) {
                 {/* Logo */}
                 <div className="h-16 flex items-center px-6 border-b border-gray-200">
                     <Link href="/dashboard" className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                             </svg>
                         </div>
-                        <span className="text-xl font-bold text-gray-900">Revskin</span>
+                        <span className="text-xl font-bold text-gray-900">RevSkin</span>
                     </Link>
                 </div>
 
                 {/* Navigation */}
                 <nav className="flex-1 px-4 py-6 overflow-y-auto">
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                         {/* Dashboard */}
                         <Link
                             href="/dashboard"
                             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                                isActive('/dashboard')
-                                    ? 'bg-blue-50 text-blue-700'
+                                isActive('/dashboard') && !isActive('/dashboard/')
+                                    ? 'bg-emerald-50 text-emerald-700'
                                     : 'text-gray-700 hover:bg-gray-100'
                             }`}
                         >
@@ -53,15 +69,149 @@ export default function DashboardLayout({ children }) {
                             <span className="font-medium">Dashboard</span>
                         </Link>
 
+                        {/* Pacientes */}
+                        <Link
+                            href="/pacientes"
+                            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                isActive('/pacientes')
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                            }`}
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span className="font-medium">Pacientes</span>
+                        </Link>
+
+                        {/* Receitas (medico and admin) */}
+                        {(isAdmin || isMedico) && (
+                            <>
+                                <Link
+                                    href="/receitas"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/receitas')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span className="font-medium">Receitas</span>
+                                </Link>
+
+                                <Link
+                                    href="/assistente-receita"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/assistente-receita')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    </svg>
+                                    <span className="font-medium">Assistente Receita</span>
+                                </Link>
+                            </>
+                        )}
+
+                        {/* Call Center (callcenter and admin) */}
+                        {(isAdmin || isCallcenter) && (
+                            <Link
+                                href="/callcenter"
+                                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                    isActive('/callcenter')
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                </svg>
+                                <span className="font-medium">Call Center</span>
+                            </Link>
+                        )}
+
                         {/* Admin only sections */}
                         {isAdmin && (
                             <>
-                                {/* Users */}
+                                {/* Cadastros Section */}
+                                <div className="pt-4 pb-2">
+                                    <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        Cadastros
+                                    </div>
+                                </div>
+
+                                <Link
+                                    href="/medicos"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/medicos')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span className="font-medium">Médicos</span>
+                                </Link>
+
+                                <Link
+                                    href="/clinicas"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/clinicas')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    <span className="font-medium">Clínicas</span>
+                                </Link>
+
+                                <Link
+                                    href="/produtos"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/produtos')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                    <span className="font-medium">Produtos</span>
+                                </Link>
+
+                                <Link
+                                    href="/tabelas-preco"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/tabelas-preco')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span className="font-medium">Tabelas de Preço</span>
+                                </Link>
+
+                                {/* Administração Section */}
+                                <div className="pt-4 pb-2">
+                                    <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        Administração
+                                    </div>
+                                </div>
+
                                 <Link
                                     href="/users"
                                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                                         isActive('/users')
-                                            ? 'bg-blue-50 text-blue-700'
+                                            ? 'bg-emerald-50 text-emerald-700'
                                             : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                                 >
@@ -71,12 +221,39 @@ export default function DashboardLayout({ children }) {
                                     <span className="font-medium">Usuários</span>
                                 </Link>
 
-                                {/* Exports */}
+                                <Link
+                                    href="/assistente/regras"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/assistente/regras')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                                    </svg>
+                                    <span className="font-medium">Regras Assistente</span>
+                                </Link>
+
+                                <Link
+                                    href="/relatorios"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/relatorios')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span className="font-medium">Relatórios</span>
+                                </Link>
+
                                 <Link
                                     href="/exports"
                                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                                         isActive('/exports')
-                                            ? 'bg-blue-50 text-blue-700'
+                                            ? 'bg-emerald-50 text-emerald-700'
                                             : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                                 >
@@ -86,28 +263,7 @@ export default function DashboardLayout({ children }) {
                                     <span className="font-medium">Exportar</span>
                                 </Link>
 
-                                {/* Tools Section */}
-                                <div className="pt-4 pb-2">
-                                    <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                        Ferramentas
-                                    </div>
-                                </div>
-
-                                <Link
-                                    href="/tools/infosimples"
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                                        isActive('/tools/infosimples')
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                    <span className="font-medium">Infosimples</span>
-                                </Link>
-
-                                {/* Settings Section */}
+                                {/* Configurações Section */}
                                 <div className="pt-4 pb-2">
                                     <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                         Configurações
@@ -118,7 +274,7 @@ export default function DashboardLayout({ children }) {
                                     href="/settings"
                                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                                         isActive('/settings')
-                                            ? 'bg-blue-50 text-blue-700'
+                                            ? 'bg-emerald-50 text-emerald-700'
                                             : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                                 >
@@ -164,14 +320,14 @@ export default function DashboardLayout({ children }) {
                                 onClick={() => setShowUserMenu(!showUserMenu)}
                                 className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
                             >
-                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center">
                                     <span className="text-sm font-medium text-white">
                                         {auth.user.name.charAt(0).toUpperCase()}
                                     </span>
                                 </div>
                                 <div className="text-left hidden md:block">
                                     <div className="text-sm font-medium text-gray-900">{auth.user.name}</div>
-                                    <div className="text-xs text-gray-500 capitalize">{auth.user.role}</div>
+                                    <div className="text-xs text-gray-500">{getRoleLabel(auth.user.role)}</div>
                                 </div>
                                 <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -245,4 +401,3 @@ export default function DashboardLayout({ children }) {
         </div>
     );
 }
-

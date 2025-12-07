@@ -17,3 +17,6 @@ yarn-error.log
 /.idea
 /.vscode
 database/database.sqlite
+
+# Documentação privada
+/docs/

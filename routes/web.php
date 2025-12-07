@@ -7,6 +7,16 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\InfosimplesIntegrationController;
+use App\Http\Controllers\PacienteController;
+use App\Http\Controllers\MedicoController;
+use App\Http\Controllers\ClinicaController;
+use App\Http\Controllers\ProdutoController;
+use App\Http\Controllers\TabelaPrecoController;
+use App\Http\Controllers\ReceitaController;
+use App\Http\Controllers\CallCenterController;
+use App\Http\Controllers\AssistenteReceitaController;
+use App\Http\Controllers\RelatorioController;
+use App\Http\Controllers\TinyIntegrationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -44,6 +54,35 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
+    // API - CEP Lookup
+    Route::get('/api/cep/{cep}', [PacienteController::class, 'buscarCep'])->name('api.cep');
+
+    // Pacientes (all authenticated users, filtered by role in controller)
+    Route::resource('pacientes', PacienteController::class);
+    Route::get('/api/pacientes/search', [PacienteController::class, 'search'])->name('pacientes.search');
+
+    // Receitas (medico and admin)
+    Route::middleware('medico')->group(function () {
+        Route::resource('receitas', ReceitaController::class);
+        Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
+        Route::get('/receitas/{receita}/pdf', [ReceitaController::class, 'pdf'])->name('receitas.pdf');
+        
+        // Assistente de Receita
+        Route::get('/assistente-receita', [AssistenteReceitaController::class, 'index'])->name('assistente.index');
+        Route::post('/assistente-receita/iniciar', [AssistenteReceitaController::class, 'iniciar'])->name('assistente.iniciar');
+        Route::post('/assistente-receita/processar', [AssistenteReceitaController::class, 'processar'])->name('assistente.processar');
+        Route::post('/assistente-receita/gerar-receita', [AssistenteReceitaController::class, 'gerarReceita'])->name('assistente.gerar');
+    });
+
+    // Call Center (callcenter and admin)
+    Route::middleware('callcenter')->group(function () {
+        Route::get('/callcenter', [CallCenterController::class, 'index'])->name('callcenter.index');
+        Route::get('/callcenter/{atendimento}', [CallCenterController::class, 'show'])->name('callcenter.show');
+        Route::put('/callcenter/{atendimento}/status', [CallCenterController::class, 'atualizarStatus'])->name('callcenter.status');
+        Route::post('/callcenter/{atendimento}/acompanhamento', [CallCenterController::class, 'addAcompanhamento'])->name('callcenter.acompanhamento');
+        Route::post('/callcenter/cancelar', [CallCenterController::class, 'cancelarMultiplos'])->name('callcenter.cancelar');
+    });
+
     // Tools - Infosimples (admin and finance)
     Route::get('/tools/infosimples', [InfosimplesIntegrationController::class, 'tools'])
         ->name('tools.infosimples');
@@ -55,14 +94,15 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/tools/infosimples/history', [InfosimplesIntegrationController::class, 'clearHistory'])
         ->name('tools.infosimples.clearHistory');
 
-    // User management (admin only)
+    // Admin only routes
     Route::middleware('admin')->group(function () {
+        // Users management
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-        // Settings (admin only)
+        // Settings
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
 
         // Settings - Infosimples integration
@@ -71,10 +111,40 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/settings/integrations/infosimples/test', [InfosimplesIntegrationController::class, 'testConnection'])
             ->name('settings.infosimples.test');
 
-        // Exports (admin only)
+        // Exports
         Route::get('/exports', [ExportController::class, 'index'])->name('exports.index');
         Route::post('/exports', [ExportController::class, 'store'])->name('exports.store');
         Route::get('/exports/{exportRequest}/download', [ExportController::class, 'download'])->name('exports.download');
         Route::delete('/exports/history', [ExportController::class, 'clearHistory'])->name('exports.history.clear');
+
+        // Cadastros (admin only)
+        Route::resource('medicos', MedicoController::class);
+        Route::post('/medicos/{medico}/assinatura', [MedicoController::class, 'uploadAssinatura'])->name('medicos.assinatura');
+        
+        Route::resource('clinicas', ClinicaController::class);
+        Route::resource('produtos', ProdutoController::class);
+        Route::resource('tabelas-preco', TabelaPrecoController::class);
+        
+        // Assistente - Gestão de Regras (admin only)
+        Route::get('/assistente/regras', [AssistenteReceitaController::class, 'regras'])->name('assistente.regras');
+        Route::post('/assistente/regras', [AssistenteReceitaController::class, 'salvarRegras'])->name('assistente.regras.salvar');
+        Route::get('/assistente/casos', [AssistenteReceitaController::class, 'casos'])->name('assistente.casos');
+        Route::resource('assistente/casos-clinicos', AssistenteReceitaController::class)->names('assistente.casos-clinicos');
+
+        // Relatórios
+        Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
+        Route::get('/relatorios/receitas-medico', [RelatorioController::class, 'receitasPorMedico'])->name('relatorios.receitas-medico');
+        Route::get('/relatorios/receitas-medico/export/{format}', [RelatorioController::class, 'exportReceitasMedico'])->name('relatorios.receitas-medico.export');
+
+        // Integração Tiny ERP
+        Route::prefix('integracoes/tiny')->name('tiny.')->group(function () {
+            Route::get('/', [TinyIntegrationController::class, 'settings'])->name('settings');
+            Route::put('/', [TinyIntegrationController::class, 'updateSettings'])->name('settings.update');
+            Route::post('/test', [TinyIntegrationController::class, 'testConnection'])->name('test');
+            Route::post('/sync-produtos', [TinyIntegrationController::class, 'syncProdutos'])->name('sync-produtos');
+            Route::post('/sync-cliente/{paciente}', [TinyIntegrationController::class, 'syncCliente'])->name('sync-cliente');
+            Route::post('/criar-proposta/{receita}', [TinyIntegrationController::class, 'criarProposta'])->name('criar-proposta');
+            Route::get('/pedidos', [TinyIntegrationController::class, 'listarPedidos'])->name('pedidos');
+        });
     });
 });
