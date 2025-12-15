@@ -246,3 +246,6 @@ export default function RelatoriosIndex({ medicos, relatorio }) {
     );
 }
 
+
+
+

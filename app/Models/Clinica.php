@@ -54,3 +54,6 @@ class Clinica extends Model
     }
 }
 
+
+
+

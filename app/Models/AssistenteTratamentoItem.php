@@ -56,3 +56,6 @@ class AssistenteTratamentoItem extends Model
     }
 }
 
+
+
+

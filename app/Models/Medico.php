@@ -118,3 +118,6 @@ class Medico extends Model
     }
 }
 
+
+
+

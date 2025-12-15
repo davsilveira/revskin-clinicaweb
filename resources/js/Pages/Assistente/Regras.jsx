@@ -291,3 +291,6 @@ export default function AssistenteRegras({ casos, tratamentos, produtos }) {
     );
 }
 
+
+
+

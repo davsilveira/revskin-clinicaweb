@@ -21,15 +21,22 @@ export default function ReceitaShow({ receita }) {
     };
 
     const handleCopiar = () => {
-        if (confirm('Deseja criar uma cópia desta receita?')) {
+        if (confirm('Deseja criar uma copia desta receita?')) {
             router.post(`/receitas/${receita.id}/copiar`);
         }
     };
 
     const handleCancelar = () => {
-        if (confirm('Deseja cancelar esta receita? Esta ação não pode ser desfeita.')) {
-            router.put(`/receitas/${receita.id}`, { status: 'cancelada' });
+        if (confirm('Deseja cancelar esta receita? Esta acao nao pode ser desfeita.')) {
+            router.delete(`/receitas/${receita.id}`);
         }
+    };
+
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+        }).format(value || 0);
     };
 
     return (
@@ -49,7 +56,7 @@ export default function ReceitaShow({ receita }) {
                     <div className="flex justify-between items-start mt-2">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">
-                                Receita #{receita.id.toString().padStart(5, '0')}
+                                Receita #{receita.numero || receita.id.toString().padStart(5, '0')}
                             </h1>
                             <p className="text-gray-500 mt-1">
                                 Criada em {new Date(receita.created_at).toLocaleDateString('pt-BR')}
@@ -66,7 +73,7 @@ export default function ReceitaShow({ receita }) {
                     <div className="lg:col-span-2 space-y-6">
                         {/* Dados da Receita */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Informacoes</h2>
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -76,73 +83,101 @@ export default function ReceitaShow({ receita }) {
                                     </p>
                                 </div>
                                 <div>
-                                    <label className="text-sm text-gray-500">Médico</label>
+                                    <label className="text-sm text-gray-500">Medico</label>
                                     <p className="font-medium text-gray-900">
                                         {receita.medico?.nome || '-'}
                                     </p>
-                                    <p className="text-sm text-gray-500">
-                                        CRM: {receita.medico?.crm || '-'}
-                                    </p>
+                                    {receita.medico?.crm && (
+                                        <p className="text-sm text-gray-500">
+                                            CRM: {receita.medico.crm}
+                                        </p>
+                                    )}
                                 </div>
+                            </div>
+
+                            {/* Valores */}
+                            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div>
-                                    <label className="text-sm text-gray-500">Tabela de Preço</label>
+                                    <label className="text-sm text-gray-500">Subtotal</label>
                                     <p className="font-medium text-gray-900">
-                                        {receita.tabela_preco?.nome || 'Tabela Padrão'}
+                                        {formatCurrency(receita.subtotal)}
                                     </p>
                                 </div>
+                                {receita.desconto_percentual > 0 && (
+                                    <div>
+                                        <label className="text-sm text-gray-500">Desconto ({receita.desconto_percentual}%)</label>
+                                        <p className="font-medium text-red-600">
+                                            - {formatCurrency(receita.desconto_valor)}
+                                        </p>
+                                    </div>
+                                )}
+                                {receita.valor_frete > 0 && (
+                                    <div>
+                                        <label className="text-sm text-gray-500">Frete</label>
+                                        <p className="font-medium text-gray-900">
+                                            + {formatCurrency(receita.valor_frete)}
+                                        </p>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="text-sm text-gray-500">Valor Total</label>
                                     <p className="text-xl font-bold text-emerald-600">
-                                        {new Intl.NumberFormat('pt-BR', {
-                                            style: 'currency',
-                                            currency: 'BRL',
-                                        }).format(receita.valor_total)}
+                                        {formatCurrency(receita.valor_total)}
                                     </p>
                                 </div>
                             </div>
 
-                            {receita.observacoes && (
+                            {receita.anotacoes && (
                                 <div className="mt-4 pt-4 border-t border-gray-200">
-                                    <label className="text-sm text-gray-500">Observações</label>
-                                    <p className="text-gray-900 whitespace-pre-line">{receita.observacoes}</p>
+                                    <label className="text-sm text-gray-500">Anotacoes Internas</label>
+                                    <p className="text-gray-900 whitespace-pre-line">{receita.anotacoes}</p>
+                                </div>
+                            )}
+
+                            {receita.anotacoes_paciente && (
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                    <label className="text-sm text-gray-500">Anotacoes para o Paciente</label>
+                                    <p className="text-gray-900 whitespace-pre-line">{receita.anotacoes_paciente}</p>
                                 </div>
                             )}
                         </div>
 
                         {/* Itens */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Itens da Receita</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Produtos da Receita</h2>
                             
                             <div className="space-y-3">
                                 {receita.itens?.map((item, index) => (
-                                    <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                    <div key={index} className="flex items-start justify-between p-4 bg-gray-50 rounded-lg">
                                         <div className="flex-1">
-                                            <div className="font-medium text-gray-900">
-                                                {item.produto?.nome || 'Produto'}
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium text-gray-900">
+                                                    {item.produto?.codigo && (
+                                                        <span className="text-emerald-600">{item.produto.codigo}</span>
+                                                    )}
+                                                    {' '}{item.produto?.nome || 'Produto'}
+                                                </span>
+                                                {item.imprimir && (
+                                                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">PDF</span>
+                                                )}
                                             </div>
-                                            {item.comentario && (
+                                            {item.local_uso && (
                                                 <div className="text-sm text-gray-500 mt-1">
-                                                    {item.comentario}
+                                                    Local de uso: {item.local_uso}
+                                                </div>
+                                            )}
+                                            {item.anotacoes && (
+                                                <div className="text-sm text-gray-600 mt-1 italic">
+                                                    {item.anotacoes}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="text-right">
                                             <div className="text-sm text-gray-500">
-                                                {item.quantidade}x {new Intl.NumberFormat('pt-BR', {
-                                                    style: 'currency',
-                                                    currency: 'BRL',
-                                                }).format(item.preco_unitario)}
-                                                {item.desconto > 0 && (
-                                                    <span className="text-red-500 ml-1">
-                                                        (-{item.desconto}%)
-                                                    </span>
-                                                )}
+                                                {item.quantidade}x {formatCurrency(item.valor_unitario)}
                                             </div>
                                             <div className="font-semibold text-gray-900">
-                                                {new Intl.NumberFormat('pt-BR', {
-                                                    style: 'currency',
-                                                    currency: 'BRL',
-                                                }).format(item.subtotal)}
+                                                {formatCurrency(item.valor_total)}
                                             </div>
                                         </div>
                                     </div>
@@ -153,14 +188,35 @@ export default function ReceitaShow({ receita }) {
                                 <div className="text-right">
                                     <span className="text-sm text-gray-500">Total</span>
                                     <div className="text-2xl font-bold text-emerald-600">
-                                        {new Intl.NumberFormat('pt-BR', {
-                                            style: 'currency',
-                                            currency: 'BRL',
-                                        }).format(receita.valor_total)}
+                                        {formatCurrency(receita.valor_total)}
                                     </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* Call Center */}
+                        {receita.atendimento_callcenter && (
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-4">Atendimento Call Center</h2>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                                            receita.atendimento_callcenter.status === 'finalizado' ? 'bg-green-100 text-green-800' :
+                                            receita.atendimento_callcenter.status === 'em_atendimento' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-gray-100 text-gray-800'
+                                        }`}>
+                                            {receita.atendimento_callcenter.status}
+                                        </span>
+                                    </div>
+                                    <Link
+                                        href={`/callcenter/${receita.atendimento_callcenter.id}`}
+                                        className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                                    >
+                                        Ver atendimento →
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sidebar */}
@@ -174,20 +230,22 @@ export default function ReceitaShow({ receita }) {
                                     <label className="text-sm text-gray-500">Nome</label>
                                     <p className="font-medium text-gray-900">{receita.paciente?.nome}</p>
                                 </div>
-                                <div>
-                                    <label className="text-sm text-gray-500">CPF</label>
-                                    <p className="font-medium text-gray-900">{receita.paciente?.cpf}</p>
-                                </div>
-                                {receita.paciente?.telefone && (
+                                {receita.paciente?.cpf && (
                                     <div>
-                                        <label className="text-sm text-gray-500">Telefone</label>
-                                        <p className="font-medium text-gray-900">{receita.paciente?.telefone}</p>
+                                        <label className="text-sm text-gray-500">CPF</label>
+                                        <p className="font-medium text-gray-900">{receita.paciente.cpf}</p>
                                     </div>
                                 )}
-                                {receita.paciente?.email && (
+                                {receita.paciente?.telefone1 && (
+                                    <div>
+                                        <label className="text-sm text-gray-500">Telefone</label>
+                                        <p className="font-medium text-gray-900">{receita.paciente.telefone1}</p>
+                                    </div>
+                                )}
+                                {receita.paciente?.email1 && (
                                     <div>
                                         <label className="text-sm text-gray-500">Email</label>
-                                        <p className="font-medium text-gray-900">{receita.paciente?.email}</p>
+                                        <p className="font-medium text-gray-900 break-all">{receita.paciente.email1}</p>
                                     </div>
                                 )}
                             </div>
@@ -200,9 +258,9 @@ export default function ReceitaShow({ receita }) {
                             </Link>
                         </div>
 
-                        {/* Ações */}
+                        {/* Acoes */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Ações</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Acoes</h2>
                             
                             <div className="space-y-3">
                                 {receita.status === 'finalizada' && (
@@ -259,4 +317,3 @@ export default function ReceitaShow({ receita }) {
         </DashboardLayout>
     );
 }
-

@@ -63,3 +63,6 @@ class AssistenteRegra extends Model
     }
 }
 
+
+
+

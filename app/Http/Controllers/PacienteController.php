@@ -212,9 +212,9 @@ class PacienteController extends Controller
     /**
      * Lookup address by CEP using ViaCEP API.
      */
-    public function buscarCep(Request $request)
+    public function buscarCep(string $cep)
     {
-        $cep = preg_replace('/\D/', '', $request->get('cep', ''));
+        $cep = preg_replace('/\D/', '', $cep);
 
         if (strlen($cep) !== 8) {
             return response()->json(['error' => 'CEP inválido'], 422);
@@ -231,11 +231,14 @@ class PacienteController extends Controller
                 }
 
                 return response()->json([
-                    'endereco' => $data['logradouro'] ?? '',
-                    'bairro' => $data['bairro'] ?? '',
-                    'cidade' => $data['localidade'] ?? '',
-                    'uf' => $data['uf'] ?? '',
-                    'complemento' => $data['complemento'] ?? '',
+                    'success' => true,
+                    'data' => [
+                        'logradouro' => $data['logradouro'] ?? '',
+                        'bairro' => $data['bairro'] ?? '',
+                        'localidade' => $data['localidade'] ?? '',
+                        'uf' => $data['uf'] ?? '',
+                        'complemento' => $data['complemento'] ?? '',
+                    ],
                 ]);
             }
 
@@ -245,4 +248,7 @@ class PacienteController extends Controller
         }
     }
 }
+
+
+
 

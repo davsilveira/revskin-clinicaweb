@@ -252,3 +252,6 @@ export default function PacienteShow({ paciente }) {
     );
 }
 
+
+
+

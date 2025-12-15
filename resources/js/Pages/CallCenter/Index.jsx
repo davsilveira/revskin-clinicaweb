@@ -8,9 +8,9 @@ export default function CallCenterIndex({ atendimentos, filters }) {
     const [selectedIds, setSelectedIds] = useState([]);
 
     const statusConfig = {
-        pendente: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-        em_contato: { label: 'Em Contato', color: 'bg-blue-100 text-blue-800' },
+        entrar_em_contato: { label: 'Entrar em Contato', color: 'bg-yellow-100 text-yellow-800' },
         aguardando_retorno: { label: 'Aguardando Retorno', color: 'bg-purple-100 text-purple-800' },
+        em_producao: { label: 'Em Produção', color: 'bg-blue-100 text-blue-800' },
         finalizado: { label: 'Finalizado', color: 'bg-green-100 text-green-800' },
         cancelado: { label: 'Cancelado', color: 'bg-red-100 text-red-800' },
     };
@@ -250,4 +250,7 @@ export default function CallCenterIndex({ atendimentos, filters }) {
         </DashboardLayout>
     );
 }
+
+
+
 

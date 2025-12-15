@@ -237,3 +237,6 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
     );
 }
 
+
+
+
