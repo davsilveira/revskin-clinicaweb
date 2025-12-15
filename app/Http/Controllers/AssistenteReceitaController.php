@@ -16,12 +16,14 @@ class AssistenteReceitaController extends Controller
 {
     /**
      * Mapeamento de tipo de pele para código Karnaugh.
+     * Baseado na documentação: PN, PS, PR, PM, PO
      */
     private const TIPO_PELE_MAP = [
-        'Seca' => 'SM',
-        'Mista' => 'SM',
-        'Normal' => 'SM', // Normal usa mesmo código de SM
-        'Oleosa' => 'O',
+        'Normal' => 'PN',
+        'Seca' => 'PS',
+        'Mista' => 'PM',
+        'Oleosa' => 'PO',
+        'Mista-Ressecada' => 'PR',
     ];
 
     /**
@@ -177,13 +179,15 @@ class AssistenteReceitaController extends Controller
     /**
      * Montar código Karnaugh a partir das condições selecionadas.
      * 
-     * Formato: P{tipoPele}M{manchas}R{rugas}A{acne}
-     * Exemplos: PSM1R1A1, POM2R3A2
+     * Formato: {tipoPele}M{manchas}R{rugas}A{acne}
+     * Onde tipoPele = PN, PS, PM, PO, PR (2 caracteres)
+     * 
+     * Exemplos: PSM1R1A1, POM2R3A2, PNM1R2A1
      */
     private function montarCodigoKarnaugh(array $condicoes): string
     {
-        // Tipo de pele: SM (Seca/Mista/Normal) ou O (Oleosa)
-        $tipoPele = self::TIPO_PELE_MAP[$condicoes['tipo_pele'] ?? 'Normal'] ?? 'SM';
+        // Tipo de pele: PN, PS, PM, PO, PR
+        $tipoPele = self::TIPO_PELE_MAP[$condicoes['tipo_pele'] ?? 'Normal'] ?? 'PN';
         
         // Manchas: 1, 2 ou 3
         $manchas = self::INTENSIDADE_MAP[$condicoes['manchas'] ?? 'Não'] ?? 1;
@@ -194,7 +198,9 @@ class AssistenteReceitaController extends Controller
         // Acne: 1, 2 ou 3
         $acne = self::INTENSIDADE_MAP[$condicoes['acne'] ?? 'Não'] ?? 1;
 
-        return "P{$tipoPele}M{$manchas}R{$rugas}A{$acne}";
+        // Formato: {tipoPele}M{manchas}R{rugas}A{acne}
+        // Exemplo: PS + M + 1 + R + 1 + A + 1 = PSM1R1A1
+        return "{$tipoPele}M{$manchas}R{$rugas}A{$acne}";
     }
 
     /**
