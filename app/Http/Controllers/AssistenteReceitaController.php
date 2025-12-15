@@ -15,15 +15,83 @@ use Inertia\Response;
 class AssistenteReceitaController extends Controller
 {
     /**
+     * Mapeamento de tipo de pele para código Karnaugh.
+     */
+    private const TIPO_PELE_MAP = [
+        'Seca' => 'SM',
+        'Mista' => 'SM',
+        'Normal' => 'SM', // Normal usa mesmo código de SM
+        'Oleosa' => 'O',
+    ];
+
+    /**
+     * Mapeamento de intensidade para número.
+     */
+    private const INTENSIDADE_MAP = [
+        'Não' => 1,
+        'Leve' => 1,
+        'Moderado' => 2,
+        'Intenso' => 3,
+    ];
+
+    /**
+     * Mapeamento de local de uso para cada categoria de produto.
+     */
+    private const LOCAL_USO_MAP = [
+        'creme_noite' => 'Creme da Noite',
+        'creme_dia' => 'Creme do Dia',
+        'creme_dia_verao' => 'Creme do Dia (Verão)',
+        'creme_dia_inverno' => 'Creme do Dia (Inverno)',
+        'limpeza_syndet' => 'Limpeza Syndet',
+        'creme_olhos' => 'Creme dos Olhos',
+        'base_tonalite' => 'Base Tonalité',
+        'serum_vitamina_c' => 'Sérum Vitamina C',
+        'gel_secativo' => 'Gel Secativo',
+        'creme_firmador' => 'Creme Firmador',
+        'serum_anti_queda' => 'Sérum Anti-Queda',
+        'duo_mask' => 'Duo Mask',
+        'protetor_solar' => 'Protetor Solar',
+        'creme_noite_maos' => 'Creme Noite (Mãos)',
+        'creme_dia_maos' => 'Creme Dia (Mãos)',
+        'creme_corpo' => 'Creme Corpo',
+    ];
+
+    /**
      * Show the assistant wizard.
      */
     public function index(): Response
     {
         return Inertia::render('AssistenteReceita/Index', [
-            'tipoPeleOptions' => AssistenteCasoClinico::getTipoPeleOptions(),
-            'intensidadeOptions' => AssistenteCasoClinico::getIntensidadeOptions(),
+            'tipoPeleOptions' => $this->getTipoPeleOptions(),
+            'intensidadeOptions' => $this->getIntensidadeOptions(),
             'faixaEtariaOptions' => AssistenteCasoClinico::getFaixaEtariaOptions(),
         ]);
+    }
+
+    /**
+     * Get tipo de pele options.
+     */
+    private function getTipoPeleOptions(): array
+    {
+        return [
+            'Normal' => 'Normal',
+            'Oleosa' => 'Oleosa',
+            'Seca' => 'Seca',
+            'Mista' => 'Mista',
+        ];
+    }
+
+    /**
+     * Get intensidade options.
+     */
+    private function getIntensidadeOptions(): array
+    {
+        return [
+            'Não' => 'Não',
+            'Leve' => 'Leve',
+            'Moderado' => 'Moderado',
+            'Intenso' => 'Intenso',
+        ];
     }
 
     /**
@@ -61,47 +129,141 @@ class AssistenteReceitaController extends Controller
             'faixa_etaria' => 'nullable|string',
         ]);
 
-        // Find matching case
-        $caso = AssistenteCasoClinico::encontrarCaso($validated);
+        // Montar código do caso clínico baseado nas seleções
+        $codigoKarnaugh = $this->montarCodigoKarnaugh($validated);
 
-        // If no case found, try rules
-        $regras = AssistenteRegra::encontrarRegras($validated);
+        // Buscar na tabela Karnaugh
+        $produtosKarnaugh = $this->buscarProdutosKarnaugh($codigoKarnaugh);
 
         $produtosSugeridos = [];
 
-        if ($caso) {
-            foreach ($caso->tratamentos as $tratamento) {
-                foreach ($tratamento->itens as $item) {
-                    $produtosSugeridos[] = [
-                        'produto_id' => $item->produto_id,
-                        'produto' => $item->produto,
-                        'local_uso' => $item->local_uso,
-                        'quantidade' => $item->quantidade,
-                        'anotacoes' => $item->anotacoes,
-                    ];
+        if ($produtosKarnaugh) {
+            foreach ($produtosKarnaugh as $categoria => $nomeProduto) {
+                if (empty($nomeProduto) || $nomeProduto === '-') {
+                    continue;
                 }
-            }
-        } elseif ($regras->isNotEmpty()) {
-            foreach ($regras as $regra) {
-                foreach ($regra->produtos as $produtoData) {
-                    $produto = Produto::find($produtoData['produto_id']);
-                    if ($produto) {
-                        $produtosSugeridos[] = [
-                            'produto_id' => $produto->id,
-                            'produto' => $produto,
-                            'local_uso' => $produtoData['local_uso'] ?? null,
-                            'quantidade' => $produtoData['quantidade'] ?? 1,
-                            'anotacoes' => $produtoData['anotacoes'] ?? null,
-                        ];
-                    }
+
+                // Buscar produto por nome ou código
+                $produto = $this->buscarProdutoPorNome($nomeProduto);
+                
+                if ($produto) {
+                    $produtosSugeridos[] = [
+                        'produto_id' => $produto->id,
+                        'produto' => $produto,
+                        'local_uso' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
+                        'quantidade' => 1,
+                        'anotacoes' => null,
+                    ];
+                } else {
+                    // Produto não encontrado no banco, mas incluir como referência
+                    $produtosSugeridos[] = [
+                        'produto_id' => null,
+                        'produto' => ['nome' => $nomeProduto, 'id' => null],
+                        'local_uso' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
+                        'quantidade' => 1,
+                        'anotacoes' => 'Produto não cadastrado: ' . $nomeProduto,
+                        'nao_encontrado' => true,
+                    ];
                 }
             }
         }
 
         return response()->json([
-            'caso' => $caso,
+            'codigo_karnaugh' => $codigoKarnaugh,
             'produtos_sugeridos' => $produtosSugeridos,
         ]);
+    }
+
+    /**
+     * Montar código Karnaugh a partir das condições selecionadas.
+     * 
+     * Formato: P{tipoPele}M{manchas}R{rugas}A{acne}
+     * Exemplos: PSM1R1A1, POM2R3A2
+     */
+    private function montarCodigoKarnaugh(array $condicoes): string
+    {
+        // Tipo de pele: SM (Seca/Mista/Normal) ou O (Oleosa)
+        $tipoPele = self::TIPO_PELE_MAP[$condicoes['tipo_pele'] ?? 'Normal'] ?? 'SM';
+        
+        // Manchas: 1, 2 ou 3
+        $manchas = self::INTENSIDADE_MAP[$condicoes['manchas'] ?? 'Não'] ?? 1;
+        
+        // Rugas: 1, 2 ou 3
+        $rugas = self::INTENSIDADE_MAP[$condicoes['rugas'] ?? 'Não'] ?? 1;
+        
+        // Acne: 1, 2 ou 3
+        $acne = self::INTENSIDADE_MAP[$condicoes['acne'] ?? 'Não'] ?? 1;
+
+        return "P{$tipoPele}M{$manchas}R{$rugas}A{$acne}";
+    }
+
+    /**
+     * Buscar produtos na tabela Karnaugh pelo código.
+     */
+    private function buscarProdutosKarnaugh(string $codigo): ?array
+    {
+        // Primeiro tentar no banco de dados
+        $regra = AssistenteRegra::where('linha_id', $codigo)
+            ->where('ativo', true)
+            ->first();
+
+        if ($regra && !empty($regra->produtos)) {
+            return $regra->produtos;
+        }
+
+        // Fallback: buscar no arquivo JSON
+        $jsonPath = database_path('seeders/karnaugh_data.json');
+        if (file_exists($jsonPath)) {
+            $dados = json_decode(file_get_contents($jsonPath), true);
+            
+            foreach ($dados as $linha) {
+                // Normalizar código (remover espaços, uppercase)
+                $codigoLinha = strtoupper(preg_replace('/\s+/', '', $linha['caso_clinico']));
+                $codigoBusca = strtoupper(preg_replace('/\s+/', '', $codigo));
+                
+                if ($codigoLinha === $codigoBusca) {
+                    return $linha['produtos'] ?? null;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Buscar produto por nome ou código.
+     */
+    private function buscarProdutoPorNome(string $nome): ?Produto
+    {
+        // Limpar o nome
+        $nome = trim($nome);
+        
+        if (empty($nome) || $nome === '-') {
+            return null;
+        }
+
+        // Buscar por nome exato
+        $produto = Produto::where('nome', $nome)->first();
+        if ($produto) {
+            return $produto;
+        }
+
+        // Buscar por código
+        $produto = Produto::where('codigo', $nome)->first();
+        if ($produto) {
+            return $produto;
+        }
+
+        // Buscar por nome parcial (LIKE)
+        $produto = Produto::where('nome', 'LIKE', '%' . $nome . '%')->first();
+        if ($produto) {
+            return $produto;
+        }
+
+        // Buscar por nome_completo se existir
+        $produto = Produto::where('nome_completo', 'LIKE', '%' . $nome . '%')->first();
+        
+        return $produto;
     }
 
     /**
@@ -226,27 +388,31 @@ class AssistenteReceitaController extends Controller
      */
     private function parseCasoClinico(string $codigo): array
     {
-        // Exemplo: PSM1R1A1 = Pele Seca/Mista, Rugas 1, Acne 1
+        // Normalizar código
+        $codigo = strtoupper(preg_replace('/\s+/', '', $codigo));
+        
         $condicoes = [];
         
-        if (preg_match('/^P(SM|O)(\d)/', $codigo, $matches)) {
+        // Tipo de pele: PSM ou PO
+        if (preg_match('/^P(SM|O)/', $codigo, $matches)) {
             $condicoes['tipo_pele'] = $matches[1] === 'SM' ? 'seca_mista' : 'oleosa';
         }
         
+        // Manchas: M1, M2 ou M3
+        if (preg_match('/M(\d)/', $codigo, $matches)) {
+            $condicoes['manchas'] = (int) $matches[1];
+        }
+        
+        // Rugas: R1, R2 ou R3
         if (preg_match('/R(\d)/', $codigo, $matches)) {
             $condicoes['rugas'] = (int) $matches[1];
         }
         
+        // Acne: A1, A2 ou A3
         if (preg_match('/A(\d)/', $codigo, $matches)) {
             $condicoes['acne'] = (int) $matches[1];
         }
         
-        if (preg_match('/M(\d)?/', $codigo, $matches)) {
-            $condicoes['manchas'] = isset($matches[1]) ? (int) $matches[1] : 1;
-        }
-        
         return $condicoes;
     }
-
 }
-

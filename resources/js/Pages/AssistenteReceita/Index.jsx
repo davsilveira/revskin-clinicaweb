@@ -27,6 +27,8 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
     // Suggested products
     const [produtosSugeridos, setProdutosSugeridos] = useState([]);
     const [produtosSelecionados, setProdutosSelecionados] = useState([]);
+    const [codigoKarnaugh, setCodigoKarnaugh] = useState('');
+    const [error, setError] = useState('');
 
     // Debounced search for patients
     const searchPacientes = useCallback(
@@ -38,10 +40,21 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
             }
             setLoadingPacientes(true);
             try {
-                const response = await fetch(`/api/pacientes/search?q=${encodeURIComponent(term)}`);
-                const results = await response.json();
-                setPacienteResults(results);
-                setShowPacienteDropdown(true);
+                const response = await fetch(`/api/pacientes/search?q=${encodeURIComponent(term)}`, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (response.ok) {
+                    const results = await response.json();
+                    setPacienteResults(results);
+                    setShowPacienteDropdown(true);
+                } else {
+                    console.error('Search failed:', response.status);
+                    setPacienteResults([]);
+                }
             } catch (e) {
                 console.error(e);
             } finally {
@@ -67,6 +80,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
 
     const processarCondicoes = async () => {
         setLoading(true);
+        setError('');
         try {
             const response = await fetch('/assistente-receita/processar', {
                 method: 'POST',
@@ -76,17 +90,27 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                 },
                 body: JSON.stringify(condicoes),
             });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erro ${response.status}: ${errorText}`);
+            }
+
             const data = await response.json();
+            setCodigoKarnaugh(data.codigo_karnaugh || '');
             setProdutosSugeridos(data.produtos_sugeridos || []);
+            
+            // Incluir todos os produtos, marcando os válidos como selecionados
             setProdutosSelecionados(
                 (data.produtos_sugeridos || []).map(p => ({
                     ...p,
-                    selecionado: true,
+                    selecionado: p.produto_id !== null, // Apenas válidos ficam selecionados
                 }))
             );
             setStep(3);
-        } catch (error) {
-            console.error('Erro ao processar:', error);
+        } catch (err) {
+            console.error('Erro ao processar:', err);
+            setError(err.message || 'Erro ao processar condições');
         } finally {
             setLoading(false);
         }
@@ -103,7 +127,8 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
     const gerarReceita = async () => {
         if (!selectedPaciente) return;
 
-        const itensSelecionados = produtosSelecionados.filter(p => p.selecionado);
+        // Filtrar apenas produtos selecionados E que existem no banco
+        const itensSelecionados = produtosSelecionados.filter(p => p.selecionado && p.produto_id !== null);
         if (itensSelecionados.length === 0) return;
 
         setLoading(true);
@@ -144,10 +169,16 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
         faixa_etaria: 'Faixa Etária',
     };
 
-    const getIntensidadeLabel = (value) => {
-        const labels = { '0': 'Ausente', '1': 'Leve', '2': 'Moderado', '3': 'Intenso' };
-        return labels[value] || value;
+    // Converte as opções do backend para exibição correta
+    const intensidadeLabels = {
+        'Não': 'Não',
+        'Leve': 'Leve',
+        'Moderado': 'Moderado',
+        'Intenso': 'Intenso',
     };
+
+    // Opções de intensidade para exibir nos botões
+    const intensidadeOpcoes = Object.keys(intensidadeOptions || intensidadeLabels);
 
     return (
         <DashboardLayout>
@@ -274,6 +305,13 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                             Informe as condições clínicas do paciente para sugestão de tratamento
                         </p>
 
+                        {error && (
+                            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                                <p className="font-medium">Erro ao processar</p>
+                                <p className="text-sm">{error}</p>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             {/* Tipo de Pele */}
                             <div>
@@ -334,7 +372,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                         {condicaoLabels[field]}
                                     </label>
                                     <div className="flex gap-2">
-                                        {(intensidadeOptions || ['0', '1', '2', '3']).map((value) => (
+                                        {intensidadeOpcoes.map((value) => (
                                             <button
                                                 key={value}
                                                 type="button"
@@ -345,7 +383,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                                         : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                                 }`}
                                             >
-                                                {getIntensidadeLabel(value)}
+                                                {intensidadeLabels[value] || value}
                                             </button>
                                         ))}
                                     </div>
@@ -389,10 +427,20 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                 {/* Step 3: Produtos Sugeridos */}
                 {step === 3 && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-2">Produtos Sugeridos</h2>
-                        <p className="text-gray-500 mb-6">
-                            Selecione os produtos que deseja incluir na receita
-                        </p>
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Produtos Sugeridos</h2>
+                                <p className="text-gray-500 mt-1">
+                                    Selecione os produtos que deseja incluir na receita
+                                </p>
+                            </div>
+                            {codigoKarnaugh && (
+                                <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg text-sm">
+                                    <span className="text-blue-600 font-medium">Caso: </span>
+                                    <span className="text-blue-800 font-mono">{codigoKarnaugh}</span>
+                                </div>
+                            )}
+                        </div>
 
                         {produtosSelecionados.length > 0 ? (
                             <div className="space-y-3 mb-6">
@@ -400,16 +448,19 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                     <label
                                         key={index}
                                         className={`flex items-start gap-4 p-4 border rounded-lg cursor-pointer transition-all ${
-                                            item.selecionado
-                                                ? 'border-emerald-500 bg-emerald-50'
-                                                : 'border-gray-200 bg-gray-50 opacity-60'
+                                            item.nao_encontrado
+                                                ? 'border-amber-300 bg-amber-50 opacity-60 cursor-not-allowed'
+                                                : item.selecionado
+                                                    ? 'border-emerald-500 bg-emerald-50'
+                                                    : 'border-gray-200 bg-gray-50 opacity-60'
                                         }`}
                                     >
                                         <input
                                             type="checkbox"
-                                            checked={item.selecionado}
-                                            onChange={() => toggleProduto(index)}
-                                            className="mt-1 w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                            checked={item.selecionado && !item.nao_encontrado}
+                                            onChange={() => !item.nao_encontrado && toggleProduto(index)}
+                                            disabled={item.nao_encontrado}
+                                            className="mt-1 w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 disabled:opacity-50"
                                         />
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
@@ -419,6 +470,11 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                                     )}
                                                     {item.produto?.nome || 'Produto'}
                                                 </span>
+                                                {item.nao_encontrado && (
+                                                    <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                                                        Não cadastrado
+                                                    </span>
+                                                )}
                                             </div>
                                             {item.local_uso && (
                                                 <div className="text-sm text-gray-500 mt-1">
