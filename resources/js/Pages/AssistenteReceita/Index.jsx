@@ -169,16 +169,20 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
         faixa_etaria: 'Faixa Etária',
     };
 
-    // Converte as opções do backend para exibição correta
-    const intensidadeLabels = {
-        'Não': 'Não',
-        'Leve': 'Leve',
-        'Moderado': 'Moderado',
-        'Intenso': 'Intenso',
+    // Labels para intensidade
+    const intensidadeLabelsDefault = ['Não', 'Leve', 'Moderado', 'Intenso'];
+
+    // Normalizar opções (podem vir como array ou objeto do backend)
+    const normalizeOptions = (options, fallback) => {
+        if (!options) return fallback;
+        if (Array.isArray(options)) return options;
+        return Object.keys(options);
     };
 
-    // Opções de intensidade para exibir nos botões
-    const intensidadeOpcoes = Object.keys(intensidadeOptions || intensidadeLabels);
+    // Opções normalizadas
+    const tipoPeleOpcoes = normalizeOptions(tipoPeleOptions, ['Normal', 'Oleosa', 'Seca', 'Mista']);
+    const intensidadeOpcoes = normalizeOptions(intensidadeOptions, intensidadeLabelsDefault);
+    const faixaEtariaOpcoes = normalizeOptions(faixaEtariaOptions, ['Até 30', '30-40', '40-50', '50-60', 'Acima de 60']);
 
     return (
         <DashboardLayout>
@@ -319,7 +323,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                     Tipo de Pele
                                 </label>
                                 <div className="space-y-2">
-                                    {(tipoPeleOptions || ['Oleosa', 'Seca/Mista']).map((option) => (
+                                    {tipoPeleOpcoes.map((option) => (
                                         <label key={option} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
                                             condicoes.tipo_pele === option
                                                 ? 'border-emerald-500 bg-emerald-50'
@@ -359,7 +363,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                 >
                                     <option value="">Selecione...</option>
-                                    {(faixaEtariaOptions || ['18-30', '31-45', '46-60', '60+']).map((option) => (
+                                    {faixaEtariaOpcoes.map((option) => (
                                         <option key={option} value={option}>{option}</option>
                                     ))}
                                 </select>
@@ -383,7 +387,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                                                         : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                                 }`}
                                             >
-                                                {intensidadeLabels[value] || value}
+                                                {value}
                                             </button>
                                         ))}
                                     </div>
