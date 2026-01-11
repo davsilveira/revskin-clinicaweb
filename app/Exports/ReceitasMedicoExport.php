@@ -85,3 +85,9 @@ class ReceitasMedicoExport implements FromCollection, WithHeadings, WithMapping,
 
 
 
+
+
+
+
+
+

@@ -221,3 +221,9 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
 
 
 
+
+
+
+
+
+

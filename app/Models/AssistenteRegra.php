@@ -66,3 +66,9 @@ class AssistenteRegra extends Model
 
 
 
+
+
+
+
+
+

@@ -3,7 +3,14 @@ import { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import debounce from 'lodash/debounce';
 
-export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOptions, faixaEtariaOptions }) {
+export default function AssistenteReceitaIndex({ 
+    tipoPeleOptions, 
+    intensidadeOptions, 
+    faixaEtariaOptions,
+    medicos = [],
+    currentMedicoId = null,
+    isAdmin = false,
+}) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
 
@@ -13,6 +20,9 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
     const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
     const [selectedPaciente, setSelectedPaciente] = useState(null);
     const [loadingPacientes, setLoadingPacientes] = useState(false);
+    
+    // Médico selection (for admin)
+    const [selectedMedicoId, setSelectedMedicoId] = useState(currentMedicoId || (medicos.length > 0 ? medicos[0].id : null));
 
     // Clinical conditions
     const [condicoes, setCondicoes] = useState({
@@ -141,6 +151,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                 },
                 body: JSON.stringify({
                     paciente_id: selectedPaciente.id,
+                    medico_id: selectedMedicoId,
                     itens: itensSelecionados.map(p => ({
                         produto_id: p.produto_id,
                         local_uso: p.local_uso,
@@ -234,6 +245,26 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Selecione o Paciente</h2>
                         
+                        {/* Seleção de Médico para Admin */}
+                        {isAdmin && medicos.length > 0 && (
+                            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <label className="block text-sm font-medium text-blue-800 mb-2">
+                                    Médico Responsável
+                                </label>
+                                <select
+                                    value={selectedMedicoId || ''}
+                                    onChange={(e) => setSelectedMedicoId(Number(e.target.value))}
+                                    className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                >
+                                    {medicos.map((medico) => (
+                                        <option key={medico.id} value={medico.id}>
+                                            {medico.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        
                         {selectedPaciente ? (
                             <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
                                 <div>
@@ -289,7 +320,7 @@ export default function AssistenteReceitaIndex({ tipoPeleOptions, intensidadeOpt
                         <div className="flex justify-end">
                             <button
                                 onClick={() => setStep(2)}
-                                disabled={!selectedPaciente}
+                                disabled={!selectedPaciente || (isAdmin && !selectedMedicoId)}
                                 className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 Próximo

@@ -61,12 +61,32 @@ class AssistenteReceitaController extends Controller
     /**
      * Show the assistant wizard.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+        
+        // Para admin, fornecer lista de médicos para seleção
+        // Para médico, usar seu próprio medico_id
+        $medicos = [];
+        $currentMedicoId = $user->medico_id;
+        
+        if ($user->isAdmin()) {
+            $medicos = Medico::where('ativo', true)
+                ->orderBy('nome')
+                ->get(['id', 'nome', 'crm'])
+                ->map(fn($m) => [
+                    'id' => $m->id,
+                    'label' => "{$m->nome} (CRM: {$m->crm})"
+                ]);
+        }
+        
         return Inertia::render('AssistenteReceita/Index', [
             'tipoPeleOptions' => $this->getTipoPeleOptions(),
             'intensidadeOptions' => $this->getIntensidadeOptions(),
             'faixaEtariaOptions' => AssistenteCasoClinico::getFaixaEtariaOptions(),
+            'medicos' => $medicos,
+            'currentMedicoId' => $currentMedicoId,
+            'isAdmin' => $user->isAdmin(),
         ]);
     }
 
@@ -289,7 +309,19 @@ class AssistenteReceitaController extends Controller
             'itens.*.valor_unitario' => 'nullable|numeric|min:0',
         ]);
 
+        // Determinar médico: do request, do usuário, ou primeiro ativo
         $medicoId = $validated['medico_id'] ?? $user->medico_id;
+        
+        if (!$medicoId) {
+            // Fallback: usar primeiro médico ativo
+            $medico = Medico::where('ativo', true)->first();
+            if (!$medico) {
+                return response()->json([
+                    'error' => 'Nenhum médico cadastrado. Por favor, cadastre um médico primeiro.',
+                ], 422);
+            }
+            $medicoId = $medico->id;
+        }
 
         $receita = Receita::create([
             'numero' => Receita::gerarNumero(),
