@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Clinica;
 use App\Models\Medico;
-use App\Models\TabelaPreco;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -17,7 +16,7 @@ class MedicoController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Medico::with(['clinica:id,nome', 'tabelaPreco:id,nome'])
+        $query = Medico::with(['clinica:id,nome'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -47,11 +46,9 @@ class MedicoController extends Controller
     public function create(): Response
     {
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $tabelasPreco = TabelaPreco::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Medicos/Form', [
             'clinicas' => $clinicas,
-            'tabelasPreco' => $tabelasPreco,
         ]);
     }
 
@@ -68,7 +65,6 @@ class MedicoController extends Controller
             'rg' => 'nullable|string|max:20',
             'especialidade' => 'nullable|string|max:255',
             'clinica_id' => 'nullable|exists:clinicas,id',
-            'tabela_preco_id' => 'nullable|exists:tabelas_preco,id',
             'telefone1' => 'nullable|string|max:20',
             'telefone2' => 'nullable|string|max:20',
             'telefone3' => 'nullable|string|max:20',
@@ -98,7 +94,7 @@ class MedicoController extends Controller
      */
     public function show(Medico $medico): Response
     {
-        $medico->load(['clinica:id,nome', 'tabelaPreco:id,nome', 'pacientes' => function ($q) {
+        $medico->load(['clinica:id,nome', 'pacientes' => function ($q) {
             $q->ativo()->orderBy('nome')->limit(10);
         }]);
 
@@ -113,12 +109,10 @@ class MedicoController extends Controller
     public function edit(Medico $medico): Response
     {
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $tabelasPreco = TabelaPreco::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Medicos/Form', [
             'medico' => $medico,
             'clinicas' => $clinicas,
-            'tabelasPreco' => $tabelasPreco,
         ]);
     }
 
@@ -135,7 +129,6 @@ class MedicoController extends Controller
             'rg' => 'nullable|string|max:20',
             'especialidade' => 'nullable|string|max:255',
             'clinica_id' => 'nullable|exists:clinicas,id',
-            'tabela_preco_id' => 'nullable|exists:tabelas_preco,id',
             'telefone1' => 'nullable|string|max:20',
             'telefone2' => 'nullable|string|max:20',
             'telefone3' => 'nullable|string|max:20',

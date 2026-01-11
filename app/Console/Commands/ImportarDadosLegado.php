@@ -8,8 +8,6 @@ use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\ReceitaItem;
-use App\Models\TabelaPreco;
-use App\Models\TabelaPrecoItem;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

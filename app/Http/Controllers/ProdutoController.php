@@ -56,8 +56,6 @@ class ProdutoController extends Controller
 
     public function show(Produto $produto): Response
     {
-        $produto->load('tabelasPreco');
-
         return Inertia::render('Produtos/Show', [
             'produto' => $produto,
         ]);

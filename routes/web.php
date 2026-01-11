@@ -11,7 +11,6 @@ use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\MedicoController;
 use App\Http\Controllers\ClinicaController;
 use App\Http\Controllers\ProdutoController;
-use App\Http\Controllers\TabelaPrecoController;
 use App\Http\Controllers\ReceitaController;
 use App\Http\Controllers\CallCenterController;
 use App\Http\Controllers\AssistenteReceitaController;
@@ -123,7 +122,6 @@ Route::middleware(['auth'])->group(function () {
         
         Route::resource('clinicas', ClinicaController::class);
         Route::resource('produtos', ProdutoController::class);
-        Route::resource('tabelas-preco', TabelaPrecoController::class);
         
         // Assistente - Tabela de Karnaugh (admin only)
         Route::get('/assistente/regras', [AssistenteReceitaController::class, 'regras'])->name('assistente.regras');

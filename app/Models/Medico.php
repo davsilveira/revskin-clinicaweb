@@ -22,7 +22,6 @@ class Medico extends Model
         'rg',
         'especialidade',
         'clinica_id',
-        'tabela_preco_id',
         'telefone1',
         'telefone2',
         'telefone3',
@@ -55,14 +54,6 @@ class Medico extends Model
     public function clinica(): BelongsTo
     {
         return $this->belongsTo(Clinica::class);
-    }
-
-    /**
-     * Get the tabela de preco.
-     */
-    public function tabelaPreco(): BelongsTo
-    {
-        return $this->belongsTo(TabelaPreco::class, 'tabela_preco_id');
     }
 
     /**

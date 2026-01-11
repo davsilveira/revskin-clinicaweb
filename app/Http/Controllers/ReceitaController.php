@@ -60,18 +60,13 @@ class ReceitaController extends Controller
             ? Medico::where('id', $user->medico_id)->get(['id', 'nome'])
             : Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
         
-        // Get prices from default price table
-        $tabelaPadrao = \App\Models\TabelaPreco::where('ativo', true)->orderBy('id')->first();
-        if ($tabelaPadrao) {
-            $precos = \App\Models\TabelaPrecoItem::where('tabela_preco_id', $tabelaPadrao->id)
-                ->pluck('preco', 'produto_id');
-            $produtos = $produtos->map(function ($produto) use ($precos) {
-                $produto->preco_venda = $precos[$produto->id] ?? 0;
-                return $produto;
-            });
-        }
+        // Map preco to preco_venda for frontend compatibility
+        $produtos = $produtos->map(function ($produto) {
+            $produto->preco_venda = $produto->preco ?? 0;
+            return $produto;
+        });
 
         return Inertia::render('Receitas/Form', [
             'paciente' => $paciente,
@@ -162,18 +157,13 @@ class ReceitaController extends Controller
         $receita->load(['paciente', 'medico', 'itens.produto']);
 
         $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
         
-        // Get prices from default price table
-        $tabelaPadrao = \App\Models\TabelaPreco::where('ativo', true)->orderBy('id')->first();
-        if ($tabelaPadrao) {
-            $precos = \App\Models\TabelaPrecoItem::where('tabela_preco_id', $tabelaPadrao->id)
-                ->pluck('preco', 'produto_id');
-            $produtos = $produtos->map(function ($produto) use ($precos) {
-                $produto->preco_venda = $precos[$produto->id] ?? 0;
-                return $produto;
-            });
-        }
+        // Map preco to preco_venda for frontend compatibility
+        $produtos = $produtos->map(function ($produto) {
+            $produto->preco_venda = $produto->preco ?? 0;
+            return $produto;
+        });
 
         return Inertia::render('Receitas/Form', [
             'receita' => $receita,
