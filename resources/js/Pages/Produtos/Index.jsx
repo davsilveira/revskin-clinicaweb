@@ -45,10 +45,10 @@ export default function ProdutosIndex({ produtos, categorias = [], filters }) {
             categoria: produto.categoria || '',
             unidade: produto.unidade || 'UN',
             preco_custo: produto.preco_custo || '',
-            preco_venda: produto.preco_venda || '',
+            preco_venda: produto.preco || produto.preco_venda || '',
             estoque_minimo: produto.estoque_minimo || '',
             local_uso: produto.local_uso || '',
-            modo_uso: produto.modo_uso || '',
+            modo_uso: produto.anotacoes || produto.modo_uso || '',
             tiny_id: produto.tiny_id || '',
             ativo: produto.ativo ?? true,
         });
@@ -132,7 +132,7 @@ export default function ProdutosIndex({ produtos, categorias = [], filters }) {
                                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{produto.nome}</td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{produto.categoria || '-'}</td>
                                     <td className="px-6 py-4 text-sm text-gray-500">
-                                        {produto.preco_venda ? `R$ ${parseFloat(produto.preco_venda).toFixed(2)}` : '-'}
+                                        {(produto.preco || produto.preco_venda) ? `R$ ${parseFloat(produto.preco || produto.preco_venda).toFixed(2)}` : '-'}
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs rounded-full ${produto.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

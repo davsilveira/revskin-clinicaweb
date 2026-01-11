@@ -45,8 +45,15 @@ class ProdutoController extends Controller
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'local_uso' => 'nullable|string|max:255',
+            'preco_venda' => 'nullable|numeric|min:0',
             'ativo' => 'boolean',
         ]);
+
+        // Map preco_venda to preco
+        if (isset($validated['preco_venda'])) {
+            $validated['preco'] = $validated['preco_venda'];
+            unset($validated['preco_venda']);
+        }
 
         Produto::create($validated);
 
@@ -77,8 +84,15 @@ class ProdutoController extends Controller
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'local_uso' => 'nullable|string|max:255',
+            'preco_venda' => 'nullable|numeric|min:0',
             'ativo' => 'boolean',
         ]);
+
+        // Map preco_venda to preco
+        if (isset($validated['preco_venda'])) {
+            $validated['preco'] = $validated['preco_venda'];
+            unset($validated['preco_venda']);
+        }
 
         $produto->update($validated);
 
