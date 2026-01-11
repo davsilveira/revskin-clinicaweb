@@ -140,8 +140,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     };
 
     const finalizarReceita = () => {
-        if (confirm('Deseja finalizar esta receita? Apos finalizada, sera enviada para o Call Center.')) {
-            put(`/receitas/${receita.id}`, {
+        if (confirm('Deseja finalizar esta receita? Após finalizada, será enviada para o Call Center.')) {
+            router.put(`/receitas/${receita.id}`, {
                 ...data,
                 status: 'finalizada',
             });
