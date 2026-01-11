@@ -148,7 +148,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                             <div className="flex justify-end gap-2">
                                                 <Link
                                                     href={`/receitas/${receita.id}`}
-                                                    className="text-emerald-600 hover:text-emerald-900"
+                                                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
                                                 >
                                                     Ver
                                                 </Link>
@@ -156,7 +156,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                     <a
                                                         href={`/receitas/${receita.id}/pdf`}
                                                         target="_blank"
-                                                        className="text-blue-600 hover:text-blue-900"
+                                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                                                     >
                                                         PDF
                                                     </a>
@@ -164,7 +164,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                 {receita.status !== 'cancelada' && (
                                                     <Link
                                                         href={`/receitas/${receita.id}/edit`}
-                                                        className="text-gray-600 hover:text-gray-900"
+                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
                                                     >
                                                         Editar
                                                     </Link>

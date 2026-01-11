@@ -1,5 +1,5 @@
 import { useForm, Link, router } from '@inertiajs/react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import debounce from 'lodash/debounce';
 
@@ -9,7 +9,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
         medico_id: receita?.medico_id || defaultMedicoId || '',
-        data_receita: receita?.data_receita || new Date().toISOString().split('T')[0],
+        data_receita: receita?.data_receita ? receita.data_receita.split('T')[0] : new Date().toISOString().split('T')[0],
         anotacoes: receita?.anotacoes || '',
         anotacoes_paciente: receita?.anotacoes_paciente || '',
         desconto_percentual: receita?.desconto_percentual || 0,
@@ -32,6 +32,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
     const [selectedPaciente, setSelectedPaciente] = useState(receita?.paciente || initialPaciente || null);
     const [loadingPacientes, setLoadingPacientes] = useState(false);
+    const lastItemRef = useRef(null);
 
     // Debounced search for patients
     const searchPacientes = useCallback(
@@ -79,6 +80,10 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                 imprimir: true,
             },
         ]);
+        // Scroll para o novo item após o DOM atualizar
+        setTimeout(() => {
+            lastItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
     };
 
     const removeItem = (index) => {
@@ -108,7 +113,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     };
 
     const calcularSubtotal = () => {
-        return data.itens.reduce((total, item) => total + calcularSubtotalItem(item), 0);
+        return data.itens
+            .filter(item => item.imprimir)
+            .reduce((total, item) => total + calcularSubtotalItem(item), 0);
     };
 
     const calcularDesconto = () => {
@@ -143,7 +150,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
 
     return (
         <DashboardLayout>
-            <div className="p-6 max-w-6xl mx-auto">
+            <div className="p-6">
                 <div className="mb-6">
                     <Link
                         href="/receitas"
@@ -343,7 +350,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         {data.itens.length > 0 ? (
                             <div className="space-y-4">
                                 {data.itens.map((item, index) => (
-                                    <div key={index} className="border border-gray-200 rounded-lg p-4 hover:border-emerald-300 transition-colors">
+                                    <div 
+                                        key={index} 
+                                        ref={index === data.itens.length - 1 ? lastItemRef : null}
+                                        className="border border-gray-200 rounded-lg p-4 hover:border-emerald-300 transition-colors"
+                                    >
                                         <div className="grid grid-cols-12 gap-4">
                                             {/* Produto */}
                                             <div className="col-span-12 md:col-span-4">
@@ -388,23 +399,22 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     min="1"
                                                     value={item.quantidade}
                                                     onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    disabled={!item.imprimir}
+                                                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
                                                 />
                                             </div>
 
                                             {/* Valor Unitario */}
                                             <div className="col-span-3 md:col-span-2">
                                                 <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                    Valor Unit. *
+                                                    Valor Unit.
                                                 </label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    value={item.valor_unitario}
-                                                    onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                                />
+                                                <div className={`w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 ${!item.imprimir ? 'text-gray-400' : 'text-gray-700'}`}>
+                                                    {new Intl.NumberFormat('pt-BR', {
+                                                        style: 'currency',
+                                                        currency: 'BRL',
+                                                    }).format(item.valor_unitario)}
+                                                </div>
                                             </div>
 
                                             {/* Subtotal + Imprimir + Delete */}
@@ -413,11 +423,14 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     <label className="block text-xs font-medium text-gray-500 mb-1">
                                                         Subtotal
                                                     </label>
-                                                    <div className="text-lg font-semibold text-gray-900">
-                                                        {new Intl.NumberFormat('pt-BR', {
-                                                            style: 'currency',
-                                                            currency: 'BRL',
-                                                        }).format(calcularSubtotalItem(item))}
+                                                    <div className={`text-lg font-semibold ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                        {item.imprimir 
+                                                            ? new Intl.NumberFormat('pt-BR', {
+                                                                style: 'currency',
+                                                                currency: 'BRL',
+                                                            }).format(calcularSubtotalItem(item))
+                                                            : '-'
+                                                        }
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -428,7 +441,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
                                                             className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                                                         />
-                                                        PDF
+                                                        Incluir
                                                     </label>
                                                     <button
                                                         type="button"

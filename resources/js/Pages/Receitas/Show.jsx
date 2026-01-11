@@ -41,7 +41,7 @@ export default function ReceitaShow({ receita }) {
 
     return (
         <DashboardLayout>
-            <div className="p-6 max-w-6xl mx-auto">
+            <div className="p-6">
                 <div className="mb-6">
                     <Link
                         href="/receitas"
@@ -148,17 +148,19 @@ export default function ReceitaShow({ receita }) {
                             
                             <div className="space-y-3">
                                 {receita.itens?.map((item, index) => (
-                                    <div key={index} className="flex items-start justify-between p-4 bg-gray-50 rounded-lg">
+                                    <div key={index} className={`flex items-start justify-between p-4 rounded-lg ${item.imprimir ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-medium text-gray-900">
+                                                <span className={`font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-500'}`}>
                                                     {item.produto?.codigo && (
-                                                        <span className="text-emerald-600">{item.produto.codigo}</span>
+                                                        <span className={item.imprimir ? 'text-emerald-600' : 'text-gray-400'}>{item.produto.codigo}</span>
                                                     )}
                                                     {' '}{item.produto?.nome || 'Produto'}
                                                 </span>
-                                                {item.imprimir && (
-                                                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">PDF</span>
+                                                {item.imprimir ? (
+                                                    <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">Incluído</span>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-500 rounded">Não incluído</span>
                                                 )}
                                             </div>
                                             {item.local_uso && (
@@ -173,12 +175,18 @@ export default function ReceitaShow({ receita }) {
                                             )}
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-sm text-gray-500">
-                                                {item.quantidade}x {formatCurrency(item.valor_unitario)}
-                                            </div>
-                                            <div className="font-semibold text-gray-900">
-                                                {formatCurrency(item.valor_total)}
-                                            </div>
+                                            {item.imprimir ? (
+                                                <>
+                                                    <div className="text-sm text-gray-500">
+                                                        {item.quantidade}x {formatCurrency(item.valor_unitario)}
+                                                    </div>
+                                                    <div className="font-semibold text-gray-900">
+                                                        {formatCurrency(item.valor_total)}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-sm text-gray-400">-</div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
