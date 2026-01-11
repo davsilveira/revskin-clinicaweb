@@ -100,7 +100,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         if (field === 'produto_id') {
             const produto = produtos.find(p => p.id === parseInt(value));
             if (produto) {
-                newItens[index].valor_unitario = parseFloat(produto.preco_venda) || 0;
+                newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
             }
         }

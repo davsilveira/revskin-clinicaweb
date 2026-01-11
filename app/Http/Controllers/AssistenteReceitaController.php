@@ -332,12 +332,19 @@ class AssistenteReceitaController extends Controller
         ]);
 
         foreach ($validated['itens'] as $index => $item) {
+            // Buscar o preço do produto se não foi fornecido
+            $valorUnitario = $item['valor_unitario'] ?? null;
+            if ($valorUnitario === null || $valorUnitario == 0) {
+                $produto = \App\Models\Produto::find($item['produto_id']);
+                $valorUnitario = $produto?->preco ?? 0;
+            }
+            
             $receita->itens()->create([
                 'produto_id' => $item['produto_id'],
                 'local_uso' => $item['local_uso'] ?? null,
                 'quantidade' => $item['quantidade'],
-                'valor_unitario' => $item['valor_unitario'] ?? 0,
-                'valor_total' => $item['quantidade'] * ($item['valor_unitario'] ?? 0),
+                'valor_unitario' => $valorUnitario,
+                'valor_total' => $item['quantidade'] * $valorUnitario,
                 'imprimir' => true,
                 'ordem' => $index,
             ]);
