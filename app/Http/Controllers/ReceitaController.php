@@ -221,6 +221,18 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
+        // Create callcenter atendimento if status changed to finalizada
+        if ($receita->status === 'finalizada' && !$receita->atendimentoCallcenter) {
+            AtendimentoCallcenter::create([
+                'receita_id' => $receita->id,
+                'paciente_id' => $receita->paciente_id,
+                'medico_id' => $receita->medico_id,
+                'status' => AtendimentoCallcenter::STATUS_ENTRAR_EM_CONTATO,
+                'data_abertura' => now(),
+                'usuario_id' => $request->user()->id,
+            ]);
+        }
+
         return redirect()->route('receitas.show', $receita)
             ->with('success', 'Receita atualizada com sucesso!');
     }
