@@ -13,6 +13,55 @@ use Inertia\Response;
 class PacienteController extends Controller
 {
     /**
+     * Validate CPF digits.
+     */
+    private function validateCpfDigits(?string $cpf): bool
+    {
+        if (!$cpf) {
+            return true; // CPF is optional
+        }
+        
+        $cleanCpf = preg_replace('/\D/', '', $cpf);
+        
+        if (strlen($cleanCpf) !== 11) {
+            return false;
+        }
+        
+        // Check if all digits are the same
+        if (preg_match('/^(\d)\1+$/', $cleanCpf)) {
+            return false;
+        }
+        
+        // Validate first digit
+        $sum = 0;
+        for ($i = 0; $i < 9; $i++) {
+            $sum += (int)$cleanCpf[$i] * (10 - $i);
+        }
+        $digit = 11 - ($sum % 11);
+        if ($digit >= 10) {
+            $digit = 0;
+        }
+        if ($digit !== (int)$cleanCpf[9]) {
+            return false;
+        }
+        
+        // Validate second digit
+        $sum = 0;
+        for ($i = 0; $i < 10; $i++) {
+            $sum += (int)$cleanCpf[$i] * (11 - $i);
+        }
+        $digit = 11 - ($sum % 11);
+        if ($digit >= 10) {
+            $digit = 0;
+        }
+        if ($digit !== (int)$cleanCpf[10]) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request): Response
@@ -72,7 +121,7 @@ class PacienteController extends Controller
             'data_nascimento' => 'nullable|date',
             'sexo' => 'nullable|string|max:20',
             'fototipo' => 'nullable|string|max:50',
-            'cpf' => 'nullable|string|max:14',
+            'cpf' => 'nullable|string|max:14|unique:pacientes,cpf',
             'rg' => 'nullable|string|max:20',
             'telefone1' => 'nullable|string|max:20',
             'telefone2' => 'nullable|string|max:20',
@@ -91,7 +140,14 @@ class PacienteController extends Controller
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
             'ativo' => 'boolean',
+        ], [
+            'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
         ]);
+
+        // Validate CPF digits
+        if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
+            return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
+        }
 
         // Auto-assign medico if user is medico
         $user = $request->user();
@@ -144,7 +200,7 @@ class PacienteController extends Controller
             'data_nascimento' => 'nullable|date',
             'sexo' => 'nullable|string|max:20',
             'fototipo' => 'nullable|string|max:50',
-            'cpf' => 'nullable|string|max:14',
+            'cpf' => ['nullable', 'string', 'max:14', Rule::unique('pacientes', 'cpf')->ignore($paciente->id)],
             'rg' => 'nullable|string|max:20',
             'telefone1' => 'nullable|string|max:20',
             'telefone2' => 'nullable|string|max:20',
@@ -163,7 +219,14 @@ class PacienteController extends Controller
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
             'ativo' => 'boolean',
+        ], [
+            'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
         ]);
+
+        // Validate CPF digits
+        if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
+            return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
+        }
 
         $paciente->update($validated);
 

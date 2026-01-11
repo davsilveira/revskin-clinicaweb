@@ -6,6 +6,7 @@ import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
+import { validateCPF } from '@/utils/validations';
 
 export default function PacientesIndex({ pacientes, filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -14,15 +15,16 @@ export default function PacientesIndex({ pacientes, filters }) {
     const [toast, setToast] = useState(null);
     const [search, setSearch] = useState(filters?.search || '');
     const [loadingCep, setLoadingCep] = useState(false);
+    const [cpfError, setCpfError] = useState(null);
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         nome: '',
         cpf: '',
         data_nascimento: '',
         sexo: '',
-        email: '',
-        telefone: '',
-        celular: '',
+        email1: '',
+        telefone1: '',
+        telefone2: '',
         cep: '',
         endereco: '',
         numero: '',
@@ -30,7 +32,7 @@ export default function PacientesIndex({ pacientes, filters }) {
         bairro: '',
         cidade: '',
         uf: '',
-        observacoes: '',
+        anotacoes: '',
         ativo: true,
     });
 
@@ -47,11 +49,11 @@ export default function PacientesIndex({ pacientes, filters }) {
         setData({
             nome: paciente.nome || '',
             cpf: paciente.cpf || '',
-            data_nascimento: paciente.data_nascimento || '',
+            data_nascimento: paciente.data_nascimento ? paciente.data_nascimento.split('T')[0] : '',
             sexo: paciente.sexo || '',
-            email: paciente.email || '',
-            telefone: paciente.telefone || '',
-            celular: paciente.celular || '',
+            email1: paciente.email1 || '',
+            telefone1: paciente.telefone1 || '',
+            telefone2: paciente.telefone2 || '',
             cep: paciente.cep || '',
             endereco: paciente.endereco || '',
             numero: paciente.numero || '',
@@ -59,7 +61,7 @@ export default function PacientesIndex({ pacientes, filters }) {
             bairro: paciente.bairro || '',
             cidade: paciente.cidade || '',
             uf: paciente.uf || '',
-            observacoes: paciente.observacoes || '',
+            anotacoes: paciente.anotacoes || '',
             ativo: paciente.ativo ?? true,
         });
         setDrawerOpen(true);
@@ -69,11 +71,22 @@ export default function PacientesIndex({ pacientes, filters }) {
         setDrawerOpen(false);
         setEditingPaciente(null);
         setShowDeleteConfirm(false);
+        setCpfError(null);
         reset();
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        
+        // Validar CPF se preenchido
+        if (data.cpf && data.cpf.replace(/\D/g, '').length > 0) {
+            if (!validateCPF(data.cpf)) {
+                setCpfError('CPF inválido. Por favor, verifique os números digitados.');
+                return;
+            }
+        }
+        setCpfError(null);
+        
         if (editingPaciente) {
             put(`/pacientes/${editingPaciente.id}`, {
                 onSuccess: () => {
@@ -202,7 +215,7 @@ export default function PacientesIndex({ pacientes, filters }) {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cpf || '-'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.celular || paciente.telefone || '-'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.telefone2 || paciente.telefone1 || '-'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cidade ? `${paciente.cidade}/${paciente.uf}` : '-'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${paciente.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -270,11 +283,15 @@ export default function PacientesIndex({ pacientes, filters }) {
                                     required
                                 />
                             </div>
-                            <Input
+                            <MaskedInput
                                 label="CPF"
+                                mask="000.000.000-00"
                                 value={data.cpf}
-                                onChange={(e) => setData('cpf', e.target.value)}
-                                error={errors.cpf}
+                                onChange={(e) => {
+                                    setData('cpf', e.target.value);
+                                    setCpfError(null);
+                                }}
+                                error={cpfError || errors.cpf}
                                 placeholder="000.000.000-00"
                             />
                             <Input
@@ -297,20 +314,22 @@ export default function PacientesIndex({ pacientes, filters }) {
                             <Input
                                 label="E-mail"
                                 type="email"
-                                value={data.email}
-                                onChange={(e) => setData('email', e.target.value)}
-                                error={errors.email}
+                                value={data.email1}
+                                onChange={(e) => setData('email1', e.target.value)}
+                                error={errors.email1}
                             />
-                            <Input
+                            <MaskedInput
                                 label="Telefone"
-                                value={data.telefone}
-                                onChange={(e) => setData('telefone', e.target.value)}
+                                mask="(00) 0000-0000"
+                                value={data.telefone1}
+                                onChange={(e) => setData('telefone1', e.target.value)}
                                 placeholder="(00) 0000-0000"
                             />
-                            <Input
+                            <MaskedInput
                                 label="Celular"
-                                value={data.celular}
-                                onChange={(e) => setData('celular', e.target.value)}
+                                mask="(00) 00000-0000"
+                                value={data.telefone2}
+                                onChange={(e) => setData('telefone2', e.target.value)}
                                 placeholder="(00) 00000-0000"
                             />
                         </div>
@@ -321,13 +340,13 @@ export default function PacientesIndex({ pacientes, filters }) {
                                 <div className="col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
                                     <div className="flex gap-2">
-                                        <input
-                                            type="text"
+                                        <MaskedInput
+                                            mask="00000-000"
                                             value={data.cep}
                                             onChange={(e) => setData('cep', e.target.value)}
                                             onBlur={buscarCep}
                                             placeholder="00000-000"
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="flex-1"
                                         />
                                         <button
                                             type="button"
@@ -371,8 +390,8 @@ export default function PacientesIndex({ pacientes, filters }) {
                         <div className="border-t pt-6">
                             <Input
                                 label="Observações"
-                                value={data.observacoes}
-                                onChange={(e) => setData('observacoes', e.target.value)}
+                                value={data.anotacoes}
+                                onChange={(e) => setData('anotacoes', e.target.value)}
                                 multiline
                                 rows={3}
                             />
