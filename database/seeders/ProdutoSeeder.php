@@ -25,6 +25,7 @@ class ProdutoSeeder extends Seeder
                     'descricao' => $produto['descricao'],
                     'anotacoes' => $produto['anotacoes'],
                     'local_uso' => $produto['local_uso'],
+                    'preco' => rand(5000, 20000) / 100, // R$50,00 a R$200,00
                     'ativo' => true,
                 ]
             );

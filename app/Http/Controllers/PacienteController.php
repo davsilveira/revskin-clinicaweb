@@ -75,8 +75,16 @@ class PacienteController extends Controller
                         ->orWhere('email1', 'like', "%{$search}%");
                 });
             })
-            ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId))
-            ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')));
+            ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId));
+
+        // Filter by ativo status - defaults to true (active) if not specified
+        if ($request->has('ativo') && $request->ativo !== '' && $request->ativo !== null) {
+            $query->where('ativo', $request->boolean('ativo'));
+        } elseif (!$request->has('ativo')) {
+            // Default to showing only active patients when accessing page directly
+            $query->where('ativo', true);
+        }
+        // When ativo='' (empty string), show all patients (no filter applied)
 
         // Filter by user access
         $user = $request->user();

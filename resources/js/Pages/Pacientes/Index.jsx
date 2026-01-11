@@ -14,6 +14,7 @@ export default function PacientesIndex({ pacientes, filters }) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [toast, setToast] = useState(null);
     const [search, setSearch] = useState(filters?.search || '');
+    const [status, setStatus] = useState(filters?.ativo ?? '1');
     const [loadingCep, setLoadingCep] = useState(false);
     const [cpfError, setCpfError] = useState(null);
 
@@ -109,7 +110,7 @@ export default function PacientesIndex({ pacientes, filters }) {
             router.delete(`/pacientes/${editingPaciente.id}`, {
                 onSuccess: () => {
                     closeDrawer();
-                    setToast({ message: 'Paciente excluído com sucesso!', type: 'success' });
+                    setToast({ message: 'Paciente desativado com sucesso!', type: 'success' });
                 },
             });
         }
@@ -117,7 +118,8 @@ export default function PacientesIndex({ pacientes, filters }) {
 
     const handleSearch = (e) => {
         e.preventDefault();
-        router.get('/pacientes', { search }, { preserveState: true });
+        const params = { search, ativo: status };
+        router.get('/pacientes', params, { preserveState: true });
     };
 
     const buscarCep = useCallback(async () => {
@@ -178,6 +180,15 @@ export default function PacientesIndex({ pacientes, filters }) {
                             onChange={(e) => setSearch(e.target.value)}
                             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                         />
+                        <select
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        >
+                            <option value="">Todos</option>
+                            <option value="1">Ativos</option>
+                            <option value="0">Inativos</option>
+                        </select>
                         <button
                             type="submit"
                             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
@@ -415,14 +426,14 @@ export default function PacientesIndex({ pacientes, filters }) {
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
                         <div className="flex items-center justify-between">
                             <div>
-                                {editingPaciente && !showDeleteConfirm && (
+                                {editingPaciente && editingPaciente.ativo && !showDeleteConfirm && (
                                     <button type="button" onClick={() => setShowDeleteConfirm(true)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg">
-                                        Excluir
+                                        Desativar
                                     </button>
                                 )}
                                 {showDeleteConfirm && (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm">Confirmar exclusão?</span>
+                                        <span className="text-sm">Confirmar desativação?</span>
                                         <button type="button" onClick={handleDelete} className="px-3 py-1 bg-red-600 text-white rounded">Sim</button>
                                         <button type="button" onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1 bg-gray-200 rounded">Não</button>
                                     </div>

@@ -20,6 +20,7 @@ class Produto extends Model
         'descricao',
         'anotacoes',
         'local_uso',
+        'preco',
         'ativo',
     ];
 
@@ -27,6 +28,7 @@ class Produto extends Model
     {
         return [
             'ativo' => 'boolean',
+            'preco' => 'decimal:2',
         ];
     }
 
