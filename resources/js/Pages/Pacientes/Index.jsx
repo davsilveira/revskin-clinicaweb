@@ -470,6 +470,14 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                 onChange={(e) => setData('email1', e.target.value)}
                                 error={errors.email1}
                             />
+                            <div className="col-span-2">
+                                <Select
+                                    label="País"
+                                    value={data.pais}
+                                    onChange={(e) => setData('pais', e.target.value)}
+                                    options={countries}
+                                />
+                            </div>
                             {isBrazil ? (
                                 <MaskedInput
                                     label="Telefone Principal"
@@ -501,6 +509,76 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                     onChange={(e) => setData('telefone2', e.target.value)}
                                     placeholder="Número com código do país"
                                 />
+                            )}
+                        </div>
+
+                        {/* Multiple Phones Section - Right after main phones */}
+                        <div className="border-t pt-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-medium text-gray-900">Telefones Adicionais</h3>
+                                <button
+                                    type="button"
+                                    onClick={addTelefone}
+                                    className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Adicionar
+                                </button>
+                            </div>
+                            {data.telefones?.length > 0 ? (
+                                <div className="space-y-3">
+                                    {data.telefones.map((tel, index) => (
+                                        <div key={index} className="flex gap-2 items-end">
+                                            <div className="flex-1">
+                                                <Select
+                                                    label={index === 0 ? "Tipo" : ""}
+                                                    value={tel.tipo}
+                                                    onChange={(e) => updateTelefone(index, 'tipo', e.target.value)}
+                                                    options={[
+                                                        { value: '', label: 'Tipo' },
+                                                        { value: 'Residencial', label: 'Residencial' },
+                                                        { value: 'Comercial', label: 'Comercial' },
+                                                        { value: 'Celular', label: 'Celular' },
+                                                        { value: 'WhatsApp', label: 'WhatsApp' },
+                                                        { value: 'Recado', label: 'Recado' },
+                                                        { value: 'Outro', label: 'Outro' },
+                                                    ]}
+                                                />
+                                            </div>
+                                            <div className="flex-[2]">
+                                                {isBrazil ? (
+                                                    <MaskedInput
+                                                        label={index === 0 ? "Número" : ""}
+                                                        mask={[{ mask: '(00) 0000-0000' }, { mask: '(00) 00000-0000' }]}
+                                                        value={tel.numero}
+                                                        onAccept={(value) => updateTelefone(index, 'numero', value)}
+                                                        placeholder="(00) 0000-0000"
+                                                    />
+                                                ) : (
+                                                    <Input
+                                                        label={index === 0 ? "Número" : ""}
+                                                        value={tel.numero}
+                                                        onChange={(e) => updateTelefone(index, 'numero', e.target.value)}
+                                                        placeholder="Número com código do país"
+                                                    />
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTelefone(index)}
+                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500">Clique em "Adicionar" para incluir mais telefones</p>
                             )}
                         </div>
 
@@ -552,74 +630,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                         />
                                     )}
                                 </div>
-                                <div className="col-span-6">
-                                    <Select
-                                        label="País"
-                                        value={data.pais}
-                                        onChange={(e) => setData('pais', e.target.value)}
-                                        options={countries}
-                                    />
-                                </div>
                             </div>
-                        </div>
-
-                        {/* Multiple Phones Section */}
-                        <div className="border-t pt-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-sm font-medium text-gray-900">Telefones Adicionais</h3>
-                                <button
-                                    type="button"
-                                    onClick={addTelefone}
-                                    className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Adicionar
-                                </button>
-                            </div>
-                            {data.telefones.length > 0 ? (
-                                <div className="space-y-3">
-                                    {data.telefones.map((telefone, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                            <div className="flex-1">
-                                                {isBrazil ? (
-                                                    <MaskedInput
-                                                        mask="(00) 00000-0000"
-                                                        value={telefone.numero}
-                                                        onChange={(e) => updateTelefone(index, 'numero', e.target.value)}
-                                                        placeholder="(00) 00000-0000"
-                                                    />
-                                                ) : (
-                                                    <Input
-                                                        value={telefone.numero}
-                                                        onChange={(e) => updateTelefone(index, 'numero', e.target.value)}
-                                                        placeholder="Número com código"
-                                                    />
-                                                )}
-                                            </div>
-                                            <div className="w-32">
-                                                <Select
-                                                    value={telefone.tipo}
-                                                    onChange={(e) => updateTelefone(index, 'tipo', e.target.value)}
-                                                    options={Object.entries(tiposTelefone).map(([value, label]) => ({ value, label }))}
-                                                />
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeTelefone(index)}
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-gray-500">Clique em "Adicionar" para incluir mais telefones</p>
-                            )}
                         </div>
 
                         {/* Medico Search (Admin only) */}
