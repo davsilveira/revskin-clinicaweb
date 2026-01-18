@@ -508,25 +508,15 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                             <h3 className="text-sm font-medium text-gray-900 mb-4">Endereço</h3>
                             <div className="grid grid-cols-6 gap-4">
                                 <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
-                                    <div className="flex gap-2">
-                                        <MaskedInput
-                                            mask="00000-000"
-                                            value={data.cep}
-                                            onChange={(e) => setData('cep', e.target.value)}
-                                            onBlur={buscarCep}
-                                            placeholder="00000-000"
-                                            className="flex-1"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={buscarCep}
-                                            disabled={loadingCep}
-                                            className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-                                        >
-                                            {loadingCep ? '...' : '🔍'}
-                                        </button>
-                                    </div>
+                                    <MaskedInput
+                                        label="CEP"
+                                        mask="00000-000"
+                                        value={data.cep}
+                                        onChange={(e) => setData('cep', e.target.value)}
+                                        onBlur={buscarCep}
+                                        placeholder="00000-000"
+                                    />
+                                    {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
                                 </div>
                                 <div className="col-span-4">
                                     <Input label="Endereço" value={data.endereco} onChange={(e) => setData('endereco', e.target.value)} />

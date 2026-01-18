@@ -21,9 +21,15 @@ class ClinicaController extends Controller
             })
             ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')));
 
-        $clinicas = $query->orderBy('nome')
+        $clinicasQuery = $query->orderBy('nome')
             ->paginate(15)
             ->withQueryString();
+
+        // Map database fields to frontend fields
+        $clinicas = $clinicasQuery->through(function ($clinica) {
+            $clinica->telefone = $clinica->telefone1;
+            return $clinica;
+        });
 
         return Inertia::render('Clinicas/Index', [
             'clinicas' => $clinicas,
@@ -41,9 +47,7 @@ class ClinicaController extends Controller
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'cnpj' => 'nullable|string|max:18',
-            'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
-            'telefone3' => 'nullable|string|max:20',
+            'telefone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'endereco' => 'nullable|string|max:255',
             'numero' => 'nullable|string|max:20',
@@ -61,7 +65,12 @@ class ClinicaController extends Controller
         $medicoIds = $validated['medico_ids'] ?? [];
         unset($validated['medico_ids']);
 
-        $clinica = Clinica::create($validated);
+        // Map frontend field to database field
+        $clinicaData = $validated;
+        $clinicaData['telefone1'] = $validated['telefone'] ?? null;
+        unset($clinicaData['telefone']);
+
+        $clinica = Clinica::create($clinicaData);
 
         // Sync medicos
         if (!empty($medicoIds)) {
@@ -93,9 +102,7 @@ class ClinicaController extends Controller
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'cnpj' => 'nullable|string|max:18',
-            'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
-            'telefone3' => 'nullable|string|max:20',
+            'telefone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'endereco' => 'nullable|string|max:255',
             'numero' => 'nullable|string|max:20',
@@ -113,7 +120,12 @@ class ClinicaController extends Controller
         $medicoIds = $validated['medico_ids'] ?? [];
         unset($validated['medico_ids']);
 
-        $clinica->update($validated);
+        // Map frontend field to database field
+        $clinicaData = $validated;
+        $clinicaData['telefone1'] = $validated['telefone'] ?? null;
+        unset($clinicaData['telefone']);
+
+        $clinica->update($clinicaData);
 
         // Sync medicos
         $clinica->medicos()->sync($medicoIds);

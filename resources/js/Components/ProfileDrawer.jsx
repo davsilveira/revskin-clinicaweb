@@ -290,24 +290,15 @@ export default function ProfileDrawer({ isOpen, onClose }) {
                                     <div className="grid grid-cols-6 gap-3">
                                         <div className="col-span-2">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={medicoForm.data.cep}
-                                                    onChange={(e) => medicoForm.setData('cep', e.target.value)}
-                                                    onBlur={buscarCep}
-                                                    placeholder="00000-000"
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={buscarCep}
-                                                    disabled={loadingCep}
-                                                    className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm"
-                                                >
-                                                    {loadingCep ? '...' : '🔍'}
-                                                </button>
-                                            </div>
+                                            <input
+                                                type="text"
+                                                value={medicoForm.data.cep}
+                                                onChange={(e) => medicoForm.setData('cep', e.target.value)}
+                                                onBlur={buscarCep}
+                                                placeholder="00000-000"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                            />
+                                            {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
                                         </div>
                                         <div className="col-span-4">
                                             <Input label="Endereço" value={medicoForm.data.endereco} onChange={(e) => medicoForm.setData('endereco', e.target.value)} />

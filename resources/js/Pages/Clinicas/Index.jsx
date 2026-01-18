@@ -5,7 +5,9 @@ import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
+import MaskedInput from '@/Components/Form/MaskedInput';
 import debounce from 'lodash/debounce';
+import { validateCNPJ } from '@/utils/validations';
 
 export default function ClinicasIndex({ clinicas, filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -21,6 +23,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const [showMedicoDropdown, setShowMedicoDropdown] = useState(false);
     const [selectedMedicos, setSelectedMedicos] = useState([]);
     const [loadingMedicos, setLoadingMedicos] = useState(false);
+    const [cnpjError, setCnpjError] = useState('');
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         nome: '',
@@ -162,6 +165,18 @@ export default function ClinicasIndex({ clinicas, filters }) {
         } catch (e) { console.error(e); } finally { setLoadingCep(false); }
     }, [data.cep]);
 
+    const handleCnpjBlur = () => {
+        if (data.cnpj && data.cnpj.replace(/\D/g, '').length > 0) {
+            if (!validateCNPJ(data.cnpj)) {
+                setCnpjError('CNPJ inválido');
+            } else {
+                setCnpjError('');
+            }
+        } else {
+            setCnpjError('');
+        }
+    };
+
     const clinicasList = clinicas?.data || clinicas || [];
 
     return (
@@ -229,19 +244,40 @@ export default function ClinicasIndex({ clinicas, filters }) {
                 <form onSubmit={handleSubmit} className="flex flex-col h-full">
                     <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                         <Input label="Nome" value={data.nome} onChange={(e) => setData('nome', e.target.value)} error={errors.nome} required />
-                        <Input label="CNPJ" value={data.cnpj} onChange={(e) => setData('cnpj', e.target.value)} placeholder="00.000.000/0000-00" />
+                        <MaskedInput 
+                            label="CNPJ" 
+                            value={data.cnpj} 
+                            onAccept={(value) => setData('cnpj', value)}
+                            onBlur={handleCnpjBlur}
+                            mask="00.000.000/0000-00"
+                            placeholder="00.000.000/0000-00"
+                            error={cnpjError || errors.cnpj}
+                        />
                         <Input label="E-mail" type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} />
-                        <Input label="Telefone" value={data.telefone} onChange={(e) => setData('telefone', e.target.value)} placeholder="(00) 0000-0000" />
+                        <MaskedInput 
+                            label="Telefone" 
+                            value={data.telefone} 
+                            onAccept={(value) => setData('telefone', value)}
+                            mask={[
+                                { mask: '(00) 0000-0000' },
+                                { mask: '(00) 00000-0000' }
+                            ]}
+                            placeholder="(00) 0000-0000"
+                        />
                         
                         <div className="border-t pt-6">
                             <h3 className="text-sm font-medium text-gray-900 mb-4">Endereco</h3>
                             <div className="grid grid-cols-6 gap-4">
                                 <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
-                                    <div className="flex gap-2">
-                                        <input type="text" value={data.cep} onChange={(e) => setData('cep', e.target.value)} onBlur={buscarCep} placeholder="00000-000" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg" />
-                                        <button type="button" onClick={buscarCep} disabled={loadingCep} className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50">{loadingCep ? '...' : '🔍'}</button>
-                                    </div>
+                                    <MaskedInput 
+                                        label="CEP" 
+                                        value={data.cep} 
+                                        onAccept={(value) => setData('cep', value)}
+                                        onBlur={buscarCep}
+                                        mask="00000-000"
+                                        placeholder="00000-000"
+                                    />
+                                    {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
                                 </div>
                                 <div className="col-span-4"><Input label="Endereco" value={data.endereco} onChange={(e) => setData('endereco', e.target.value)} /></div>
                                 <div className="col-span-1"><Input label="Numero" value={data.numero} onChange={(e) => setData('numero', e.target.value)} /></div>
