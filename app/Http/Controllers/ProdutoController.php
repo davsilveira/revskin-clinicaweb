@@ -45,7 +45,13 @@ class ProdutoController extends Controller
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'local_uso' => 'nullable|string|max:255',
+            'categoria' => 'nullable|string|max:255',
+            'modo_uso' => 'nullable|string|max:255',
+            'unidade' => 'nullable|string|max:20',
             'preco_venda' => 'nullable|numeric|min:0',
+            'preco_custo' => 'nullable|numeric|min:0',
+            'estoque_minimo' => 'nullable|integer|min:0',
+            'tiny_id' => 'nullable|string|max:255',
             'ativo' => 'boolean',
         ]);
 
@@ -84,7 +90,13 @@ class ProdutoController extends Controller
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'local_uso' => 'nullable|string|max:255',
+            'categoria' => 'nullable|string|max:255',
+            'modo_uso' => 'nullable|string|max:255',
+            'unidade' => 'nullable|string|max:20',
             'preco_venda' => 'nullable|numeric|min:0',
+            'preco_custo' => 'nullable|numeric|min:0',
+            'estoque_minimo' => 'nullable|integer|min:0',
+            'tiny_id' => 'nullable|string|max:255',
             'ativo' => 'boolean',
         ]);
 

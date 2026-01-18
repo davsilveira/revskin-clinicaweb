@@ -19,7 +19,13 @@ class Produto extends Model
         'descricao',
         'anotacoes',
         'local_uso',
+        'categoria',
+        'modo_uso',
         'preco',
+        'preco_custo',
+        'estoque_minimo',
+        'unidade',
+        'tiny_id',
         'ativo',
     ];
 
@@ -28,6 +34,8 @@ class Produto extends Model
         return [
             'ativo' => 'boolean',
             'preco' => 'decimal:2',
+            'preco_custo' => 'decimal:2',
+            'estoque_minimo' => 'integer',
         ];
     }
 
