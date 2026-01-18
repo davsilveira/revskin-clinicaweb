@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Clinica;
+use App\Models\Medico;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -11,7 +12,7 @@ class ClinicaController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Clinica::query()
+        $query = Clinica::with(['medicos:id,nome,crm'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -53,9 +54,19 @@ class ClinicaController extends Controller
             'cep' => 'nullable|string|max:10',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'medico_ids' => 'nullable|array',
+            'medico_ids.*' => 'exists:medicos,id',
         ]);
 
-        Clinica::create($validated);
+        $medicoIds = $validated['medico_ids'] ?? [];
+        unset($validated['medico_ids']);
+
+        $clinica = Clinica::create($validated);
+
+        // Sync medicos
+        if (!empty($medicoIds)) {
+            $clinica->medicos()->sync($medicoIds);
+        }
 
         return redirect()->route('clinicas.index')
             ->with('success', 'Clínica cadastrada com sucesso!');
@@ -95,9 +106,17 @@ class ClinicaController extends Controller
             'cep' => 'nullable|string|max:10',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'medico_ids' => 'nullable|array',
+            'medico_ids.*' => 'exists:medicos,id',
         ]);
 
+        $medicoIds = $validated['medico_ids'] ?? [];
+        unset($validated['medico_ids']);
+
         $clinica->update($validated);
+
+        // Sync medicos
+        $clinica->medicos()->sync($medicoIds);
 
         return redirect()->route('clinicas.index')
             ->with('success', 'Clínica atualizada com sucesso!');

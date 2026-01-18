@@ -1,10 +1,11 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
+import debounce from 'lodash/debounce';
 
 export default function ClinicasIndex({ clinicas, filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -13,6 +14,13 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const [toast, setToast] = useState(null);
     const [search, setSearch] = useState(filters?.search || '');
     const [loadingCep, setLoadingCep] = useState(false);
+
+    // Medico search states
+    const [searchMedico, setSearchMedico] = useState('');
+    const [medicoResults, setMedicoResults] = useState([]);
+    const [showMedicoDropdown, setShowMedicoDropdown] = useState(false);
+    const [selectedMedicos, setSelectedMedicos] = useState([]);
+    const [loadingMedicos, setLoadingMedicos] = useState(false);
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         nome: '',
@@ -27,11 +35,59 @@ export default function ClinicasIndex({ clinicas, filters }) {
         cidade: '',
         uf: '',
         ativo: true,
+        medico_ids: [],
     });
+
+    // Debounced search for medicos
+    const searchMedicosApi = useCallback(
+        debounce(async (term) => {
+            if (term.length < 2) {
+                setMedicoResults([]);
+                setShowMedicoDropdown(false);
+                return;
+            }
+            setLoadingMedicos(true);
+            try {
+                const response = await fetch(`/api/medicos/search?q=${encodeURIComponent(term)}`);
+                const results = await response.json();
+                // Filter out already selected medicos
+                const filtered = results.filter(m => !selectedMedicos.find(s => s.id === m.id));
+                setMedicoResults(filtered);
+                setShowMedicoDropdown(true);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingMedicos(false);
+            }
+        }, 300),
+        [selectedMedicos]
+    );
+
+    useEffect(() => {
+        if (searchMedico) {
+            searchMedicosApi(searchMedico);
+        }
+    }, [searchMedico, searchMedicosApi]);
+
+    const addMedico = (medico) => {
+        const newMedicos = [...selectedMedicos, medico];
+        setSelectedMedicos(newMedicos);
+        setData('medico_ids', newMedicos.map(m => m.id));
+        setSearchMedico('');
+        setShowMedicoDropdown(false);
+    };
+
+    const removeMedico = (medicoId) => {
+        const newMedicos = selectedMedicos.filter(m => m.id !== medicoId);
+        setSelectedMedicos(newMedicos);
+        setData('medico_ids', newMedicos.map(m => m.id));
+    };
 
     const openCreateDrawer = () => {
         reset();
         setEditingClinica(null);
+        setSelectedMedicos([]);
+        setSearchMedico('');
         setShowDeleteConfirm(false);
         setDrawerOpen(true);
     };
@@ -39,6 +95,8 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const openEditDrawer = (clinica) => {
         setEditingClinica(clinica);
         setShowDeleteConfirm(false);
+        setSelectedMedicos(clinica.medicos || []);
+        setSearchMedico('');
         setData({
             nome: clinica.nome || '',
             cnpj: clinica.cnpj || '',
@@ -52,6 +110,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
             cidade: clinica.cidade || '',
             uf: clinica.uf || '',
             ativo: clinica.ativo ?? true,
+            medico_ids: clinica.medicos?.map(m => m.id) || [],
         });
         setDrawerOpen(true);
     };
@@ -59,6 +118,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const closeDrawer = () => {
         setDrawerOpen(false);
         setEditingClinica(null);
+        setSelectedMedicos([]);
         setShowDeleteConfirm(false);
         reset();
     };
@@ -191,6 +251,71 @@ export default function ClinicasIndex({ clinicas, filters }) {
                                 <div className="col-span-2"><Select label="UF" value={data.uf} onChange={(e) => setData('uf', e.target.value)} options={[{ value: '', label: 'UF' }, ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))]} /></div>
                             </div>
                         </div>
+                        {/* Medicos Section */}
+                        <div className="border-t pt-6">
+                            <h3 className="text-sm font-medium text-gray-900 mb-4">Médicos Vinculados</h3>
+                            
+                            {/* Selected Medicos */}
+                            {selectedMedicos.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {selectedMedicos.map((medico) => (
+                                        <div
+                                            key={medico.id}
+                                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm"
+                                        >
+                                            <span>{medico.nome}</span>
+                                            {medico.crm && <span className="text-blue-600 text-xs">CRM: {medico.crm}</span>}
+                                            <button
+                                                type="button"
+                                                onClick={() => removeMedico(medico.id)}
+                                                className="text-blue-600 hover:text-blue-800"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* Medico Search */}
+                            <div className="relative">
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar médico pelo nome ou CRM..."
+                                        value={searchMedico}
+                                        onChange={(e) => setSearchMedico(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                    {loadingMedicos && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
+                                {showMedicoDropdown && medicoResults.length > 0 && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-auto">
+                                        {medicoResults.map((medico) => (
+                                            <button
+                                                key={medico.id}
+                                                type="button"
+                                                onClick={() => addMedico(medico)}
+                                                className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                            >
+                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         {editingClinica && <Select label="Status" value={data.ativo ? '1' : '0'} onChange={(e) => setData('ativo', e.target.value === '1')} options={[{ value: '1', label: 'Ativo' }, { value: '0', label: 'Inativo' }]} />}
                     </div>
                     <div className="border-t border-gray-200 p-6 bg-gray-50">

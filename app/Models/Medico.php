@@ -49,11 +49,20 @@ class Medico extends Model
     }
 
     /**
-     * Get the clinica.
+     * Get the clinica (legacy - direct FK).
      */
     public function clinica(): BelongsTo
     {
         return $this->belongsTo(Clinica::class);
+    }
+
+    /**
+     * Get the clinicas (many-to-many).
+     */
+    public function clinicas(): BelongsToMany
+    {
+        return $this->belongsToMany(Clinica::class, 'clinica_medico')
+            ->withTimestamps();
     }
 
     /**
