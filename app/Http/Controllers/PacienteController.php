@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Medico;
 use App\Models\Paciente;
+use App\Models\PacienteTelefone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
@@ -66,13 +67,14 @@ class PacienteController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Paciente::with(['medico:id,nome'])
+        $query = Paciente::with(['medico:id,nome', 'telefones'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
                         ->orWhere('cpf', 'like', "%{$search}%")
                         ->orWhere('telefone1', 'like', "%{$search}%")
-                        ->orWhere('email1', 'like', "%{$search}%");
+                        ->orWhere('email1', 'like', "%{$search}%")
+                        ->orWhereHas('telefones', fn($tq) => $tq->where('numero', 'like', "%{$search}%"));
                 });
             })
             ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId));
@@ -102,6 +104,8 @@ class PacienteController extends Controller
             'pacientes' => $pacientes,
             'medicos' => $medicos,
             'filters' => $request->only(['search', 'medico_id', 'ativo']),
+            'tiposTelefone' => PacienteTelefone::getTipos(),
+            'isAdmin' => $user->isAdmin(),
         ]);
     }
 
@@ -143,11 +147,15 @@ class PacienteController extends Controller
             'bairro' => 'nullable|string|max:255',
             'cidade' => 'nullable|string|max:255',
             'uf' => 'nullable|string|max:2',
+            'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
             'ativo' => 'boolean',
+            'telefones' => 'nullable|array',
+            'telefones.*.numero' => 'required|string|max:30',
+            'telefones.*.tipo' => 'required|string|max:50',
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
         ]);
@@ -163,7 +171,19 @@ class PacienteController extends Controller
             $validated['medico_id'] = $user->medico_id;
         }
 
-        Paciente::create($validated);
+        $telefones = $validated['telefones'] ?? [];
+        unset($validated['telefones']);
+
+        $paciente = Paciente::create($validated);
+
+        // Save telefones
+        foreach ($telefones as $index => $telefone) {
+            $paciente->telefones()->create([
+                'numero' => $telefone['numero'],
+                'tipo' => $telefone['tipo'],
+                'principal' => $index === 0,
+            ]);
+        }
 
         return redirect()->route('pacientes.index')
             ->with('success', 'Paciente cadastrado com sucesso!');
@@ -222,11 +242,15 @@ class PacienteController extends Controller
             'bairro' => 'nullable|string|max:255',
             'cidade' => 'nullable|string|max:255',
             'uf' => 'nullable|string|max:2',
+            'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
             'ativo' => 'boolean',
+            'telefones' => 'nullable|array',
+            'telefones.*.numero' => 'required|string|max:30',
+            'telefones.*.tipo' => 'required|string|max:50',
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
         ]);
@@ -236,7 +260,20 @@ class PacienteController extends Controller
             return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
         }
 
+        $telefones = $validated['telefones'] ?? [];
+        unset($validated['telefones']);
+
         $paciente->update($validated);
+
+        // Sync telefones
+        $paciente->telefones()->delete();
+        foreach ($telefones as $index => $telefone) {
+            $paciente->telefones()->create([
+                'numero' => $telefone['numero'],
+                'tipo' => $telefone['tipo'],
+                'principal' => $index === 0,
+            ]);
+        }
 
         return redirect()->route('pacientes.index')
             ->with('success', 'Paciente atualizado com sucesso!');
@@ -305,11 +342,15 @@ class PacienteController extends Controller
             'bairro' => 'nullable|string|max:255',
             'cidade' => 'nullable|string|max:255',
             'uf' => 'nullable|string|max:2',
+            'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
             'ativo' => 'boolean',
+            'telefones' => 'nullable|array',
+            'telefones.*.numero' => 'required|string|max:30',
+            'telefones.*.tipo' => 'required|string|max:50',
         ]);
 
         // Validate CPF if provided
@@ -324,7 +365,8 @@ class PacienteController extends Controller
         }
 
         $id = $validated['id'] ?? null;
-        unset($validated['id']);
+        $telefones = $validated['telefones'] ?? [];
+        unset($validated['id'], $validated['telefones']);
 
         if ($id) {
             $paciente = Paciente::findOrFail($id);
@@ -337,6 +379,18 @@ class PacienteController extends Controller
             $paciente->update($validated);
         } else {
             $paciente = Paciente::create($validated);
+        }
+
+        // Sync telefones
+        if (!empty($telefones)) {
+            $paciente->telefones()->delete();
+            foreach ($telefones as $index => $telefone) {
+                $paciente->telefones()->create([
+                    'numero' => $telefone['numero'],
+                    'tipo' => $telefone['tipo'],
+                    'principal' => $index === 0,
+                ]);
+            }
         }
 
         return response()->json([

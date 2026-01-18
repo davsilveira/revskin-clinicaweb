@@ -33,6 +33,7 @@ class Paciente extends Model
         'bairro',
         'cidade',
         'uf',
+        'pais',
         'cep',
         'indicado_por',
         'anotacoes',
@@ -62,6 +63,14 @@ class Paciente extends Model
     public function receitas(): HasMany
     {
         return $this->hasMany(Receita::class);
+    }
+
+    /**
+     * Get the telefones.
+     */
+    public function telefones(): HasMany
+    {
+        return $this->hasMany(PacienteTelefone::class);
     }
 
     /**
