@@ -16,7 +16,7 @@ export default function UsersIndex({ users }) {
         name: '',
         email: '',
         password: '',
-        role: 'user',
+        role: 'medico',
         is_active: true,
     });
 
@@ -79,14 +79,29 @@ export default function UsersIndex({ users }) {
     };
 
     const getRoleBadge = (role) => {
-        if (role === 'admin') {
-            return 'bg-purple-100 text-purple-800';
+        switch (role) {
+            case 'admin':
+                return 'bg-purple-100 text-purple-800';
+            case 'medico':
+                return 'bg-emerald-100 text-emerald-800';
+            case 'callcenter':
+                return 'bg-blue-100 text-blue-800';
+            default:
+                return 'bg-gray-100 text-gray-800';
         }
-        return 'bg-blue-100 text-blue-800';
     };
 
     const getRoleLabel = (role) => {
-        return role === 'admin' ? 'Administrador' : 'Usuário';
+        switch (role) {
+            case 'admin':
+                return 'Administrador';
+            case 'medico':
+                return 'Médico';
+            case 'callcenter':
+                return 'Call Center';
+            default:
+                return role;
+        }
     };
 
     return (
@@ -225,7 +240,8 @@ export default function UsersIndex({ users }) {
                             error={errors.role}
                             required
                             options={[
-                                { value: 'user', label: 'Usuário' },
+                                { value: 'medico', label: 'Médico' },
+                                { value: 'callcenter', label: 'Call Center' },
                                 { value: 'admin', label: 'Administrador' },
                             ]}
                         />
