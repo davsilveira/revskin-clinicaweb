@@ -90,6 +90,14 @@ class Medico extends Model
     }
 
     /**
+     * Get the enderecos for this medico.
+     */
+    public function enderecos(): HasMany
+    {
+        return $this->hasMany(MedicoEndereco::class);
+    }
+
+    /**
      * Get the atendimentos callcenter for this medico.
      */
     public function atendimentosCallcenter(): HasMany

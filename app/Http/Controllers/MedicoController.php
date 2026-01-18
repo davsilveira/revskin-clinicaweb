@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Clinica;
 use App\Models\Medico;
+use App\Models\MedicoEndereco;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -16,7 +17,7 @@ class MedicoController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Medico::with(['clinica:id,nome'])
+        $query = Medico::with(['clinica:id,nome', 'enderecos'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -37,6 +38,7 @@ class MedicoController extends Controller
             'medicos' => $medicos,
             'clinicas' => $clinicas,
             'filters' => $request->only(['search', 'clinica_id', 'ativo']),
+            'isAdmin' => $request->user()->isAdmin(),
         ]);
     }
 
@@ -81,9 +83,29 @@ class MedicoController extends Controller
             'rodape_receita' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'enderecos' => 'nullable|array',
+            'enderecos.*.nome' => 'required|string|max:100',
+            'enderecos.*.cep' => 'nullable|string|max:10',
+            'enderecos.*.endereco' => 'nullable|string|max:255',
+            'enderecos.*.numero' => 'nullable|string|max:20',
+            'enderecos.*.complemento' => 'nullable|string|max:255',
+            'enderecos.*.bairro' => 'nullable|string|max:255',
+            'enderecos.*.cidade' => 'nullable|string|max:255',
+            'enderecos.*.uf' => 'nullable|string|max:2',
         ]);
 
-        Medico::create($validated);
+        $enderecos = $validated['enderecos'] ?? [];
+        unset($validated['enderecos']);
+
+        $medico = Medico::create($validated);
+
+        // Save enderecos
+        foreach ($enderecos as $index => $endereco) {
+            $medico->enderecos()->create([
+                ...$endereco,
+                'principal' => $index === 0,
+            ]);
+        }
 
         return redirect()->route('medicos.index')
             ->with('success', 'Médico cadastrado com sucesso!');
@@ -145,9 +167,30 @@ class MedicoController extends Controller
             'rodape_receita' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'enderecos' => 'nullable|array',
+            'enderecos.*.nome' => 'required|string|max:100',
+            'enderecos.*.cep' => 'nullable|string|max:10',
+            'enderecos.*.endereco' => 'nullable|string|max:255',
+            'enderecos.*.numero' => 'nullable|string|max:20',
+            'enderecos.*.complemento' => 'nullable|string|max:255',
+            'enderecos.*.bairro' => 'nullable|string|max:255',
+            'enderecos.*.cidade' => 'nullable|string|max:255',
+            'enderecos.*.uf' => 'nullable|string|max:2',
         ]);
 
+        $enderecos = $validated['enderecos'] ?? [];
+        unset($validated['enderecos']);
+
         $medico->update($validated);
+
+        // Sync enderecos
+        $medico->enderecos()->delete();
+        foreach ($enderecos as $index => $endereco) {
+            $medico->enderecos()->create([
+                ...$endereco,
+                'principal' => $index === 0,
+            ]);
+        }
 
         return redirect()->route('medicos.index')
             ->with('success', 'Médico atualizado com sucesso!');
