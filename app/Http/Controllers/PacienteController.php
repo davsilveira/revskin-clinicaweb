@@ -281,6 +281,72 @@ class PacienteController extends Controller
     }
 
     /**
+     * Autosave - Store or update without redirect (for AJAX autosave).
+     */
+    public function autosave(Request $request)
+    {
+        $validated = $request->validate([
+            'id' => 'nullable|exists:pacientes,id',
+            'nome' => 'required|string|max:255',
+            'data_nascimento' => 'nullable|date',
+            'sexo' => 'nullable|string|max:20',
+            'fototipo' => 'nullable|string|max:50',
+            'cpf' => 'nullable|string|max:14',
+            'rg' => 'nullable|string|max:20',
+            'telefone1' => 'nullable|string|max:20',
+            'telefone2' => 'nullable|string|max:20',
+            'telefone3' => 'nullable|string|max:20',
+            'email1' => 'nullable|email|max:255',
+            'email2' => 'nullable|email|max:255',
+            'tipo_endereco' => 'nullable|string|max:255',
+            'endereco' => 'nullable|string|max:255',
+            'numero' => 'nullable|string|max:20',
+            'complemento' => 'nullable|string|max:255',
+            'bairro' => 'nullable|string|max:255',
+            'cidade' => 'nullable|string|max:255',
+            'uf' => 'nullable|string|max:2',
+            'cep' => 'nullable|string|max:10',
+            'indicado_por' => 'nullable|string|max:255',
+            'anotacoes' => 'nullable|string',
+            'medico_id' => 'nullable|exists:medicos,id',
+            'ativo' => 'boolean',
+        ]);
+
+        // Validate CPF if provided
+        if (!empty($validated['cpf']) && !$this->validateCpfDigits($validated['cpf'])) {
+            return response()->json(['error' => 'CPF inválido'], 422);
+        }
+
+        // Auto-assign medico if user is medico
+        $user = $request->user();
+        if ($user->isMedico() && $user->medico_id) {
+            $validated['medico_id'] = $user->medico_id;
+        }
+
+        $id = $validated['id'] ?? null;
+        unset($validated['id']);
+
+        if ($id) {
+            $paciente = Paciente::findOrFail($id);
+            
+            // Check access
+            if (!$user->canAccessPaciente($paciente)) {
+                return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+            
+            $paciente->update($validated);
+        } else {
+            $paciente = Paciente::create($validated);
+        }
+
+        return response()->json([
+            'success' => true,
+            'id' => $paciente->id,
+            'saved_at' => now()->toISOString(),
+        ]);
+    }
+
+    /**
      * Lookup address by CEP using ViaCEP API.
      */
     public function buscarCep(string $cep)

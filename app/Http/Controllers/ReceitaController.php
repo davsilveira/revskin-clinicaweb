@@ -246,6 +246,101 @@ class ReceitaController extends Controller
     }
 
     /**
+     * Autosave - Store or update without redirect (for AJAX autosave).
+     */
+    public function autosave(Request $request)
+    {
+        $validated = $request->validate([
+            'id' => 'nullable|exists:receitas,id',
+            'paciente_id' => 'required|exists:pacientes,id',
+            'medico_id' => 'required|exists:medicos,id',
+            'data_receita' => 'required|date',
+            'anotacoes' => 'nullable|string',
+            'anotacoes_paciente' => 'nullable|string',
+            'desconto_percentual' => 'nullable|numeric|min:0|max:100',
+            'desconto_motivo' => 'nullable|string',
+            'valor_caixa' => 'nullable|numeric|min:0',
+            'valor_frete' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:rascunho,finalizada',
+            'itens' => 'nullable|array',
+            'itens.*.produto_id' => 'required|exists:produtos,id',
+            'itens.*.local_uso' => 'nullable|string',
+            'itens.*.anotacoes' => 'nullable|string',
+            'itens.*.quantidade' => 'required|integer|min:1',
+            'itens.*.valor_unitario' => 'required|numeric|min:0',
+            'itens.*.imprimir' => 'boolean',
+        ]);
+
+        $id = $validated['id'] ?? null;
+        unset($validated['id']);
+
+        $user = $request->user();
+
+        // If user is medico, ensure they can only save for themselves
+        if ($user->isMedico() && $user->medico_id && $validated['medico_id'] != $user->medico_id) {
+            return response()->json(['error' => 'Acesso não autorizado'], 403);
+        }
+
+        if ($id) {
+            $receita = Receita::findOrFail($id);
+            
+            // Check access
+            if ($user->isMedico() && $receita->medico_id != $user->medico_id) {
+                return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+            
+            $receita->update([
+                'data_receita' => $validated['data_receita'],
+                'anotacoes' => $validated['anotacoes'] ?? null,
+                'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
+                'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
+                'desconto_motivo' => $validated['desconto_motivo'] ?? null,
+                'valor_caixa' => $validated['valor_caixa'] ?? 0,
+                'valor_frete' => $validated['valor_frete'] ?? 0,
+            ]);
+        } else {
+            $receita = Receita::create([
+                'numero' => Receita::gerarNumero(),
+                'paciente_id' => $validated['paciente_id'],
+                'medico_id' => $validated['medico_id'],
+                'data_receita' => $validated['data_receita'],
+                'anotacoes' => $validated['anotacoes'] ?? null,
+                'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
+                'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
+                'desconto_motivo' => $validated['desconto_motivo'] ?? null,
+                'valor_caixa' => $validated['valor_caixa'] ?? 0,
+                'valor_frete' => $validated['valor_frete'] ?? 0,
+                'status' => 'rascunho',
+            ]);
+        }
+
+        // Sync items if provided
+        if (!empty($validated['itens'])) {
+            $receita->itens()->delete();
+            foreach ($validated['itens'] as $index => $item) {
+                $receita->itens()->create([
+                    'produto_id' => $item['produto_id'],
+                    'local_uso' => $item['local_uso'] ?? null,
+                    'anotacoes' => $item['anotacoes'] ?? null,
+                    'quantidade' => $item['quantidade'],
+                    'valor_unitario' => $item['valor_unitario'],
+                    'valor_total' => $item['quantidade'] * $item['valor_unitario'],
+                    'imprimir' => $item['imprimir'] ?? true,
+                    'ordem' => $index,
+                ]);
+            }
+            $receita->calcularTotais();
+        }
+
+        return response()->json([
+            'success' => true,
+            'id' => $receita->id,
+            'numero' => $receita->numero,
+            'saved_at' => now()->toISOString(),
+        ]);
+    }
+
+    /**
      * Copy receita from another.
      */
     public function copiar(Request $request, Receita $receita)

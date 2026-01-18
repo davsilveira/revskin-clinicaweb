@@ -61,12 +61,14 @@ Route::middleware(['auth'])->group(function () {
     // Pacientes (all authenticated users, filtered by role in controller)
     Route::resource('pacientes', PacienteController::class);
     Route::get('/api/pacientes/search', [PacienteController::class, 'search'])->name('pacientes.search');
+    Route::post('/api/pacientes/autosave', [PacienteController::class, 'autosave'])->name('pacientes.autosave');
 
     // Receitas (medico and admin)
     Route::middleware('medico')->group(function () {
         Route::resource('receitas', ReceitaController::class);
         Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
         Route::get('/receitas/{receita}/pdf', [ReceitaController::class, 'pdf'])->name('receitas.pdf');
+        Route::post('/api/receitas/autosave', [ReceitaController::class, 'autosave'])->name('receitas.autosave');
         
         // Assistente de Receita
         Route::get('/assistente-receita', [AssistenteReceitaController::class, 'index'])->name('assistente.index');

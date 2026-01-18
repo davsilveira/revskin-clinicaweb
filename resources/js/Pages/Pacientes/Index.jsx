@@ -1,5 +1,5 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
@@ -7,6 +7,7 @@ import Input from '@/Components/Form/Input';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
 import { validateCPF } from '@/utils/validations';
+import useAutoSave from '@/hooks/useAutoSave';
 
 export default function PacientesIndex({ pacientes, filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -17,6 +18,8 @@ export default function PacientesIndex({ pacientes, filters }) {
     const [status, setStatus] = useState(filters?.ativo ?? '1');
     const [loadingCep, setLoadingCep] = useState(false);
     const [cpfError, setCpfError] = useState(null);
+    const [currentPacienteId, setCurrentPacienteId] = useState(null);
+    const isFirstRender = useRef(true);
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         nome: '',
@@ -37,16 +40,66 @@ export default function PacientesIndex({ pacientes, filters }) {
         ativo: true,
     });
 
+    // Autosave function
+    const performAutoSave = useCallback(async () => {
+        if (!data.nome || data.nome.trim().length < 2) return;
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        
+        const response = await fetch('/api/pacientes/autosave', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                id: currentPacienteId,
+                ...data,
+            }),
+        });
+        
+        if (!response.ok) throw new Error('Autosave failed');
+        
+        const result = await response.json();
+        if (result.id && !currentPacienteId) {
+            setCurrentPacienteId(result.id);
+        }
+        return result;
+    }, [data, currentPacienteId]);
+
+    const { 
+        lastSavedText, 
+        isSaving: isAutoSaving, 
+        triggerAutoSave, 
+        cancelAutoSave 
+    } = useAutoSave(performAutoSave, 2000, drawerOpen && data.nome.length >= 2);
+
+    // Trigger autosave when data changes
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+        if (drawerOpen && data.nome.length >= 2) {
+            triggerAutoSave();
+        }
+    }, [data, drawerOpen]);
+
     const openCreateDrawer = () => {
         reset();
         setEditingPaciente(null);
+        setCurrentPacienteId(null);
         setShowDeleteConfirm(false);
+        isFirstRender.current = true;
         setDrawerOpen(true);
     };
 
     const openEditDrawer = (paciente) => {
         setEditingPaciente(paciente);
+        setCurrentPacienteId(paciente.id);
         setShowDeleteConfirm(false);
+        isFirstRender.current = true;
         setData({
             nome: paciente.nome || '',
             cpf: paciente.cpf || '',
@@ -69,8 +122,10 @@ export default function PacientesIndex({ pacientes, filters }) {
     };
 
     const closeDrawer = () => {
+        cancelAutoSave();
         setDrawerOpen(false);
         setEditingPaciente(null);
+        setCurrentPacienteId(null);
         setShowDeleteConfirm(false);
         setCpfError(null);
         reset();
@@ -425,7 +480,7 @@ export default function PacientesIndex({ pacientes, filters }) {
 
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
                         <div className="flex items-center justify-between">
-                            <div>
+                            <div className="flex items-center gap-4">
                                 {editingPaciente && editingPaciente.ativo && !showDeleteConfirm && (
                                     <button type="button" onClick={() => setShowDeleteConfirm(true)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg">
                                         Desativar
@@ -439,7 +494,28 @@ export default function PacientesIndex({ pacientes, filters }) {
                                     </div>
                                 )}
                             </div>
-                            <div className="flex gap-3">
+                            <div className="flex items-center gap-3">
+                                {/* Autosave indicator */}
+                                {(isAutoSaving || lastSavedText) && (
+                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                        {isAutoSaving ? (
+                                            <>
+                                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                <span>Salvando...</span>
+                                            </>
+                                        ) : lastSavedText ? (
+                                            <>
+                                                <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                <span>Salvo às {lastSavedText}</span>
+                                            </>
+                                        ) : null}
+                                    </div>
+                                )}
                                 <button type="button" onClick={closeDrawer} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                                     Cancelar
                                 </button>
