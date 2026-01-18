@@ -18,6 +18,7 @@ class Medico extends Model
         'nome',
         'apelido',
         'crm',
+        'uf_crm',
         'cpf',
         'rg',
         'especialidade',
@@ -124,6 +125,22 @@ class Medico extends Model
         }
         return $nome;
     }
+
+    /**
+     * Get the signature URL.
+     */
+    public function getAssinaturaUrlAttribute(): ?string
+    {
+        if ($this->assinatura_path) {
+            return asset('storage/' . $this->assinatura_path);
+        }
+        return null;
+    }
+
+    /**
+     * Append accessor to JSON.
+     */
+    protected $appends = ['assinatura_url'];
 }
 
 

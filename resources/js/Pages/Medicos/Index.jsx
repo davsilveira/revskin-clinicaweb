@@ -5,6 +5,7 @@ import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
+import MaskedInput from '@/Components/Form/MaskedInput';
 
 export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin = false }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -23,8 +24,8 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
         telefone: '',
         celular: '',
         clinica_id: '',
-        comissao_percentual: '',
         assinatura: null,
+        remover_assinatura: false,
         ativo: true,
         enderecos: [],
     });
@@ -92,8 +93,8 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
             telefone: medico.telefone || '',
             celular: medico.celular || '',
             clinica_id: medico.clinica_id || '',
-            comissao_percentual: medico.comissao_percentual || '',
             assinatura: null,
+            remover_assinatura: false,
             ativo: medico.ativo ?? true,
             enderecos: medico.enderecos?.map(e => ({
                 nome: e.nome || '',
@@ -119,28 +120,28 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
     const handleSubmit = (e) => {
         e.preventDefault();
         
-        // Use JSON submission to properly handle nested arrays
+        // Build submit data with filtered enderecos
         const submitData = {
             ...data,
             enderecos: data.enderecos.filter(e => e.nome && e.nome.trim()),
         };
 
+        const options = {
+            forceFormData: true, // Required for file uploads
+            onSuccess: () => {
+                closeDrawer();
+                setToast({ message: editingMedico ? 'Médico atualizado com sucesso!' : 'Médico cadastrado com sucesso!', type: 'success' });
+            },
+        };
+
         if (editingMedico) {
-            put(`/medicos/${editingMedico.id}`, {
-                data: submitData,
-                onSuccess: () => {
-                    closeDrawer();
-                    setToast({ message: 'Medico atualizado com sucesso!', type: 'success' });
-                },
-            });
+            // Use POST with _method for file uploads (PUT doesn't support files well)
+            router.post(`/medicos/${editingMedico.id}`, {
+                ...submitData,
+                _method: 'PUT',
+            }, options);
         } else {
-            post('/medicos', {
-                data: submitData,
-                onSuccess: () => {
-                    closeDrawer();
-                    setToast({ message: 'Medico cadastrado com sucesso!', type: 'success' });
-                },
-            });
+            router.post('/medicos', submitData, options);
         }
     };
 
@@ -256,24 +257,52 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                         <Input label="Especialidade" value={data.especialidade} onChange={(e) => setData('especialidade', e.target.value)} placeholder="Ex: Dermatologia" />
                         <Input label="E-mail" type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} error={errors.email} />
                         <div className="grid grid-cols-2 gap-4">
-                            <Input label="Telefone" value={data.telefone} onChange={(e) => setData('telefone', e.target.value)} placeholder="(00) 0000-0000" />
-                            <Input label="Celular" value={data.celular} onChange={(e) => setData('celular', e.target.value)} placeholder="(00) 00000-0000" />
+                            <MaskedInput 
+                                label="Telefone" 
+                                value={data.telefone} 
+                                onAccept={(value) => setData('telefone', value)} 
+                                mask="(00) 0000-0000"
+                                placeholder="(00) 0000-0000" 
+                            />
+                            <MaskedInput 
+                                label="Celular" 
+                                value={data.celular} 
+                                onAccept={(value) => setData('celular', value)} 
+                                mask="(00) 00000-0000"
+                                placeholder="(00) 00000-0000" 
+                            />
                         </div>
-                        <Input label="Comissao (%)" type="number" value={data.comissao_percentual} onChange={(e) => setData('comissao_percentual', e.target.value)} step="0.01" min="0" max="100" />
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Assinatura (imagem)</label>
-                            <input type="file" accept="image/*" onChange={(e) => setData('assinatura', e.target.files[0])} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                            {editingMedico?.assinatura_url && <img src={editingMedico.assinatura_url} alt="Assinatura" className="h-16 border rounded mt-2" />}
+                            <input type="file" accept="image/*" onChange={(e) => setData('assinatura', e.target.files[0])} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
+                            {editingMedico?.assinatura_url && !data.remover_assinatura && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <img src={editingMedico.assinatura_url} alt="Assinatura" className="h-16 border border-gray-200 rounded-lg" />
+                                    <button
+                                        type="button"
+                                        onClick={() => setData('remover_assinatura', true)}
+                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Remover assinatura"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                            {data.remover_assinatura && (
+                                <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
+                                    <span>Assinatura será removida ao salvar</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setData('remover_assinatura', false)}
+                                        className="text-emerald-600 hover:underline"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                        {/* Clinica dropdown (Admin only) */}
-                        {isAdmin && clinicas.length > 0 && (
-                            <Select 
-                                label="Clínica" 
-                                value={data.clinica_id} 
-                                onChange={(e) => setData('clinica_id', e.target.value)} 
-                                options={[{ value: '', label: 'Selecione uma clínica' }, ...clinicas.map(c => ({ value: c.id, label: c.nome }))]} 
-                            />
-                        )}
 
                         {/* Multiple Addresses Section */}
                         <div className="border-t pt-6">
@@ -291,63 +320,65 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                                 </button>
                             </div>
                             {data.enderecos.length > 0 ? (
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     {data.enderecos.map((endereco, index) => (
-                                        <div key={index} className="border rounded-lg p-4 relative">
+                                        <div key={index} className="border border-gray-200 rounded-lg p-3 relative bg-gray-50/50">
                                             <button
                                                 type="button"
                                                 onClick={() => removeEndereco(index)}
-                                                className="absolute top-2 right-2 p-1 text-red-600 hover:bg-red-50 rounded"
+                                                className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                 </svg>
                                             </button>
-                                            <div className="space-y-3">
-                                                <Input
-                                                    label="Nome do Endereço"
-                                                    placeholder="Ex: Consultório, Residência, Comercial..."
-                                                    value={endereco.nome}
-                                                    onChange={(e) => updateEndereco(index, 'nome', e.target.value)}
-                                                />
-                                                <div className="grid grid-cols-6 gap-3">
-                                                    <div className="col-span-2">
+                                            <div className="space-y-2">
+                                                <div className="pr-6">
+                                                    <Input
+                                                        label="Nome do Endereço"
+                                                        placeholder="Ex: Consultório, Residência, Comercial..."
+                                                        value={endereco.nome}
+                                                        onChange={(e) => updateEndereco(index, 'nome', e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-12 gap-2">
+                                                    <div className="col-span-3">
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
-                                                        <div className="flex gap-2">
+                                                        <div className="flex gap-1">
                                                             <input
                                                                 type="text"
                                                                 value={endereco.cep}
                                                                 onChange={(e) => updateEndereco(index, 'cep', e.target.value)}
                                                                 onBlur={() => buscarCepEndereco(index)}
                                                                 placeholder="00000-000"
-                                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                                                className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm"
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => buscarCepEndereco(index)}
                                                                 disabled={loadingCepIndex === index}
-                                                                className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm"
+                                                                className="px-2 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm flex-shrink-0"
                                                             >
                                                                 {loadingCepIndex === index ? '...' : '🔍'}
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="col-span-4">
+                                                    <div className="col-span-9">
                                                         <Input label="Endereço" value={endereco.endereco} onChange={(e) => updateEndereco(index, 'endereco', e.target.value)} />
                                                     </div>
-                                                    <div className="col-span-1">
+                                                    <div className="col-span-2">
                                                         <Input label="Nº" value={endereco.numero} onChange={(e) => updateEndereco(index, 'numero', e.target.value)} />
                                                     </div>
-                                                    <div className="col-span-2">
+                                                    <div className="col-span-4">
                                                         <Input label="Complemento" value={endereco.complemento} onChange={(e) => updateEndereco(index, 'complemento', e.target.value)} />
                                                     </div>
-                                                    <div className="col-span-3">
+                                                    <div className="col-span-6">
                                                         <Input label="Bairro" value={endereco.bairro} onChange={(e) => updateEndereco(index, 'bairro', e.target.value)} />
                                                     </div>
-                                                    <div className="col-span-4">
+                                                    <div className="col-span-9">
                                                         <Input label="Cidade" value={endereco.cidade} onChange={(e) => updateEndereco(index, 'cidade', e.target.value)} />
                                                     </div>
-                                                    <div className="col-span-2">
+                                                    <div className="col-span-3">
                                                         <Select
                                                             label="UF"
                                                             value={endereco.uf}
@@ -369,6 +400,19 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                         </div>
 
                         {editingMedico && <Select label="Status" value={data.ativo ? '1' : '0'} onChange={(e) => setData('ativo', e.target.value === '1')} options={[{ value: '1', label: 'Ativo' }, { value: '0', label: 'Inativo' }]} />}
+
+                        {/* Clinica dropdown (Admin only) - last field */}
+                        {isAdmin && (
+                            <Select 
+                                label="Clínica" 
+                                value={data.clinica_id} 
+                                onChange={(e) => setData('clinica_id', e.target.value)} 
+                                options={[
+                                    { value: '', label: clinicas.length > 0 ? 'Selecione uma clínica' : 'Nenhuma clínica cadastrada' }, 
+                                    ...clinicas.map(c => ({ value: c.id, label: c.nome }))
+                                ]} 
+                            />
+                        )}
                     </div>
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
                         <div className="flex items-center justify-between">

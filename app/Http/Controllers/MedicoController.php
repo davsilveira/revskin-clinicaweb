@@ -28,9 +28,17 @@ class MedicoController extends Controller
             ->when($request->clinica_id, fn($q, $clinicaId) => $q->where('clinica_id', $clinicaId))
             ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')));
 
-        $medicos = $query->orderBy('nome')
+        $medicosQuery = $query->orderBy('nome')
             ->paginate(15)
             ->withQueryString();
+
+        // Map database fields to frontend fields
+        $medicos = $medicosQuery->through(function ($medico) {
+            $medico->email = $medico->email1;
+            $medico->telefone = $medico->telefone1;
+            $medico->celular = $medico->telefone2;
+            return $medico;
+        });
 
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 
@@ -63,26 +71,19 @@ class MedicoController extends Controller
             'nome' => 'required|string|max:255',
             'apelido' => 'nullable|string|max:255',
             'crm' => 'nullable|string|max:20',
+            'uf_crm' => 'nullable|string|max:2',
             'cpf' => 'nullable|string|max:14',
             'rg' => 'nullable|string|max:20',
             'especialidade' => 'nullable|string|max:255',
             'clinica_id' => 'nullable|exists:clinicas,id',
-            'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
-            'telefone3' => 'nullable|string|max:20',
-            'email1' => 'nullable|email|max:255',
-            'email2' => 'nullable|email|max:255',
-            'tipo_endereco' => 'nullable|string|max:255',
-            'endereco' => 'nullable|string|max:255',
-            'numero' => 'nullable|string|max:20',
-            'complemento' => 'nullable|string|max:255',
-            'bairro' => 'nullable|string|max:255',
-            'cidade' => 'nullable|string|max:255',
-            'uf' => 'nullable|string|max:2',
-            'cep' => 'nullable|string|max:10',
+            'email' => 'nullable|email|max:255',
+            'telefone' => 'nullable|string|max:20',
+            'celular' => 'nullable|string|max:20',
             'rodape_receita' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'assinatura' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'remover_assinatura' => 'nullable|boolean',
             'enderecos' => 'nullable|array',
             'enderecos.*.nome' => 'required|string|max:100',
             'enderecos.*.cep' => 'nullable|string|max:10',
@@ -97,7 +98,31 @@ class MedicoController extends Controller
         $enderecos = $validated['enderecos'] ?? [];
         unset($validated['enderecos']);
 
-        $medico = Medico::create($validated);
+        // Map frontend field names to database field names
+        $medicoData = [
+            'nome' => $validated['nome'],
+            'apelido' => $validated['apelido'] ?? null,
+            'crm' => $validated['crm'] ?? null,
+            'uf_crm' => $validated['uf_crm'] ?? null,
+            'cpf' => $validated['cpf'] ?? null,
+            'rg' => $validated['rg'] ?? null,
+            'especialidade' => $validated['especialidade'] ?? null,
+            'clinica_id' => $validated['clinica_id'] ?? null,
+            'email1' => $validated['email'] ?? null,
+            'telefone1' => $validated['telefone'] ?? null,
+            'telefone2' => $validated['celular'] ?? null,
+            'rodape_receita' => $validated['rodape_receita'] ?? null,
+            'anotacoes' => $validated['anotacoes'] ?? null,
+            'ativo' => $validated['ativo'] ?? true,
+        ];
+
+        $medico = Medico::create($medicoData);
+
+        // Handle signature upload
+        if ($request->hasFile('assinatura')) {
+            $path = $request->file('assinatura')->store('assinaturas', 'public');
+            $medico->update(['assinatura_path' => $path]);
+        }
 
         // Save enderecos
         foreach ($enderecos as $index => $endereco) {
@@ -147,26 +172,19 @@ class MedicoController extends Controller
             'nome' => 'required|string|max:255',
             'apelido' => 'nullable|string|max:255',
             'crm' => 'nullable|string|max:20',
+            'uf_crm' => 'nullable|string|max:2',
             'cpf' => 'nullable|string|max:14',
             'rg' => 'nullable|string|max:20',
             'especialidade' => 'nullable|string|max:255',
             'clinica_id' => 'nullable|exists:clinicas,id',
-            'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
-            'telefone3' => 'nullable|string|max:20',
-            'email1' => 'nullable|email|max:255',
-            'email2' => 'nullable|email|max:255',
-            'tipo_endereco' => 'nullable|string|max:255',
-            'endereco' => 'nullable|string|max:255',
-            'numero' => 'nullable|string|max:20',
-            'complemento' => 'nullable|string|max:255',
-            'bairro' => 'nullable|string|max:255',
-            'cidade' => 'nullable|string|max:255',
-            'uf' => 'nullable|string|max:2',
-            'cep' => 'nullable|string|max:10',
+            'email' => 'nullable|email|max:255',
+            'telefone' => 'nullable|string|max:20',
+            'celular' => 'nullable|string|max:20',
             'rodape_receita' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'assinatura' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'remover_assinatura' => 'nullable|boolean',
             'enderecos' => 'nullable|array',
             'enderecos.*.nome' => 'required|string|max:100',
             'enderecos.*.cep' => 'nullable|string|max:10',
@@ -181,7 +199,42 @@ class MedicoController extends Controller
         $enderecos = $validated['enderecos'] ?? [];
         unset($validated['enderecos']);
 
-        $medico->update($validated);
+        // Map frontend field names to database field names
+        $medicoData = [
+            'nome' => $validated['nome'],
+            'apelido' => $validated['apelido'] ?? null,
+            'crm' => $validated['crm'] ?? null,
+            'uf_crm' => $validated['uf_crm'] ?? null,
+            'cpf' => $validated['cpf'] ?? null,
+            'rg' => $validated['rg'] ?? null,
+            'especialidade' => $validated['especialidade'] ?? null,
+            'clinica_id' => $validated['clinica_id'] ?? null,
+            'email1' => $validated['email'] ?? null,
+            'telefone1' => $validated['telefone'] ?? null,
+            'telefone2' => $validated['celular'] ?? null,
+            'rodape_receita' => $validated['rodape_receita'] ?? null,
+            'anotacoes' => $validated['anotacoes'] ?? null,
+            'ativo' => $validated['ativo'] ?? true,
+        ];
+
+        $medico->update($medicoData);
+
+        // Handle signature removal
+        if ($request->boolean('remover_assinatura')) {
+            if ($medico->assinatura_path) {
+                Storage::disk('public')->delete($medico->assinatura_path);
+            }
+            $medico->update(['assinatura_path' => null]);
+        }
+        // Handle signature upload
+        elseif ($request->hasFile('assinatura')) {
+            // Delete old signature if exists
+            if ($medico->assinatura_path) {
+                Storage::disk('public')->delete($medico->assinatura_path);
+            }
+            $path = $request->file('assinatura')->store('assinaturas', 'public');
+            $medico->update(['assinatura_path' => $path]);
+        }
 
         // Sync enderecos
         $medico->enderecos()->delete();
