@@ -211,6 +211,20 @@ export default function DashboardLayout({ children }) {
                                 </Link>
 
                                 <Link
+                                    href="/assistente/tabelas-karnaugh"
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                                        isActive('/assistente/tabelas-karnaugh')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                                    </svg>
+                                    <span className="font-medium">Tabelas Karnaugh</span>
+                                </Link>
+
+                                <Link
                                     href="/assistente/regras"
                                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                                         isActive('/assistente/regras')
@@ -219,9 +233,9 @@ export default function DashboardLayout({ children }) {
                                     }`}
                                 >
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                     </svg>
-                                    <span className="font-medium">Regras Assistente</span>
+                                    <span className="font-medium">Regras Condicionais</span>
                                 </Link>
 
                                 <Link

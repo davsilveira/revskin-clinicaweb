@@ -8,6 +8,8 @@ use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
+use App\Models\TabelaKarnaugh;
+use App\Services\RegrasCondicionaisEngine;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,22 +21,26 @@ class AssistenteReceitaController extends Controller
      * Baseado na documentação: PN, PS, PR, PM, PO
      */
     private const TIPO_PELE_MAP = [
-        'Normal' => 'PN',
         'Seca' => 'PS',
+        'Normal' => 'PN',
+        'Mista Ressecada' => 'PR',
         'Mista' => 'PM',
         'Oleosa' => 'PO',
-        'Mista-Ressecada' => 'PR',
     ];
 
     /**
      * Mapeamento de intensidade para número.
      */
     private const INTENSIDADE_MAP = [
-        'Não' => 1,
-        'Leve' => 1,
+        'Pouca ou Nenhuma' => 1,
         'Moderado' => 2,
         'Intenso' => 3,
     ];
+
+    /**
+     * Opções de Fototipo (escala 1 a 4.5 com step 0.5).
+     */
+    private const FOTOTIPO_OPTIONS = ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5'];
 
     /**
      * Mapeamento de local de uso para cada categoria de produto.
@@ -83,7 +89,7 @@ class AssistenteReceitaController extends Controller
         return Inertia::render('AssistenteReceita/Index', [
             'tipoPeleOptions' => $this->getTipoPeleOptions(),
             'intensidadeOptions' => $this->getIntensidadeOptions(),
-            'faixaEtariaOptions' => AssistenteCasoClinico::getFaixaEtariaOptions(),
+            'fototipoOptions' => self::FOTOTIPO_OPTIONS,
             'medicos' => $medicos,
             'currentMedicoId' => $currentMedicoId,
             'isAdmin' => $user->isAdmin(),
@@ -91,26 +97,26 @@ class AssistenteReceitaController extends Controller
     }
 
     /**
-     * Get tipo de pele options.
+     * Get tipo de pele options (ordenado: Seca, Normal, Mista Ressecada, Mista, Oleosa).
      */
     private function getTipoPeleOptions(): array
     {
         return [
-            'Normal' => 'Normal',
-            'Oleosa' => 'Oleosa',
             'Seca' => 'Seca',
+            'Normal' => 'Normal',
+            'Mista Ressecada' => 'Mista Ressecada',
             'Mista' => 'Mista',
+            'Oleosa' => 'Oleosa',
         ];
     }
 
     /**
-     * Get intensidade options.
+     * Get intensidade options (Pouca ou Nenhuma, Moderado, Intenso).
      */
     private function getIntensidadeOptions(): array
     {
         return [
-            'Não' => 'Não',
-            'Leve' => 'Leve',
+            'Pouca ou Nenhuma' => 'Pouca ou Nenhuma',
             'Moderado' => 'Moderado',
             'Intenso' => 'Intenso',
         ];
@@ -143,18 +149,61 @@ class AssistenteReceitaController extends Controller
     public function processar(Request $request)
     {
         $validated = $request->validate([
+            'gravidez' => 'nullable|string',
+            'rosacea' => 'nullable|string',
+            'fototipo' => 'nullable|string',
             'tipo_pele' => 'nullable|string',
             'manchas' => 'nullable|string',
             'rugas' => 'nullable|string',
             'acne' => 'nullable|string',
             'flacidez' => 'nullable|string',
-            'faixa_etaria' => 'nullable|string',
         ]);
 
         // Montar código do caso clínico baseado nas seleções
-        $codigoKarnaugh = $this->montarCodigoKarnaugh($validated);
+        $codigoKarnaugh = RegrasCondicionaisEngine::gerarCodigoKarnaugh($validated);
 
-        // Buscar na tabela Karnaugh
+        // Usar o motor de regras condicionais
+        $engine = new RegrasCondicionaisEngine();
+        $engine->processar($validated);
+
+        // Obter produtos sugeridos através do engine
+        $produtosSugeridos = $engine->obterProdutosSugeridos($codigoKarnaugh);
+
+        // Se o engine não retornou produtos (nenhuma tabela cadastrada), usar método legado
+        if (empty($produtosSugeridos) && !$engine->getTabelaSelecionada()) {
+            $produtosSugeridos = $this->processarMetodoLegado($validated, $codigoKarnaugh);
+        }
+
+        // Formatar produtos para o frontend
+        $produtosFormatados = [];
+        foreach ($produtosSugeridos as $item) {
+            $produtosFormatados[] = [
+                'produto_id' => $item['produto_id'],
+                'produto' => $item['produto'],
+                'local_uso' => $item['categoria'] ?? $item['local_uso'] ?? 'N/A',
+                'quantidade' => 1,
+                'anotacoes' => null,
+                'selecionado' => $item['selecionado'] ?? false,
+                'grupo' => $item['grupo'] ?? 'primeiro',
+                'origem' => $item['origem'] ?? 'tabela_karnaugh',
+                'nao_encontrado' => $item['produto_id'] === null,
+            ];
+        }
+
+        return response()->json([
+            'codigo_karnaugh' => $codigoKarnaugh,
+            'produtos_sugeridos' => $produtosFormatados,
+            'tabela_usada' => $engine->getTabelaSelecionada()?->nome,
+            'regras_aplicadas' => count($engine->getRegrasAplicadas()),
+        ]);
+    }
+
+    /**
+     * Método legado para compatibilidade com sistema antigo.
+     */
+    private function processarMetodoLegado(array $validated, string $codigoKarnaugh): array
+    {
+        // Buscar na tabela Karnaugh legada
         $produtosKarnaugh = $this->buscarProdutosKarnaugh($codigoKarnaugh);
 
         $produtosSugeridos = [];
@@ -172,28 +221,25 @@ class AssistenteReceitaController extends Controller
                     $produtosSugeridos[] = [
                         'produto_id' => $produto->id,
                         'produto' => $produto,
-                        'local_uso' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
-                        'quantidade' => 1,
-                        'anotacoes' => null,
+                        'categoria' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
+                        'selecionado' => true,
+                        'grupo' => 'primeiro',
+                        'origem' => 'legado',
                     ];
                 } else {
-                    // Produto não encontrado no banco, mas incluir como referência
                     $produtosSugeridos[] = [
                         'produto_id' => null,
                         'produto' => ['nome' => $nomeProduto, 'id' => null],
-                        'local_uso' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
-                        'quantidade' => 1,
-                        'anotacoes' => 'Produto não cadastrado: ' . $nomeProduto,
-                        'nao_encontrado' => true,
+                        'categoria' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
+                        'selecionado' => false,
+                        'grupo' => 'primeiro',
+                        'origem' => 'legado',
                     ];
                 }
             }
         }
 
-        return response()->json([
-            'codigo_karnaugh' => $codigoKarnaugh,
-            'produtos_sugeridos' => $produtosSugeridos,
-        ]);
+        return $produtosSugeridos;
     }
 
     /**

@@ -78,6 +78,21 @@ export default function UsersIndex({ users }) {
         }
     };
 
+    const handleToggleStatus = (user) => {
+        router.put(`/users/${user.id}`, {
+            ...user,
+            is_active: !user.is_active,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setToast({ 
+                    message: user.is_active ? 'Usuário desativado!' : 'Usuário ativado!', 
+                    type: 'success' 
+                });
+            },
+        });
+    };
+
     const getRoleBadge = (role) => {
         switch (role) {
             case 'admin':
@@ -186,9 +201,12 @@ export default function UsersIndex({ users }) {
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <button
                                                 onClick={() => openEditDrawer(user)}
-                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="Editar"
                                             >
-                                                Editar
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
                                             </button>
                                         </td>
                                     </tr>

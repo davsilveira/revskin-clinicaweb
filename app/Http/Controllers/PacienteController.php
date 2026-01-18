@@ -401,6 +401,56 @@ class PacienteController extends Controller
     }
 
     /**
+     * Quick create - Store a new patient via AJAX (for assistant wizard).
+     */
+    public function quickCreate(Request $request)
+    {
+        $validated = $request->validate([
+            'nome' => 'required|string|max:255',
+            'cpf' => 'nullable|string|max:14|unique:pacientes,cpf',
+            'data_nascimento' => 'nullable|date',
+            'sexo' => 'nullable|string|max:20',
+            'email1' => 'nullable|email|max:255',
+            'telefone1' => 'nullable|string|max:20',
+            'telefone2' => 'nullable|string|max:20',
+            'cep' => 'nullable|string|max:10',
+            'endereco' => 'nullable|string|max:255',
+            'numero' => 'nullable|string|max:20',
+            'complemento' => 'nullable|string|max:255',
+            'bairro' => 'nullable|string|max:255',
+            'cidade' => 'nullable|string|max:255',
+            'uf' => 'nullable|string|max:2',
+            'pais' => 'nullable|string|max:100',
+        ], [
+            'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
+        ]);
+
+        // Validate CPF digits
+        if (!empty($validated['cpf']) && !$this->validateCpfDigits($validated['cpf'])) {
+            return response()->json(['error' => 'CPF inválido. Por favor, verifique os números digitados.'], 422);
+        }
+
+        // Auto-assign medico if user is medico
+        $user = $request->user();
+        if ($user->isMedico() && $user->medico_id) {
+            $validated['medico_id'] = $user->medico_id;
+        }
+
+        $validated['ativo'] = true;
+
+        $paciente = Paciente::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'paciente' => [
+                'id' => $paciente->id,
+                'nome' => $paciente->nome,
+                'cpf' => $paciente->cpf,
+            ],
+        ]);
+    }
+
+    /**
      * Lookup address by CEP using ViaCEP API.
      */
     public function buscarCep(string $cep)

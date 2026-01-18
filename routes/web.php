@@ -16,6 +16,8 @@ use App\Http\Controllers\CallCenterController;
 use App\Http\Controllers\AssistenteReceitaController;
 use App\Http\Controllers\RelatorioController;
 use App\Http\Controllers\TinyIntegrationController;
+use App\Http\Controllers\TabelaKarnaughController;
+use App\Http\Controllers\RegraCondicionalController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -62,6 +64,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('pacientes', PacienteController::class);
     Route::get('/api/pacientes/search', [PacienteController::class, 'search'])->name('pacientes.search');
     Route::post('/api/pacientes/autosave', [PacienteController::class, 'autosave'])->name('pacientes.autosave');
+    Route::post('/api/pacientes/quick-create', [PacienteController::class, 'quickCreate'])->name('pacientes.quickCreate');
 
     // Receitas (medico and admin)
     Route::middleware('medico')->group(function () {
@@ -130,9 +133,22 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/exports/{exportRequest}/download', [ExportController::class, 'download'])->name('exports.download');
         Route::delete('/exports/history', [ExportController::class, 'clearHistory'])->name('exports.history.clear');
         
-        // Assistente - Tabela de Karnaugh (admin only)
-        Route::get('/assistente/regras', [AssistenteReceitaController::class, 'regras'])->name('assistente.regras');
-        Route::post('/assistente/regras', [AssistenteReceitaController::class, 'salvarRegras'])->name('assistente.regras.salvar');
+        // Assistente - Tabelas Karnaugh (admin only)
+        Route::get('/assistente/tabelas-karnaugh', [TabelaKarnaughController::class, 'index'])->name('assistente.tabelas-karnaugh.index');
+        Route::get('/assistente/tabelas-karnaugh/{tabelaKarnaugh}', [TabelaKarnaughController::class, 'show'])->name('assistente.tabelas-karnaugh.show');
+        Route::post('/assistente/tabelas-karnaugh/validar', [TabelaKarnaughController::class, 'validar'])->name('assistente.tabelas-karnaugh.validar');
+        Route::post('/assistente/tabelas-karnaugh/importar', [TabelaKarnaughController::class, 'importar'])->name('assistente.tabelas-karnaugh.importar');
+        Route::post('/assistente/tabelas-karnaugh/{tabelaKarnaugh}/padrao', [TabelaKarnaughController::class, 'definirPadrao'])->name('assistente.tabelas-karnaugh.padrao');
+        Route::post('/assistente/tabelas-karnaugh/{tabelaKarnaugh}/toggle-ativo', [TabelaKarnaughController::class, 'toggleAtivo'])->name('assistente.tabelas-karnaugh.toggle-ativo');
+        Route::delete('/assistente/tabelas-karnaugh/{tabelaKarnaugh}', [TabelaKarnaughController::class, 'destroy'])->name('assistente.tabelas-karnaugh.destroy');
+        Route::get('/assistente/tabelas-karnaugh/{tabelaKarnaugh}/download', [TabelaKarnaughController::class, 'download'])->name('assistente.tabelas-karnaugh.download');
+
+        // Assistente - Regras Condicionais (admin only)
+        Route::get('/assistente/regras', [RegraCondicionalController::class, 'index'])->name('assistente.regras.index');
+        Route::post('/assistente/regras', [RegraCondicionalController::class, 'store'])->name('assistente.regras.store');
+        Route::put('/assistente/regras/{regraCondicional}', [RegraCondicionalController::class, 'update'])->name('assistente.regras.update');
+        Route::delete('/assistente/regras/{regraCondicional}', [RegraCondicionalController::class, 'destroy'])->name('assistente.regras.destroy');
+        Route::post('/assistente/regras/reordenar', [RegraCondicionalController::class, 'reordenar'])->name('assistente.regras.reordenar');
 
         // Relatórios
         Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
