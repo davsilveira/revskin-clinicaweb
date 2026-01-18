@@ -136,8 +136,17 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
         if (result.id && !currentPacienteId) {
             setCurrentPacienteId(result.id);
         }
+        
+        // Update editingPaciente to reflect saved data
+        if (editingPaciente) {
+            setEditingPaciente(prev => ({ ...prev, ...data, id: prev.id }));
+        }
+        
+        // Refresh the list in background (without closing drawer)
+        router.reload({ only: ['pacientes'], preserveState: true, preserveScroll: true });
+        
         return result;
-    }, [data, currentPacienteId]);
+    }, [data, currentPacienteId, editingPaciente]);
 
     const { 
         lastSavedText, 
