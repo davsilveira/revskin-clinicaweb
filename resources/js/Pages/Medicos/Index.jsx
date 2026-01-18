@@ -14,6 +14,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
     const [toast, setToast] = useState(null);
     const [search, setSearch] = useState(filters?.search || '');
     const [loadingCepIndex, setLoadingCepIndex] = useState(null);
+    const [selectedClinicas, setSelectedClinicas] = useState([]);
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         nome: '',
@@ -23,12 +24,27 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
         email: '',
         telefone: '',
         celular: '',
-        clinica_id: '',
+        clinica_ids: [],
         assinatura: null,
         remover_assinatura: false,
         ativo: true,
         enderecos: [],
     });
+
+    const addClinica = (clinicaId) => {
+        const clinica = clinicas.find(c => c.id === parseInt(clinicaId));
+        if (clinica && !selectedClinicas.find(c => c.id === clinica.id)) {
+            const newClinicas = [...selectedClinicas, clinica];
+            setSelectedClinicas(newClinicas);
+            setData('clinica_ids', newClinicas.map(c => c.id));
+        }
+    };
+
+    const removeClinica = (clinicaId) => {
+        const newClinicas = selectedClinicas.filter(c => c.id !== clinicaId);
+        setSelectedClinicas(newClinicas);
+        setData('clinica_ids', newClinicas.map(c => c.id));
+    };
 
     // Endereco management
     const addEndereco = () => {
@@ -77,6 +93,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
     const openCreateDrawer = () => {
         reset();
         setEditingMedico(null);
+        setSelectedClinicas([]);
         setShowDeleteConfirm(false);
         setDrawerOpen(true);
     };
@@ -84,6 +101,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
     const openEditDrawer = (medico) => {
         setEditingMedico(medico);
         setShowDeleteConfirm(false);
+        setSelectedClinicas(medico.clinicas || []);
         setData({
             nome: medico.nome || '',
             crm: medico.crm || '',
@@ -92,7 +110,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
             email: medico.email || '',
             telefone: medico.telefone || '',
             celular: medico.celular || '',
-            clinica_id: medico.clinica_id || '',
+            clinica_ids: medico.clinicas?.map(c => c.id) || [],
             assinatura: null,
             remover_assinatura: false,
             ativo: medico.ativo ?? true,
@@ -113,6 +131,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
     const closeDrawer = () => {
         setDrawerOpen(false);
         setEditingMedico(null);
+        setSelectedClinicas([]);
         setShowDeleteConfirm(false);
         reset();
     };
@@ -224,7 +243,11 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{medico.crm ? `${medico.crm}/${medico.uf_crm}` : '-'}</td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{medico.especialidade || '-'}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{medico.clinica?.nome || '-'}</td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                        {medico.clinicas?.length > 0 
+                                            ? medico.clinicas.map(c => c.nome).join(', ') 
+                                            : '-'}
+                                    </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs rounded-full ${medico.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                             {medico.ativo ? 'Ativo' : 'Inativo'}
@@ -392,17 +415,45 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
 
                         {editingMedico && <Select label="Status" value={data.ativo ? '1' : '0'} onChange={(e) => setData('ativo', e.target.value === '1')} options={[{ value: '1', label: 'Ativo' }, { value: '0', label: 'Inativo' }]} />}
 
-                        {/* Clinica dropdown (Admin only) - last field */}
+                        {/* Clinicas (Admin only) - last field */}
                         {isAdmin && (
-                            <Select 
-                                label="Clínica" 
-                                value={data.clinica_id} 
-                                onChange={(e) => setData('clinica_id', e.target.value)} 
-                                options={[
-                                    { value: '', label: clinicas.length > 0 ? 'Selecione uma clínica' : 'Nenhuma clínica cadastrada' }, 
-                                    ...clinicas.map(c => ({ value: c.id, label: c.nome }))
-                                ]} 
-                            />
+                            <div className="border-t pt-6">
+                                <h3 className="text-sm font-medium text-gray-900 mb-4">Clínicas Vinculadas</h3>
+                                
+                                {/* Selected Clinicas */}
+                                {selectedClinicas.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        {selectedClinicas.map((clinica) => (
+                                            <div
+                                                key={clinica.id}
+                                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm"
+                                            >
+                                                <span>{clinica.nome}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeClinica(clinica.id)}
+                                                    className="text-purple-600 hover:text-purple-800"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Add Clinica Dropdown */}
+                                <Select 
+                                    label=""
+                                    value=""
+                                    onChange={(e) => addClinica(e.target.value)} 
+                                    options={[
+                                        { value: '', label: clinicas.length > 0 ? 'Adicionar clínica...' : 'Nenhuma clínica cadastrada' }, 
+                                        ...clinicas.filter(c => !selectedClinicas.find(s => s.id === c.id)).map(c => ({ value: c.id, label: c.nome }))
+                                    ]} 
+                                />
+                            </div>
                         )}
                     </div>
                     <div className="border-t border-gray-200 p-6 bg-gray-50">

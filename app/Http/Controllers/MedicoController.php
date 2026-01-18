@@ -17,7 +17,7 @@ class MedicoController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Medico::with(['clinica:id,nome', 'enderecos'])
+        $query = Medico::with(['clinica:id,nome', 'clinicas:id,nome', 'enderecos'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -75,7 +75,8 @@ class MedicoController extends Controller
             'cpf' => 'nullable|string|max:14',
             'rg' => 'nullable|string|max:20',
             'especialidade' => 'nullable|string|max:255',
-            'clinica_id' => 'nullable|exists:clinicas,id',
+            'clinica_ids' => 'nullable|array',
+            'clinica_ids.*' => 'exists:clinicas,id',
             'email' => 'nullable|email|max:255',
             'telefone' => 'nullable|string|max:20',
             'celular' => 'nullable|string|max:20',
@@ -96,7 +97,8 @@ class MedicoController extends Controller
         ]);
 
         $enderecos = $validated['enderecos'] ?? [];
-        unset($validated['enderecos']);
+        $clinicaIds = $validated['clinica_ids'] ?? [];
+        unset($validated['enderecos'], $validated['clinica_ids']);
 
         // Map frontend field names to database field names
         $medicoData = [
@@ -107,7 +109,6 @@ class MedicoController extends Controller
             'cpf' => $validated['cpf'] ?? null,
             'rg' => $validated['rg'] ?? null,
             'especialidade' => $validated['especialidade'] ?? null,
-            'clinica_id' => $validated['clinica_id'] ?? null,
             'email1' => $validated['email'] ?? null,
             'telefone1' => $validated['telefone'] ?? null,
             'telefone2' => $validated['celular'] ?? null,
@@ -117,6 +118,11 @@ class MedicoController extends Controller
         ];
 
         $medico = Medico::create($medicoData);
+
+        // Sync clinicas
+        if (!empty($clinicaIds)) {
+            $medico->clinicas()->sync($clinicaIds);
+        }
 
         // Handle signature upload
         if ($request->hasFile('assinatura')) {
@@ -176,7 +182,8 @@ class MedicoController extends Controller
             'cpf' => 'nullable|string|max:14',
             'rg' => 'nullable|string|max:20',
             'especialidade' => 'nullable|string|max:255',
-            'clinica_id' => 'nullable|exists:clinicas,id',
+            'clinica_ids' => 'nullable|array',
+            'clinica_ids.*' => 'exists:clinicas,id',
             'email' => 'nullable|email|max:255',
             'telefone' => 'nullable|string|max:20',
             'celular' => 'nullable|string|max:20',
@@ -197,7 +204,8 @@ class MedicoController extends Controller
         ]);
 
         $enderecos = $validated['enderecos'] ?? [];
-        unset($validated['enderecos']);
+        $clinicaIds = $validated['clinica_ids'] ?? [];
+        unset($validated['enderecos'], $validated['clinica_ids']);
 
         // Map frontend field names to database field names
         $medicoData = [
@@ -208,7 +216,6 @@ class MedicoController extends Controller
             'cpf' => $validated['cpf'] ?? null,
             'rg' => $validated['rg'] ?? null,
             'especialidade' => $validated['especialidade'] ?? null,
-            'clinica_id' => $validated['clinica_id'] ?? null,
             'email1' => $validated['email'] ?? null,
             'telefone1' => $validated['telefone'] ?? null,
             'telefone2' => $validated['celular'] ?? null,
@@ -218,6 +225,9 @@ class MedicoController extends Controller
         ];
 
         $medico->update($medicoData);
+
+        // Sync clinicas
+        $medico->clinicas()->sync($clinicaIds);
 
         // Handle signature removal
         if ($request->boolean('remover_assinatura')) {
