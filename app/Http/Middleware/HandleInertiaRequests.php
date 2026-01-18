@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Medico;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,16 +36,29 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $medico = null;
+
+        if ($user && $user->isMedico() && $user->medico_id) {
+            $medico = Medico::select([
+                'id', 'nome', 'crm', 'especialidade', 'telefone1', 'telefone2',
+                'email1', 'cep', 'endereco', 'numero', 'complemento', 'bairro',
+                'cidade', 'uf', 'rodape_receita', 'assinatura_path'
+            ])->find($user->medico_id);
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user() ? [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'email' => $request->user()->email,
-                    'role' => $request->user()->role,
-                    'is_active' => $request->user()->is_active,
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'is_active' => $user->is_active,
+                    'medico_id' => $user->medico_id,
                 ] : null,
+                'medico' => $medico,
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

@@ -184,6 +184,25 @@ class MedicoController extends Controller
 
         return back()->with('success', 'Assinatura atualizada com sucesso!');
     }
+
+    /**
+     * Search medicos for autocomplete.
+     */
+    public function search(Request $request)
+    {
+        $search = $request->get('q', '');
+
+        $medicos = Medico::ativo()
+            ->where(function ($q) use ($search) {
+                $q->where('nome', 'like', "%{$search}%")
+                    ->orWhere('crm', 'like', "%{$search}%");
+            })
+            ->orderBy('nome')
+            ->limit(20)
+            ->get(['id', 'nome', 'crm', 'especialidade']);
+
+        return response()->json($medicos);
+    }
 }
 
 

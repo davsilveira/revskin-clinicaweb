@@ -52,6 +52,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::put('/profile/medico', [ProfileController::class, 'updateMedico'])->name('profile.medico');
+    Route::post('/profile/assinatura', [ProfileController::class, 'uploadAssinatura'])->name('profile.assinatura');
 
     // API - CEP Lookup
     Route::get('/api/cep/{cep}', [PacienteController::class, 'buscarCep'])->name('api.cep');
@@ -93,6 +95,16 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/tools/infosimples/history', [InfosimplesIntegrationController::class, 'clearHistory'])
         ->name('tools.infosimples.clearHistory');
 
+    // Cadastros - Admin and Call Center
+    Route::middleware('callcenter')->group(function () {
+        Route::resource('medicos', MedicoController::class);
+        Route::post('/medicos/{medico}/assinatura', [MedicoController::class, 'uploadAssinatura'])->name('medicos.assinatura');
+        Route::get('/api/medicos/search', [MedicoController::class, 'search'])->name('medicos.search');
+        
+        Route::resource('clinicas', ClinicaController::class);
+        Route::resource('produtos', ProdutoController::class);
+    });
+
     // Admin only routes
     Route::middleware('admin')->group(function () {
         // Users management
@@ -115,13 +127,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/exports', [ExportController::class, 'store'])->name('exports.store');
         Route::get('/exports/{exportRequest}/download', [ExportController::class, 'download'])->name('exports.download');
         Route::delete('/exports/history', [ExportController::class, 'clearHistory'])->name('exports.history.clear');
-
-        // Cadastros (admin only)
-        Route::resource('medicos', MedicoController::class);
-        Route::post('/medicos/{medico}/assinatura', [MedicoController::class, 'uploadAssinatura'])->name('medicos.assinatura');
-        
-        Route::resource('clinicas', ClinicaController::class);
-        Route::resource('produtos', ProdutoController::class);
         
         // Assistente - Tabela de Karnaugh (admin only)
         Route::get('/assistente/regras', [AssistenteReceitaController::class, 'regras'])->name('assistente.regras');
