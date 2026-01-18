@@ -123,11 +123,19 @@ export default function ClinicasIndex({ clinicas, filters }) {
         setEditingClinica(null);
         setSelectedMedicos([]);
         setShowDeleteConfirm(false);
+        setCnpjError('');
         reset();
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        
+        // Validate CNPJ before submitting
+        if (data.cnpj && data.cnpj.replace(/\D/g, '').length > 0 && !validateCNPJ(data.cnpj)) {
+            setCnpjError('CNPJ inválido');
+            return;
+        }
+        
         if (editingClinica) {
             put(`/clinicas/${editingClinica.id}`, {
                 onSuccess: () => { closeDrawer(); setToast({ message: 'Clinica atualizada!', type: 'success' }); },

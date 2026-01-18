@@ -10,6 +10,48 @@ use Inertia\Response;
 
 class ClinicaController extends Controller
 {
+    /**
+     * Validate CNPJ.
+     */
+    private function validateCNPJ(?string $cnpj): bool
+    {
+        if (!$cnpj) return false;
+
+        $cnpj = preg_replace('/\D/', '', $cnpj);
+
+        if (strlen($cnpj) !== 14) return false;
+        if (preg_match('/^(\d)\1+$/', $cnpj)) return false;
+
+        $length = strlen($cnpj) - 2;
+        $numbers = substr($cnpj, 0, $length);
+        $digits = substr($cnpj, $length);
+        $sum = 0;
+        $pos = $length - 7;
+
+        for ($i = $length; $i >= 1; $i--) {
+            $sum += $numbers[$length - $i] * $pos--;
+            if ($pos < 2) $pos = 9;
+        }
+
+        $result = $sum % 11 < 2 ? 0 : 11 - ($sum % 11);
+        if ($result != $digits[0]) return false;
+
+        $length++;
+        $numbers = substr($cnpj, 0, $length);
+        $sum = 0;
+        $pos = $length - 7;
+
+        for ($i = $length; $i >= 1; $i--) {
+            $sum += $numbers[$length - $i] * $pos--;
+            if ($pos < 2) $pos = 9;
+        }
+
+        $result = $sum % 11 < 2 ? 0 : 11 - ($sum % 11);
+        if ($result != $digits[1]) return false;
+
+        return true;
+    }
+
     public function index(Request $request): Response
     {
         $query = Clinica::with(['medicos:id,nome,crm'])
@@ -46,7 +88,11 @@ class ClinicaController extends Controller
     {
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
-            'cnpj' => 'nullable|string|max:18',
+            'cnpj' => ['nullable', 'string', 'max:18', function ($attribute, $value, $fail) {
+                if ($value && !$this->validateCNPJ($value)) {
+                    $fail('O CNPJ informado é inválido.');
+                }
+            }],
             'telefone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'endereco' => 'nullable|string|max:255',
@@ -101,7 +147,11 @@ class ClinicaController extends Controller
     {
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
-            'cnpj' => 'nullable|string|max:18',
+            'cnpj' => ['nullable', 'string', 'max:18', function ($attribute, $value, $fail) {
+                if ($value && !$this->validateCNPJ($value)) {
+                    $fail('O CNPJ informado é inválido.');
+                }
+            }],
             'telefone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'endereco' => 'nullable|string|max:255',
