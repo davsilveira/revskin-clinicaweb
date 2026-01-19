@@ -145,10 +145,26 @@ class ReceitaController extends Controller
 
     public function show(Receita $receita): Response
     {
-        $receita->load(['paciente', 'medico', 'itens.produto', 'atendimentoCallcenter']);
+        $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+
+        // Add acquisition dates to each item
+        $receita->itens->each(function ($item) {
+            $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
+            $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn($d) => $d->format('Y-m-d'))->toArray();
+        });
+
+        // Get other receitas from the same patient with items
+        $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
+            ->where('id', '!=', $receita->id)
+            ->where('ativo', true)
+            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
+            ->orderByDesc('data_receita')
+            ->take(10)
+            ->get();
 
         return Inertia::render('Receitas/Show', [
             'receita' => $receita,
+            'receitasAnteriores' => $receitasAnteriores,
         ]);
     }
 
@@ -165,11 +181,21 @@ class ReceitaController extends Controller
             return $produto;
         });
 
+        // Get other receitas from the same patient with items
+        $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
+            ->where('id', '!=', $receita->id)
+            ->where('ativo', true)
+            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
+            ->orderByDesc('data_receita')
+            ->take(10)
+            ->get();
+
         return Inertia::render('Receitas/Form', [
             'receita' => $receita,
             'paciente' => $receita->paciente,
             'medicos' => $medicos,
             'produtos' => $produtos,
+            'receitasAnteriores' => $receitasAnteriores,
         ]);
     }
 
@@ -290,6 +316,7 @@ class ReceitaController extends Controller
             }
             
             $receita->update([
+                'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
                 'anotacoes' => $validated['anotacoes'] ?? null,
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,

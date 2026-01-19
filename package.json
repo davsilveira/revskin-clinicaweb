@@ -21,6 +21,7 @@
     "dependencies": {
         "@glideapps/glide-data-grid": "^6.0.3",
         "@inertiajs/react": "^2.2.8",
+        "@tippyjs/react": "^4.2.6",
         "lodash": "^4.17.21",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",

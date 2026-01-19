@@ -862,55 +862,128 @@ export default function AssistenteReceitaIndex({
                         </div>
 
                         {produtosSelecionados.length > 0 ? (
-                            <div className="space-y-3 mb-6">
-                                {produtosSelecionados.map((item, index) => (
-                                    <label
-                                        key={index}
-                                        className={`flex items-start gap-4 p-4 border rounded-lg cursor-pointer transition-all ${
-                                            item.nao_encontrado
-                                                ? 'border-amber-300 bg-amber-50 opacity-60 cursor-not-allowed'
-                                                : item.selecionado
-                                                    ? 'border-emerald-500 bg-emerald-50'
-                                                    : 'border-gray-200 bg-gray-50 opacity-60'
-                                        }`}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={item.selecionado && !item.nao_encontrado}
-                                            onChange={() => !item.nao_encontrado && toggleProduto(index)}
-                                            disabled={item.nao_encontrado}
-                                            className="mt-1 w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 disabled:opacity-50"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-medium text-gray-900">
-                                                    {item.produto?.codigo && (
-                                                        <span className="text-emerald-600 mr-1">[{item.produto.codigo}]</span>
-                                                    )}
-                                                    {item.produto?.nome || 'Produto'}
-                                                </span>
-                                                {item.nao_encontrado && (
-                                                    <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
-                                                        Não cadastrado
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {item.local_uso && (
-                                                <div className="text-sm text-gray-500 mt-1">
-                                                    Local de uso: {item.local_uso}
-                                                </div>
-                                            )}
-                                            {item.anotacoes && (
-                                                <div className="text-sm text-gray-600 mt-1 italic">
-                                                    {item.anotacoes}
-                                                </div>
-                                            )}
+                            <div className="space-y-6 mb-6">
+                                {/* Produtos Recomendados (primeiro grupo) */}
+                                {produtosSelecionados.filter(p => p.grupo === 'primeiro').length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                                            <h3 className="font-medium text-gray-900">Recomendados para o Tratamento</h3>
+                                            <span className="text-xs text-gray-500">({produtosSelecionados.filter(p => p.grupo === 'primeiro' && p.selecionado).length} selecionados)</span>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-sm text-gray-500">Qtd: {item.quantidade || 1}</div>
+                                        <div className="space-y-2">
+                                            {produtosSelecionados.map((item, index) => item.grupo === 'primeiro' && (
+                                                <label
+                                                    key={index}
+                                                    className={`flex items-start gap-4 p-3 border rounded-lg cursor-pointer transition-all ${
+                                                        item.nao_encontrado
+                                                            ? 'border-amber-300 bg-amber-50 opacity-60 cursor-not-allowed'
+                                                            : item.selecionado
+                                                                ? 'border-emerald-500 bg-emerald-50'
+                                                                : 'border-gray-200 bg-gray-50 opacity-60'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={item.selecionado && !item.nao_encontrado}
+                                                        onChange={() => !item.nao_encontrado && toggleProduto(index)}
+                                                        disabled={item.nao_encontrado}
+                                                        className="mt-0.5 w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 disabled:opacity-50"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-medium text-gray-900">
+                                                                {item.produto?.codigo && (
+                                                                    <span className="text-emerald-600 mr-1">[{item.produto.codigo}]</span>
+                                                                )}
+                                                                {item.produto?.nome || 'Produto'}
+                                                            </span>
+                                                            {item.nao_encontrado && (
+                                                                <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                                                                    Não cadastrado
+                                                                </span>
+                                                            )}
+                                                            {item.local_uso && (
+                                                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                                                    {item.local_uso}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {item.anotacoes && (
+                                                            <div className="text-sm text-gray-600 mt-1 italic truncate">
+                                                                {item.anotacoes}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                        <div className="text-sm text-gray-500">x{item.quantidade || 1}</div>
+                                                    </div>
+                                                </label>
+                                            ))}
                                         </div>
-                                    </label>
-                                ))}
+                                    </div>
+                                )}
+
+                                {/* Produtos Opcionais (segundo grupo) */}
+                                {produtosSelecionados.filter(p => p.grupo !== 'primeiro').length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                            <h3 className="font-medium text-gray-700">Opcionais</h3>
+                                            <span className="text-xs text-gray-500">({produtosSelecionados.filter(p => p.grupo !== 'primeiro' && p.selecionado).length} selecionados)</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {produtosSelecionados.map((item, index) => item.grupo !== 'primeiro' && (
+                                                <label
+                                                    key={index}
+                                                    className={`flex items-start gap-4 p-3 border rounded-lg cursor-pointer transition-all ${
+                                                        item.nao_encontrado
+                                                            ? 'border-amber-300 bg-amber-50 opacity-60 cursor-not-allowed'
+                                                            : item.selecionado
+                                                                ? 'border-blue-400 bg-blue-50'
+                                                                : 'border-gray-200 bg-gray-50 opacity-60'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={item.selecionado && !item.nao_encontrado}
+                                                        onChange={() => !item.nao_encontrado && toggleProduto(index)}
+                                                        disabled={item.nao_encontrado}
+                                                        className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-medium text-gray-900">
+                                                                {item.produto?.codigo && (
+                                                                    <span className="text-blue-600 mr-1">[{item.produto.codigo}]</span>
+                                                                )}
+                                                                {item.produto?.nome || 'Produto'}
+                                                            </span>
+                                                            {item.nao_encontrado && (
+                                                                <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                                                                    Não cadastrado
+                                                                </span>
+                                                            )}
+                                                            {item.local_uso && (
+                                                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                                                    {item.local_uso}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {item.anotacoes && (
+                                                            <div className="text-sm text-gray-600 mt-1 italic truncate">
+                                                                {item.anotacoes}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                        <div className="text-sm text-gray-500">x{item.quantidade || 1}</div>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-center py-12 text-gray-500 mb-6 bg-gray-50 rounded-lg">

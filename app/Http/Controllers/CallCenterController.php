@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
+use App\Models\ReceitaItemAquisicao;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -71,13 +72,48 @@ class CallCenterController extends Controller
             'acompanhamento' => 'nullable|string',
         ]);
 
+        $novoStatus = $validated['status'];
+        $statusAnterior = $atendimento->status;
+
         $atendimento->atualizarStatus(
-            $validated['status'],
+            $novoStatus,
             $request->user(),
             $validated['acompanhamento'] ?? null
         );
 
+        // Register acquisition date when status changes to em_producao (sale closed)
+        if ($novoStatus === AtendimentoCallcenter::STATUS_EM_PRODUCAO && $statusAnterior !== $novoStatus) {
+            $this->registrarDatasAquisicao($atendimento);
+        }
+
         return back()->with('success', 'Status atualizado com sucesso!');
+    }
+
+    /**
+     * Register acquisition dates for all items in the receita when sale is closed.
+     */
+    protected function registrarDatasAquisicao(AtendimentoCallcenter $atendimento): void
+    {
+        $receita = $atendimento->receita;
+        if (!$receita) {
+            return;
+        }
+
+        $dataAquisicao = now()->toDateString();
+
+        foreach ($receita->itens as $item) {
+            // Only register for items that are included (imprimir = true)
+            if ($item->imprimir) {
+                ReceitaItemAquisicao::create([
+                    'receita_item_id' => $item->id,
+                    'data_aquisicao' => $dataAquisicao,
+                    'atendimento_id' => $atendimento->id,
+                ]);
+
+                // Also update the legacy field for backwards compatibility
+                $item->update(['data_aquisicao' => $dataAquisicao]);
+            }
+        }
     }
 
     public function addAcompanhamento(Request $request, AtendimentoCallcenter $atendimento)

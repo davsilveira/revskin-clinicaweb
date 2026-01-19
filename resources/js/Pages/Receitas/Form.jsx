@@ -1,13 +1,44 @@
-import { useForm, Link, router } from '@inertiajs/react';
+import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
 
-export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId }) {
+// Mapeamento de local_uso para nomes mais descritivos
+const localUsoLabels = {
+    'face': 'Creme Facial',
+    'rosto': 'Creme Facial',
+    'olhos': 'Creme dos Olhos',
+    'corpo': 'Creme Corpo',
+    'maos': 'Creme Mãos',
+    'pes': 'Creme Pés',
+    'cabelo': 'Capilar',
+    'solar': 'Protetor Solar',
+    'limpeza': 'Limpeza',
+    'serum': 'Sérum',
+    'mascara': 'Máscara',
+    'tonalite': 'Base Tonalité',
+};
+
+const formatLocalUso = (localUso) => {
+    if (!localUso) return '-';
+    // Se já tem um nome descritivo (mais de uma palavra ou começa com maiúscula), usar como está
+    if (localUso.includes(' ') || /^[A-Z]/.test(localUso)) {
+        return localUso;
+    }
+    // Caso contrário, tentar mapear
+    const key = localUso.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return localUsoLabels[key] || localUso;
+};
+
+export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [] }) {
+    const { auth } = usePage().props;
+    const isMedico = auth.user.role === 'medico';
     const isEditing = !!receita;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);
+    const [showFinalizarModal, setShowFinalizarModal] = useState(false);
+    const [expandedReceitas, setExpandedReceitas] = useState({});
     
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
@@ -83,7 +114,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         if (canAutoSave) {
             triggerAutoSave();
         }
-    }, [data, canAutoSave]);
+    }, [data, canAutoSave, triggerAutoSave]);
 
     // Debounced search for patients
     const searchPacientes = useCallback(
@@ -194,12 +225,18 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         const receitaId = currentReceitaId || receita?.id;
         if (!receitaId) return;
         
-        if (confirm('Deseja finalizar esta receita? Após finalizada, será enviada para o Call Center.')) {
-            router.put(`/receitas/${receitaId}`, {
-                ...data,
-                status: 'finalizada',
-            });
-        }
+        router.put(`/receitas/${receitaId}`, {
+            ...data,
+            status: 'finalizada',
+        });
+        setShowFinalizarModal(false);
+    };
+
+    const toggleReceitaExpanded = (id) => {
+        setExpandedReceitas(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
     };
 
     return (
@@ -220,321 +257,230 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                     </h1>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Dados Basicos */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Dados da Receita</h2>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Paciente */}
-                            <div className="relative">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Paciente *
-                                </label>
-                                {selectedPaciente ? (
-                                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
-                                        <div>
-                                            <div className="font-medium text-gray-900">{selectedPaciente.nome}</div>
-                                            <div className="text-sm text-gray-500">{selectedPaciente.cpf}</div>
-                                        </div>
-                                        {!isEditing && (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Dados Básicos - Compacto para Edição */}
+                    {isEditing && selectedPaciente ? (
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3">
+                            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Paciente:</span>
+                                    <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
+                                    <span className="text-gray-400">({selectedPaciente.cpf})</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Data:</span>
+                                    <input
+                                        type="date"
+                                        value={data.data_receita}
+                                        onChange={(e) => setData('data_receita', e.target.value)}
+                                        className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Médico:</span>
+                                    {medicos?.length === 1 ? (
+                                        <span className="font-medium text-gray-900">{medicos[0].nome}</span>
+                                    ) : (
+                                        <select
+                                            value={data.medico_id}
+                                            onChange={(e) => setData('medico_id', e.target.value)}
+                                            className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                        >
+                                            {medicos?.map((medico) => (
+                                                <option key={medico.id} value={medico.id}>{medico.nome}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                                <div className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    data.status === 'finalizada' ? 'bg-green-100 text-green-700' :
+                                    data.status === 'cancelada' ? 'bg-red-100 text-red-700' :
+                                    'bg-gray-100 text-gray-600'
+                                }`}>
+                                    {data.status === 'finalizada' ? 'Finalizada' :
+                                     data.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Form completo para Nova Receita */
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Dados da Receita</h2>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Paciente */}
+                                <div className="relative md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
+                                    {selectedPaciente ? (
+                                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                                            <div>
+                                                <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
+                                                <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                            </div>
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setSelectedPaciente(null);
-                                                    setData('paciente_id', '');
-                                                }}
+                                                onClick={() => { setSelectedPaciente(null); setData('paciente_id', ''); }}
                                                 className="text-gray-400 hover:text-gray-600"
                                             >
-                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                 </svg>
                                             </button>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                placeholder="Digite o nome ou CPF do paciente..."
-                                                value={searchPaciente}
-                                                onChange={(e) => setSearchPaciente(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                            />
-                                            {loadingPacientes && (
-                                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                    <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                    </svg>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Digite o nome ou CPF do paciente..."
+                                                    value={searchPaciente}
+                                                    onChange={(e) => setSearchPaciente(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                />
+                                                {loadingPacientes && (
+                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                        <svg className="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {showPacienteDropdown && pacienteResults.length > 0 && (
+                                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-auto">
+                                                    {pacienteResults.map((paciente) => (
+                                                        <button key={paciente.id} type="button" onClick={() => selectPaciente(paciente)}
+                                                            className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                                                            <span className="font-medium text-gray-900">{paciente.nome}</span>
+                                                            <span className="text-sm text-gray-500 ml-2">{paciente.cpf}</span>
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             )}
-                                        </div>
-                                        {showPacienteDropdown && pacienteResults.length > 0 && (
-                                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
-                                                {pacienteResults.map((paciente) => (
-                                                    <button
-                                                        key={paciente.id}
-                                                        type="button"
-                                                        onClick={() => selectPaciente(paciente)}
-                                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                                                    >
-                                                        <div className="font-medium text-gray-900">{paciente.nome}</div>
-                                                        <div className="text-sm text-gray-500">{paciente.cpf}</div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {errors.paciente_id && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.paciente_id}</p>
-                                )}
-                            </div>
-
-                            {/* Data */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Data da Receita *
-                                </label>
-                                <input
-                                    type="date"
-                                    value={data.data_receita}
-                                    onChange={(e) => setData('data_receita', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                />
-                                {errors.data_receita && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.data_receita}</p>
-                                )}
-                            </div>
-
-                            {/* Medico */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Medico *
-                                </label>
-                                <select
-                                    value={data.medico_id}
-                                    onChange={(e) => setData('medico_id', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                    disabled={medicos?.length === 1}
-                                >
-                                    <option value="">Selecione o medico</option>
-                                    {medicos?.map((medico) => (
-                                        <option key={medico.id} value={medico.id}>
-                                            {medico.nome}
-                                        </option>
-                                    ))}
-                                </select>
-                                {errors.medico_id && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.medico_id}</p>
-                                )}
-                            </div>
-
-                            {/* Status (only show for admin on edit) */}
-                            {isEditing && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Status
-                                    </label>
-                                    <div className={`px-4 py-2 rounded-lg font-medium ${
-                                        data.status === 'finalizada' ? 'bg-green-100 text-green-800' :
-                                        data.status === 'cancelada' ? 'bg-red-100 text-red-800' :
-                                        'bg-gray-100 text-gray-800'
-                                    }`}>
-                                        {data.status === 'finalizada' ? 'Finalizada' :
-                                         data.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
-                                    </div>
+                                        </>
+                                    )}
+                                    {errors.paciente_id && <p className="mt-1 text-sm text-red-600">{errors.paciente_id}</p>}
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Anotacoes */}
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Anotacoes Internas
-                                </label>
-                                <textarea
-                                    value={data.anotacoes}
-                                    onChange={(e) => setData('anotacoes', e.target.value)}
-                                    rows={3}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                    placeholder="Observacoes internas (nao aparecem no PDF)..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Anotacoes para o Paciente
-                                </label>
-                                <textarea
-                                    value={data.anotacoes_paciente}
-                                    onChange={(e) => setData('anotacoes_paciente', e.target.value)}
-                                    rows={3}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                    placeholder="Instrucoes que aparecerao no PDF..."
-                                />
+                                {/* Data */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
+                                    <input type="date" value={data.data_receita} onChange={(e) => setData('data_receita', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+                                </div>
+
+                                {/* Medico */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
+                                    <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        disabled={medicos?.length === 1}>
+                                        <option value="">Selecione</option>
+                                        {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Itens da Receita */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold text-gray-900">Produtos</h2>
-                            <button
-                                type="button"
-                                onClick={addItem}
-                                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                Adicionar Produto
-                            </button>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-base font-semibold text-gray-900">Produtos</h2>
                         </div>
 
                         {errors.itens && (
-                            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
                                 {errors.itens}
                             </div>
                         )}
 
                         {data.itens.length > 0 ? (
-                            <div className="space-y-4">
+                            <div className="space-y-1">
                                 {data.itens.map((item, index) => (
                                     <div 
                                         key={index} 
                                         ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                        className="border border-gray-200 rounded-lg p-4 hover:border-emerald-300 transition-colors"
+                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
                                     >
-                                        <div className="grid grid-cols-12 gap-4">
-                                            {/* Produto */}
-                                            <div className="col-span-12 md:col-span-4">
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                    Produto *
-                                                </label>
-                                                <select
-                                                    value={item.produto_id}
-                                                    onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                                >
-                                                    <option value="">Selecione...</option>
-                                                    {produtos?.map((produto) => (
-                                                        <option key={produto.id} value={produto.id}>
-                                                            {produto.codigo} - {produto.nome}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                        {/* Checkbox */}
+                                        <input
+                                            type="checkbox"
+                                            checked={item.imprimir}
+                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
+                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+                                        />
 
-                                            {/* Local de Uso */}
-                                            <div className="col-span-6 md:col-span-2">
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                    Local de Uso
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={item.local_uso}
-                                                    onChange={(e) => updateItem(index, 'local_uso', e.target.value)}
-                                                    placeholder="Ex: Rosto"
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                                />
-                                            </div>
-
-                                            {/* Quantidade */}
-                                            <div className="col-span-3 md:col-span-1">
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                    Qtd *
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={item.quantidade}
-                                                    onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                                    disabled={!item.imprimir}
-                                                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
-                                                />
-                                            </div>
-
-                                            {/* Valor Unitario */}
-                                            <div className="col-span-3 md:col-span-2">
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                    Valor Unit.
-                                                </label>
-                                                <div className={`w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 ${!item.imprimir ? 'text-gray-400' : 'text-gray-700'}`}>
-                                                    {new Intl.NumberFormat('pt-BR', {
-                                                        style: 'currency',
-                                                        currency: 'BRL',
-                                                    }).format(item.valor_unitario)}
-                                                </div>
-                                            </div>
-
-                                            {/* Subtotal + Imprimir + Delete */}
-                                            <div className="col-span-12 md:col-span-3 flex items-end justify-between gap-2">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                        Subtotal
-                                                    </label>
-                                                    <div className={`text-lg font-semibold ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                        {item.imprimir 
-                                                            ? new Intl.NumberFormat('pt-BR', {
-                                                                style: 'currency',
-                                                                currency: 'BRL',
-                                                            }).format(calcularSubtotalItem(item))
-                                                            : '-'
-                                                        }
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={item.imprimir}
-                                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                                                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                                        />
-                                                        Incluir
-                                                    </label>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeItem(index)}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </div>
+                                        {/* Tipo - largura fixa */}
+                                        <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
+                                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
+                                                {formatLocalUso(item.local_uso)}
+                                            </span>
                                         </div>
 
-                                        {/* Anotacoes do item */}
-                                        <div className="mt-3">
-                                            <input
-                                                type="text"
-                                                placeholder="Anotacoes do produto (modo de uso, observacoes)..."
-                                                value={item.anotacoes || ''}
-                                                onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50"
-                                            />
-                                        </div>
+                                        {/* Produto - 2 partes do espaço flexível */}
+                                        <select
+                                            value={item.produto_id}
+                                            onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                        >
+                                            <option value="">Produto...</option>
+                                            {produtos?.map((p) => (
+                                                <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* Anotações - 1 parte do espaço flexível */}
+                                        <input
+                                            type="text"
+                                            placeholder="Anotações..."
+                                            value={item.anotacoes || ''}
+                                            onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
+                                            className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                        />
+
+                                        {/* Qtd */}
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={item.quantidade}
+                                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                                            disabled={!item.imprimir}
+                                            className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
+                                        />
+
+                                        {/* Subtotal - não mostra para médico */}
+                                        {!isMedico && (
+                                            <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
+                                            </span>
+                                        )}
+
+                                        {/* Delete */}
+                                        <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
                                     </div>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-                                <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                </svg>
-                                <p className="font-medium">Nenhum produto adicionado</p>
-                                <p className="text-sm">Clique em "Adicionar Produto" para comecar</p>
-                            </div>
-                        )}
+                        ) : null}
 
-                        {/* Totais */}
-                        {data.itens.length > 0 && (
+                        {/* Add Product Button */}
+                        <button
+                            type="button"
+                            onClick={addItem}
+                            className="w-full mt-2 px-3 py-2 border border-dashed border-emerald-300 text-emerald-600 rounded hover:bg-emerald-50 hover:border-emerald-400 transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Adicionar Produto
+                        </button>
+
+                        {/* Totais - Hidden for medico users */}
+                        {data.itens.length > 0 && !isMedico && (
                             <div className="mt-6 pt-6 border-t border-gray-200">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Desconto e Frete */}
@@ -618,14 +564,34 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         )}
                     </div>
 
+                    {/* Anotações - movido para antes das ações */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Anotações Internas</label>
+                                <textarea
+                                    value={data.anotacoes}
+                                    onChange={(e) => setData('anotacoes', e.target.value)}
+                                    rows={2}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    placeholder="Observações internas (não aparecem no PDF)..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Anotações para o Paciente</label>
+                                <textarea
+                                    value={data.anotacoes_paciente}
+                                    onChange={(e) => setData('anotacoes_paciente', e.target.value)}
+                                    rows={2}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    placeholder="Instruções que aparecerão no PDF..."
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Actions */}
-                    <div className="flex justify-between items-center bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                        <Link
-                            href="/receitas"
-                            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                            Cancelar
-                        </Link>
+                    <div className="flex justify-end items-center bg-white rounded-lg shadow-sm border border-gray-200 p-3">
                         <div className="flex items-center gap-4">
                             {/* Autosave indicator */}
                             {(isAutoSaving || lastSavedText) && (
@@ -648,15 +614,15 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     ) : null}
                                 </div>
                             )}
-                            <div className="flex gap-3">
+                            <div className="flex gap-2">
                                 <button
                                     type="submit"
                                     disabled={processing || data.itens.length === 0}
-                                    className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
                                 >
                                     {processing ? (
                                         <>
-                                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                             </svg>
@@ -664,30 +630,215 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         </>
                                     ) : (
                                         <>
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                             </svg>
-                                            Salvar Rascunho
+                                            Salvar
                                         </>
                                     )}
                                 </button>
                                 {(isEditing || currentReceitaId) && data.status === 'rascunho' && (
                                     <button
                                         type="button"
-                                        onClick={finalizarReceita}
+                                        onClick={() => setShowFinalizarModal(true)}
                                         disabled={processing || data.itens.length === 0}
-                                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
                                     >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        Finalizar e Enviar
+                                        Finalizar
                                     </button>
                                 )}
                             </div>
                         </div>
                     </div>
                 </form>
+
+                {/* Receitas Anteriores - Accordion */}
+                {receitasAnteriores.length > 0 && (
+                    <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-3">Outras Receitas do Paciente</h2>
+                        <div className="space-y-2">
+                            {receitasAnteriores.map((r) => (
+                                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                    {/* Accordion Header */}
+                                    <div 
+                                        className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                                        onClick={() => toggleReceitaExpanded(r.id)}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <svg 
+                                                className={`w-4 h-4 text-gray-500 transition-transform ${expandedReceitas[r.id] ? 'rotate-90' : ''}`} 
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                            <span className="text-sm font-medium text-gray-900">
+                                                #{r.numero || r.id.toString().padStart(5, '0')}
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                {new Date(r.data_receita).toLocaleDateString('pt-BR')}
+                                            </span>
+                                            {r.medico && (
+                                                <span className="text-xs text-gray-500">• {r.medico.nome}</span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {!isMedico && r.valor_total > 0 && (
+                                                <span className="text-xs font-medium text-gray-700">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(r.valor_total)}
+                                                </span>
+                                            )}
+                                            <span className={`px-2 py-0.5 text-xs rounded ${
+                                                r.status === 'finalizada' ? 'bg-green-100 text-green-700' :
+                                                r.status === 'cancelada' ? 'bg-red-100 text-red-700' :
+                                                'bg-gray-100 text-gray-600'
+                                            }`}>
+                                                {r.status === 'finalizada' ? 'Finalizada' : 
+                                                 r.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
+                                            </span>
+                                            <Link
+                                                href={`/receitas/${r.id}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="p-1 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                                                title="Ver receita completa"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Accordion Content */}
+                                    {expandedReceitas[r.id] && (
+                                        <div className="p-3 border-t border-gray-200 bg-white">
+                                            {/* Anotações */}
+                                            {(r.anotacoes || r.anotacoes_paciente) && (
+                                                <div className="mb-3 text-xs">
+                                                    {r.anotacoes && (
+                                                        <div className="mb-1">
+                                                            <span className="font-medium text-gray-700">Anotações Internas:</span>
+                                                            <span className="text-gray-600 ml-1">{r.anotacoes}</span>
+                                                        </div>
+                                                    )}
+                                                    {r.anotacoes_paciente && (
+                                                        <div>
+                                                            <span className="font-medium text-gray-700">Anotações Paciente:</span>
+                                                            <span className="text-gray-600 ml-1">{r.anotacoes_paciente}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* Produtos */}
+                                            {r.itens && r.itens.length > 0 ? (
+                                                <div className="space-y-1">
+                                                    <div className="text-xs font-medium text-gray-700 mb-2">Produtos ({r.itens.length})</div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-xs">
+                                                            <thead className="bg-gray-50">
+                                                                <tr>
+                                                                    <th className="text-left px-2 py-1 font-medium text-gray-600">Tipo</th>
+                                                                    <th className="text-left px-2 py-1 font-medium text-gray-600">Produto</th>
+                                                                    <th className="text-center px-2 py-1 font-medium text-gray-600">Qtd</th>
+                                                                    {!isMedico && <th className="text-right px-2 py-1 font-medium text-gray-600">Valor</th>}
+                                                                    <th className="text-left px-2 py-1 font-medium text-gray-600">Última Aquisição</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {r.itens.map((item, idx) => (
+                                                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                                        <td className="px-2 py-1 text-gray-600">
+                                                                            {formatLocalUso(item.local_uso || item.produto?.local_uso)}
+                                                                        </td>
+                                                                        <td className="px-2 py-1 text-gray-900">
+                                                                            {item.produto?.nome || 'Produto não encontrado'}
+                                                                        </td>
+                                                                        <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
+                                                                        {!isMedico && (
+                                                                            <td className="px-2 py-1 text-right text-gray-600">
+                                                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_unitario * item.quantidade)}
+                                                                            </td>
+                                                                        )}
+                                                                        <td className="px-2 py-1 text-gray-500">
+                                                                            {item.aquisicoes && item.aquisicoes.length > 0 
+                                                                                ? new Date(item.aquisicoes[item.aquisicoes.length - 1].data_aquisicao).toLocaleDateString('pt-BR')
+                                                                                : '-'
+                                                                            }
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-gray-500">Nenhum produto nesta receita.</p>
+                                            )}
+                                            
+                                            {/* Data de criação */}
+                                            <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                                                Criado em: {new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal de Confirmação - Finalizar */}
+                {showFinalizarModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            {/* Backdrop */}
+                            <div 
+                                className="fixed inset-0 bg-black/50 transition-opacity"
+                                onClick={() => setShowFinalizarModal(false)}
+                            />
+                            
+                            {/* Modal */}
+                            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 transform transition-all">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Finalizar Receita</h3>
+                                </div>
+                                
+                                <p className="text-gray-600 mb-6">
+                                    Deseja finalizar esta receita? Após finalizada, ela será enviada para o Call Center e não poderá mais ser editada.
+                                </p>
+                                
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFinalizarModal(false)}
+                                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={finalizarReceita}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </DashboardLayout>
     );

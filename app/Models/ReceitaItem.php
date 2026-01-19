@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ReceitaItem extends Model
 {
@@ -51,6 +52,37 @@ class ReceitaItem extends Model
     public function produto(): BelongsTo
     {
         return $this->belongsTo(Produto::class);
+    }
+
+    /**
+     * Get the aquisicoes (purchase history).
+     */
+    public function aquisicoes(): HasMany
+    {
+        return $this->hasMany(ReceitaItemAquisicao::class)->orderByDesc('data_aquisicao');
+    }
+
+    /**
+     * Get the last acquisition date.
+     */
+    public function getUltimaAquisicaoAttribute(): ?\Carbon\Carbon
+    {
+        return $this->aquisicoes()->first()?->data_aquisicao ?? $this->data_aquisicao;
+    }
+
+    /**
+     * Get all acquisition dates sorted by most recent.
+     */
+    public function getDatasAquisicaoAttribute(): array
+    {
+        $datas = $this->aquisicoes->pluck('data_aquisicao')->toArray();
+        
+        // Include legacy data_aquisicao if exists and not already in list
+        if ($this->data_aquisicao && !in_array($this->data_aquisicao, $datas)) {
+            $datas[] = $this->data_aquisicao;
+        }
+        
+        return $datas;
     }
 
     /**
