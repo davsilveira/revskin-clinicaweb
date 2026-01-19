@@ -1,6 +1,8 @@
 import { Link, router } from '@inertiajs/react';
 import { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import MaskedInput from '@/Components/Form/MaskedInput';
+import { validateCPF } from '@/utils/validations';
 import debounce from 'lodash/debounce';
 
 export default function AssistenteReceitaIndex({ 
@@ -25,6 +27,7 @@ export default function AssistenteReceitaIndex({
     const [creatingPaciente, setCreatingPaciente] = useState(false);
     const [createError, setCreateError] = useState('');
     const [loadingCep, setLoadingCep] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
     
     // New patient form
     const [novoPaciente, setNovoPaciente] = useState({
@@ -152,12 +155,38 @@ export default function AssistenteReceitaIndex({
         }
     };
 
-    const createPaciente = async () => {
+    const validateNovoPaciente = () => {
+        const errors = {};
+        
+        // Nome é obrigatório
         if (!novoPaciente.nome || novoPaciente.nome.trim().length < 2) {
-            setCreateError('O nome é obrigatório');
-            return;
+            errors.nome = 'O nome é obrigatório';
         }
+        
+        // Data de nascimento é obrigatória
+        if (!novoPaciente.data_nascimento) {
+            errors.data_nascimento = 'A data de nascimento é obrigatória';
+        }
+        
+        // Celular é obrigatório
+        const celularLimpo = novoPaciente.telefone2?.replace(/\D/g, '');
+        if (!celularLimpo || celularLimpo.length < 10) {
+            errors.telefone2 = 'O celular é obrigatório';
+        }
+        
+        // CPF - validar apenas se preenchido
+        const cpfLimpo = novoPaciente.cpf?.replace(/\D/g, '');
+        if (cpfLimpo && cpfLimpo.length > 0) {
+            if (cpfLimpo.length !== 11 || !validateCPF(novoPaciente.cpf)) {
+                errors.cpf = 'CPF inválido';
+            }
+        }
+        
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
 
+    const createPaciente = async () => {
         setCreatingPaciente(true);
         setCreateError('');
 
@@ -182,14 +211,38 @@ export default function AssistenteReceitaIndex({
                     telefone1: '', telefone2: '', cep: '', endereco: '', numero: '',
                     complemento: '', bairro: '', cidade: '', uf: '', pais: 'Brasil',
                 });
+                setFieldErrors({});
+                return true;
             } else {
                 setCreateError(data.error || data.message || 'Erro ao cadastrar paciente');
+                return false;
             }
         } catch (error) {
             console.error('Erro ao criar paciente:', error);
             setCreateError('Erro ao cadastrar paciente');
+            return false;
         } finally {
             setCreatingPaciente(false);
+        }
+    };
+    
+    const handleProximo = async () => {
+        // Se já tem paciente selecionado, apenas avançar
+        if (selectedPaciente) {
+            setStep(2);
+            return;
+        }
+        
+        // Se está criando novo paciente, validar e criar
+        if (showCreateForm) {
+            if (!validateNovoPaciente()) {
+                return;
+            }
+            
+            const success = await createPaciente();
+            if (success) {
+                setStep(2);
+            }
         }
     };
 
@@ -417,32 +470,55 @@ export default function AssistenteReceitaIndex({
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Nome Completo <span className="text-red-500">*</span>
+                                        </label>
                                         <input
                                             type="text"
                                             value={novoPaciente.nome}
-                                            onChange={(e) => updateNovoPaciente('nome', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            onChange={(e) => {
+                                                updateNovoPaciente('nome', e.target.value);
+                                                setFieldErrors(prev => ({ ...prev, nome: null }));
+                                            }}
+                                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                fieldErrors.nome ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                            }`}
                                         />
+                                        {fieldErrors.nome && (
+                                            <p className="mt-1 text-sm text-red-600">{fieldErrors.nome}</p>
+                                        )}
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
-                                        <input
-                                            type="text"
+                                        <MaskedInput
+                                            label="CPF"
+                                            mask="000.000.000-00"
                                             value={novoPaciente.cpf}
-                                            onChange={(e) => updateNovoPaciente('cpf', e.target.value)}
+                                            onAccept={(value) => {
+                                                updateNovoPaciente('cpf', value);
+                                                setFieldErrors(prev => ({ ...prev, cpf: null }));
+                                            }}
                                             placeholder="000.000.000-00"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            error={fieldErrors.cpf}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Data de Nascimento <span className="text-red-500">*</span>
+                                        </label>
                                         <input
                                             type="date"
                                             value={novoPaciente.data_nascimento}
-                                            onChange={(e) => updateNovoPaciente('data_nascimento', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            onChange={(e) => {
+                                                updateNovoPaciente('data_nascimento', e.target.value);
+                                                setFieldErrors(prev => ({ ...prev, data_nascimento: null }));
+                                            }}
+                                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                fieldErrors.data_nascimento ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                            }`}
                                         />
+                                        {fieldErrors.data_nascimento && (
+                                            <p className="mt-1 text-sm text-red-600">{fieldErrors.data_nascimento}</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Sexo</label>
@@ -466,23 +542,26 @@ export default function AssistenteReceitaIndex({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                                        <input
-                                            type="text"
+                                        <MaskedInput
+                                            label="Telefone"
+                                            mask="(00) 0000-0000"
                                             value={novoPaciente.telefone1}
-                                            onChange={(e) => updateNovoPaciente('telefone1', e.target.value)}
+                                            onAccept={(value) => updateNovoPaciente('telefone1', value)}
                                             placeholder="(00) 0000-0000"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Celular</label>
-                                        <input
-                                            type="text"
+                                        <MaskedInput
+                                            label="Celular"
+                                            mask="(00) 00000-0000"
                                             value={novoPaciente.telefone2}
-                                            onChange={(e) => updateNovoPaciente('telefone2', e.target.value)}
+                                            onAccept={(value) => {
+                                                updateNovoPaciente('telefone2', value);
+                                                setFieldErrors(prev => ({ ...prev, telefone2: null }));
+                                            }}
                                             placeholder="(00) 00000-0000"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            error={fieldErrors.telefone2}
+                                            required
                                         />
                                     </div>
                                     
@@ -491,17 +570,16 @@ export default function AssistenteReceitaIndex({
                                         <h4 className="text-sm font-medium text-gray-700 mb-3">Endereço</h4>
                                         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                                             <div className="md:col-span-2">
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
                                                 <div className="relative">
-                                                    <input
-                                                        type="text"
+                                                    <MaskedInput
+                                                        label="CEP"
+                                                        mask="00000-000"
                                                         value={novoPaciente.cep}
-                                                        onChange={(e) => updateNovoPaciente('cep', e.target.value)}
+                                                        onAccept={(value) => updateNovoPaciente('cep', value)}
                                                         onBlur={buscarCep}
                                                         placeholder="00000-000"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                                     />
-                                                    {loadingCep && <span className="absolute right-3 top-2 text-xs text-gray-400">Buscando...</span>}
+                                                    {loadingCep && <span className="absolute right-3 top-10 text-xs text-gray-400">Buscando...</span>}
                                                 </div>
                                             </div>
                                             <div className="md:col-span-4">
@@ -566,36 +644,6 @@ export default function AssistenteReceitaIndex({
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-3 mt-6">
-                                    <button
-                                        onClick={() => setShowCreateForm(false)}
-                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={createPaciente}
-                                        disabled={creatingPaciente || !novoPaciente.nome}
-                                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
-                                    >
-                                        {creatingPaciente ? (
-                                            <>
-                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                </svg>
-                                                Salvando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                Cadastrar e Selecionar
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
                             </div>
                         ) : (
                             <div className="relative mb-6">
@@ -655,16 +703,39 @@ export default function AssistenteReceitaIndex({
                             </div>
                         )}
 
-                        <div className="flex justify-end">
+                        <div className={`flex ${showCreateForm ? 'justify-between' : 'justify-end'}`}>
+                            {showCreateForm && (
+                                <button
+                                    onClick={() => {
+                                        setShowCreateForm(false);
+                                        setFieldErrors({});
+                                    }}
+                                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                            )}
                             <button
-                                onClick={() => setStep(2)}
-                                disabled={!selectedPaciente || (isAdmin && !selectedMedicoId)}
+                                onClick={handleProximo}
+                                disabled={(!selectedPaciente && !showCreateForm) || (isAdmin && !selectedMedicoId) || creatingPaciente}
                                 className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
-                                Próximo
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
+                                {creatingPaciente ? (
+                                    <>
+                                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                        Salvando...
+                                    </>
+                                ) : (
+                                    <>
+                                        Próximo
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -673,7 +744,7 @@ export default function AssistenteReceitaIndex({
                 {/* Step 2: Avaliação Clínica */}
                 {step === 2 && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Avaliação Clínica</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-2">Avaliação Clínica</h2>
                         <p className="text-gray-500 mb-6">
                             Informe as condições clínicas do paciente para sugestão de tratamento
                         </p>
@@ -685,19 +756,19 @@ export default function AssistenteReceitaIndex({
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className="space-y-6 mb-6">
                             {/* Gravidez */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                                <label className="text-sm font-medium text-gray-700">
                                     Gravidez
                                 </label>
-                                <div className="flex gap-3">
+                                <div className="flex gap-2">
                                     {['Sim', 'Não'].map((option) => (
                                         <button
                                             key={option}
                                             type="button"
                                             onClick={() => updateCondicao('gravidez', option)}
-                                            className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${
+                                            className={`py-2 px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
                                                 condicoes.gravidez === option
                                                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
@@ -710,17 +781,17 @@ export default function AssistenteReceitaIndex({
                             </div>
 
                             {/* Rosácea */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                                <label className="text-sm font-medium text-gray-700">
                                     Rosácea
                                 </label>
-                                <div className="flex gap-3">
+                                <div className="flex gap-2">
                                     {['Sim', 'Não'].map((option) => (
                                         <button
                                             key={option}
                                             type="button"
                                             onClick={() => updateCondicao('rosacea', option)}
-                                            className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${
+                                            className={`py-2 px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
                                                 condicoes.rosacea === option
                                                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
@@ -732,85 +803,101 @@ export default function AssistenteReceitaIndex({
                                 </div>
                             </div>
 
-                            {/* Fototipo */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Fototipo
-                                </label>
-                                <select
-                                    value={condicoes.fototipo}
-                                    onChange={(e) => updateCondicao('fototipo', e.target.value)}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                >
-                                    <option value="">Selecione...</option>
-                                    {fototipoOpcoes.map((option) => (
-                                        <option key={option} value={option}>{option}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Tipo de Pele */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tipo de Pele
-                                </label>
-                                <div className="space-y-2">
-                                    {tipoPeleOpcoes.map((option) => (
-                                        <label key={option} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                                            condicoes.tipo_pele === option
-                                                ? 'border-emerald-500 bg-emerald-50'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                        }`}>
-                                            <input
-                                                type="radio"
-                                                name="tipo_pele"
-                                                value={option}
-                                                checked={condicoes.tipo_pele === option}
-                                                onChange={(e) => updateCondicao('tipo_pele', e.target.value)}
-                                                className="sr-only"
-                                            />
-                                            <span className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
-                                                condicoes.tipo_pele === option
-                                                    ? 'border-emerald-600'
-                                                    : 'border-gray-300'
-                                            }`}>
-                                                {condicoes.tipo_pele === option && (
-                                                    <span className="w-2 h-2 bg-emerald-600 rounded-full" />
-                                                )}
-                                            </span>
-                                            {option}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Intensidades */}
-                            {['manchas', 'rugas', 'acne', 'flacidez'].map((field) => (
-                                <div key={field}>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        {condicaoLabels[field]}
+                            {/* Fototipo - Range Slider */}
+                            <div className="py-3 border-b border-gray-100">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Fototipo
                                     </label>
-                                    <div className="flex gap-2">
-                                        {intensidadeOpcoes.map((value) => (
-                                            <button
-                                                key={value}
-                                                type="button"
-                                                onClick={() => updateCondicao(field, value)}
-                                                className={`flex-1 py-3 px-2 text-sm rounded-lg border transition-all ${
-                                                    condicoes[field] === value
-                                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-medium'
-                                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                    {condicoes.fototipo && (
+                                        <span className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                                            {condicoes.fototipo}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="px-2">
+                                    <div className="flex justify-between text-xs text-gray-500 mb-2">
+                                        {fototipoOpcoes.map((val) => (
+                                            <span 
+                                                key={val} 
+                                                className={`cursor-pointer hover:text-emerald-600 transition-colors ${
+                                                    condicoes.fototipo === val ? 'text-emerald-600 font-semibold' : ''
                                                 }`}
+                                                onClick={() => updateCondicao('fototipo', val)}
                                             >
-                                                {value}
-                                            </button>
+                                                {val}
+                                            </span>
                                         ))}
                                     </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max={fototipoOpcoes.length - 1}
+                                        step="1"
+                                        value={condicoes.fototipo ? fototipoOpcoes.indexOf(condicoes.fototipo) : 0}
+                                        onChange={(e) => updateCondicao('fototipo', fototipoOpcoes[parseInt(e.target.value)])}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                                    />
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Tipo de Pele - Horizontal buttons */}
+                            <div className="py-3 border-b border-gray-100">
+                                <label className="block text-sm font-medium text-gray-700 mb-3">
+                                    Tipo de Pele
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {tipoPeleOpcoes.map((option) => (
+                                        <button
+                                            key={option}
+                                            type="button"
+                                            onClick={() => updateCondicao('tipo_pele', option)}
+                                            className={`py-2 px-4 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
+                                                condicoes.tipo_pele === option
+                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                            }`}
+                                        >
+                                            {option}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Condições da Pele - Header */}
+                            <div className="pt-2">
+                                <h3 className="text-sm font-medium text-gray-700 mb-4">Condições da Pele</h3>
+                                
+                                {/* Intensidades em lista */}
+                                <div className="space-y-3">
+                                    {['manchas', 'rugas', 'acne', 'flacidez'].map((field) => (
+                                        <div key={field} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                                            <label className="text-sm font-medium text-gray-600 min-w-[100px]">
+                                                {condicaoLabels[field]}
+                                            </label>
+                                            <div className="flex gap-2">
+                                                {intensidadeOpcoes.map((value) => (
+                                                    <button
+                                                        key={value}
+                                                        type="button"
+                                                        onClick={() => updateCondicao(field, value)}
+                                                        className={`py-2 px-4 text-sm rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                                                            condicoes[field] === value
+                                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-medium'
+                                                                : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                                        }`}
+                                                    >
+                                                        {value}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="flex justify-between">
+                        <div className="flex justify-between pt-4 border-t border-gray-200">
                             <button
                                 onClick={() => setStep(1)}
                                 className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
