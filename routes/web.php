@@ -27,7 +27,9 @@ Route::get('/', function () {
 });
 
 // Authentication routes
-Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::get('/login', function () {
+    return redirect('/');
+})->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
