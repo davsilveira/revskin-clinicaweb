@@ -239,41 +239,43 @@ export default function RegrasCondicionais({
                     </button>
                 </div>
 
-                {/* Filtros */}
-                <div className="mb-6 flex flex-wrap gap-2">
-                    <button
-                        onClick={() => handleFiltroChange('todas')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            filtro === 'todas'
-                                ? 'bg-gray-900 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                    >
-                        Todas
-                    </button>
-                    <button
-                        onClick={() => handleFiltroChange('selecao_tabela')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            filtro === 'selecao_tabela'
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                        }`}
-                    >
-                        Seleção de Tabela
-                    </button>
-                    {tabelasKarnaugh.map((tabela) => (
+                {/* Filtros - Segmented Control */}
+                <div className="mb-6">
+                    <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
                         <button
-                            key={tabela.id}
-                            onClick={() => handleFiltroChange(String(tabela.id))}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                filtro === String(tabela.id)
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                            onClick={() => handleFiltroChange('todas')}
+                            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                filtro === 'todas'
+                                    ? 'bg-white shadow-sm text-gray-900'
+                                    : 'text-gray-600 hover:text-gray-900'
                             }`}
                         >
-                            {tabela.nome} {tabela.padrao && '(Padrão)'}
+                            Todas
                         </button>
-                    ))}
+                        <button
+                            onClick={() => handleFiltroChange('selecao_tabela')}
+                            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                filtro === 'selecao_tabela'
+                                    ? 'bg-emerald-500 shadow-sm text-white'
+                                    : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                        >
+                            Seleção de Tabela
+                        </button>
+                        {tabelasKarnaugh.map((tabela) => (
+                            <button
+                                key={tabela.id}
+                                onClick={() => handleFiltroChange(String(tabela.id))}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                    filtro === String(tabela.id)
+                                        ? 'bg-blue-500 shadow-sm text-white'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                {tabela.nome} {tabela.padrao && '(Padrão)'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Lista de Regras */}
