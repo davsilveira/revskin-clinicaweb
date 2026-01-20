@@ -61,17 +61,19 @@ echo -e "${GREEN}✅ Servidor Laravel: http://localhost:9000${NC}"
 echo -e "${GREEN}✅ Vite Dev Server: http://localhost:5173${NC}"
 echo -e "${GREEN}✅ Queue Worker: Processando jobs${NC}"
 echo -e "${GREEN}✅ Log Viewer: Laravel Pail${NC}"
+echo -e "${GREEN}✅ Mailpit: http://localhost:8025${NC}"
 echo ""
 echo -e "${YELLOW}Pressione Ctrl+C para parar todos os serviços${NC}"
 echo ""
 
 # Iniciar todos os serviços com concurrently
 npx concurrently \
-    -c "#93c5fd,#c4b5fd,#fb7185,#fdba74" \
-    --names "server,queue,logs,vite" \
+    -c "#93c5fd,#c4b5fd,#fb7185,#fdba74,#34d399" \
+    --names "server,queue,logs,vite,mail" \
     --kill-others \
     "php artisan serve --port=9000" \
     "php artisan queue:work --queue=default,exports --tries=3 --timeout=300 --max-jobs=1000" \
     "php artisan pail --timeout=0" \
-    "npm run dev"
+    "npm run dev" \
+    "mailpit"
 

@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\WelcomeMail;
 use App\Models\Clinica;
 use App\Models\Medico;
 use App\Models\MedicoEndereco;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -94,11 +100,28 @@ class MedicoController extends Controller
             'enderecos.*.bairro' => 'nullable|string|max:255',
             'enderecos.*.cidade' => 'nullable|string|max:255',
             'enderecos.*.uf' => 'nullable|string|max:2',
+            'criar_usuario' => 'nullable|boolean',
+        ], [
+            'email.required' => 'O e-mail é obrigatório quando criar usuário está marcado.',
         ]);
+
+        // Validate email is required if creating user
+        $criarUsuario = $request->boolean('criar_usuario');
+        if ($criarUsuario && empty($validated['email'])) {
+            return back()->withErrors(['email' => 'O e-mail é obrigatório para criar o usuário.']);
+        }
+
+        // Check if email already exists as user
+        if ($criarUsuario && !empty($validated['email'])) {
+            $existingUser = User::where('email', $validated['email'])->first();
+            if ($existingUser) {
+                return back()->withErrors(['email' => 'Já existe um usuário cadastrado com este e-mail.']);
+            }
+        }
 
         $enderecos = $validated['enderecos'] ?? [];
         $clinicaIds = $validated['clinica_ids'] ?? [];
-        unset($validated['enderecos'], $validated['clinica_ids']);
+        unset($validated['enderecos'], $validated['clinica_ids'], $validated['criar_usuario']);
 
         // Map frontend field names to database field names
         $medicoData = [
@@ -138,8 +161,29 @@ class MedicoController extends Controller
             ]);
         }
 
+        // Create user if requested
+        if ($criarUsuario && !empty($validated['email'])) {
+            $user = User::create([
+                'name' => $validated['nome'],
+                'email' => $validated['email'],
+                'password' => Hash::make(Str::random(32)), // Random password, user will set via email
+                'role' => User::ROLE_MEDICO,
+                'medico_id' => $medico->id,
+                'is_active' => true,
+            ]);
+
+            // Generate password reset token and send welcome email
+            $token = Password::broker()->createToken($user);
+            Mail::to($user->email)->send(new WelcomeMail($user, $token));
+        }
+
+        $message = 'Médico cadastrado com sucesso!';
+        if ($criarUsuario) {
+            $message .= ' Um e-mail foi enviado para o médico definir sua senha.';
+        }
+
         return redirect()->route('medicos.index')
-            ->with('success', 'Médico cadastrado com sucesso!');
+            ->with('success', $message);
     }
 
     /**

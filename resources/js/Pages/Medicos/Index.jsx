@@ -6,6 +6,7 @@ import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MaskedInput from '@/Components/Form/MaskedInput';
+import Checkbox from '@/Components/Form/Checkbox';
 
 export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin = false }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -29,6 +30,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
         remover_assinatura: false,
         ativo: true,
         enderecos: [],
+        criar_usuario: false,
     });
 
     const addClinica = (clinicaId) => {
@@ -124,6 +126,7 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                 cidade: e.cidade || '',
                 uf: e.uf || '',
             })) || [],
+            criar_usuario: false, // Not applicable for editing
         });
         setDrawerOpen(true);
     };
@@ -300,6 +303,24 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                         </div>
                         <Input label="Especialidade" value={data.especialidade} onChange={(e) => setData('especialidade', e.target.value)} placeholder="Ex: Dermatologia" />
                         <Input label="E-mail" type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} error={errors.email} />
+                        
+                        {/* Checkbox para criar usuário - apenas para novos médicos */}
+                        {!editingMedico && data.email && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <Checkbox
+                                    checked={data.criar_usuario}
+                                    onChange={(e) => setData('criar_usuario', e.target.checked)}
+                                    label="Criar usuário automaticamente"
+                                    error={errors.criar_usuario}
+                                />
+                                {data.criar_usuario && (
+                                    <p className="mt-2 text-sm text-blue-700">
+                                        Um e-mail será enviado para <strong>{data.email}</strong> com instruções para definir a senha de acesso ao sistema.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                             <MaskedInput 
                                 label="Telefone" 
