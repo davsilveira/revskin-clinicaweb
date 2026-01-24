@@ -272,64 +272,76 @@ export default function ProductItemsEditor({
                 {showGroups ? (
                     <>
                         {/* Produtos Recomendados */}
-                        {itensRecomendados.length > 0 && (
-                            <div>
-                                <div className="flex items-center gap-2 mb-2 pb-1 border-b border-emerald-200">
-                                    <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
-                                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                                        Recomendados para o Tratamento
-                                    </span>
-                                    <span className="text-xs text-gray-500">
-                                        ({itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
-                                    </span>
-                                </div>
-                                <div className="space-y-1">
-                                    {itens.map((item, index) => 
-                                        item.grupo === 'recomendado' && renderItemRow(item, index, index === itens.length - 1)
-                                    )}
-                                </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-2 pb-1 border-b border-emerald-200">
+                                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
+                                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                                    Recomendados para o Tratamento
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    ({itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
+                                </span>
                             </div>
-                        )}
+                            <div className="space-y-1">
+                                {itens.map((item, index) => 
+                                    item.grupo === 'recomendado' && renderItemRow(item, index, index === itens.length - 1)
+                                )}
+                            </div>
+                            
+                            {/* Botão Adicionar Produto - Após Recomendados */}
+                            {!readOnly && (
+                                <button
+                                    type="button"
+                                    onClick={addItem}
+                                    className="w-full mt-2 px-3 py-2 border border-dashed border-emerald-300 text-emerald-600 rounded hover:bg-emerald-50 hover:border-emerald-400 transition-colors flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Adicionar Produto
+                                </button>
+                            )}
+                        </div>
 
                         {/* Produtos Opcionais */}
-                        {itensOpcionais.length > 0 && (
-                            <div>
-                                <div className="flex items-center gap-2 mb-2 pb-1 border-b border-gray-300">
-                                    <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
-                                    <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                                        Opcionais
-                                    </span>
-                                    <span className="text-xs text-gray-500">
-                                        ({itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
-                                    </span>
-                                </div>
-                                <div className="space-y-1">
-                                    {itens.map((item, index) => 
-                                        item.grupo === 'opcional' && renderItemRow(item, index, index === itens.length - 1)
-                                    )}
-                                </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-2 pb-1 border-b border-gray-300">
+                                <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+                                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                    Opcionais
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    ({itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
+                                </span>
                             </div>
-                        )}
+                            <div className="space-y-1">
+                                {itens.map((item, index) => 
+                                    item.grupo === 'opcional' && renderItemRow(item, index, index === itens.length - 1)
+                                )}
+                            </div>
+                        </div>
                     </>
                 ) : (
                     // Sem grupos - lista simples
-                    <div className="space-y-1">
-                        {itens.map((item, index) => renderItemRow(item, index, index === itens.length - 1))}
-                    </div>
-                )}
-
-                {/* Botão Adicionar Produto */}
-                {!readOnly && (
-                    <button
-                        type="button"
-                        onClick={addItem}
-                        className="w-full px-3 py-2 border border-dashed border-emerald-300 text-emerald-600 rounded hover:bg-emerald-50 hover:border-emerald-400 transition-colors flex items-center justify-center gap-2 text-sm"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Adicionar Produto
-                    </button>
+                    <>
+                        <div className="space-y-1">
+                            {itens.map((item, index) => renderItemRow(item, index, index === itens.length - 1))}
+                        </div>
+                        
+                        {/* Botão Adicionar Produto */}
+                        {!readOnly && (
+                            <button
+                                type="button"
+                                onClick={addItem}
+                                className="w-full px-3 py-2 border border-dashed border-emerald-300 text-emerald-600 rounded hover:bg-emerald-50 hover:border-emerald-400 transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Adicionar Produto
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
 
