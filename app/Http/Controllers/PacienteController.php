@@ -185,6 +185,13 @@ class PacienteController extends Controller
             ]);
         }
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'paciente' => $paciente->fresh(['telefones', 'medico']),
+            ]);
+        }
+
         return redirect()->route('pacientes.index')
             ->with('success', 'Paciente cadastrado com sucesso!');
     }
@@ -272,6 +279,13 @@ class PacienteController extends Controller
                 'numero' => $telefone['numero'],
                 'tipo' => $telefone['tipo'],
                 'principal' => $index === 0,
+            ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'paciente' => $paciente->fresh(['telefones', 'medico']),
             ]);
         }
 

@@ -213,7 +213,9 @@ export default function PatientDrawer({
         onClose?.();
     };
 
-    const handleSubmit = (e) => {
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         
         // Validar CPF se preenchido
@@ -224,21 +226,39 @@ export default function PatientDrawer({
             }
         }
         setCpfError(null);
-        
-        if (paciente) {
-            put(`/pacientes/${paciente.id}`, {
-                onSuccess: () => {
-                    onSave?.();
-                    handleClose();
+        setIsSaving(true);
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const telefonesValidos = data.telefones.filter(t => t.numero && t.numero.trim());
+            
+            const url = paciente ? `/pacientes/${paciente.id}` : '/pacientes';
+            const method = paciente ? 'PUT' : 'POST';
+            
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
+                body: JSON.stringify({
+                    ...data,
+                    telefones: telefonesValidos,
+                }),
             });
-        } else {
-            post('/pacientes', {
-                onSuccess: () => {
-                    onSave?.();
-                    handleClose();
-                },
-            });
+
+            if (response.ok) {
+                onSave?.();
+            } else {
+                const errorData = await response.json();
+                console.error('Error saving patient:', errorData);
+            }
+        } catch (error) {
+            console.error('Error saving patient:', error);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -635,8 +655,8 @@ export default function PatientDrawer({
                             <button type="button" onClick={handleClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancelar
                             </button>
-                            <button type="submit" disabled={processing} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
-                                {processing ? 'Salvando...' : 'Salvar'}
+                            <button type="submit" disabled={isSaving} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                                {isSaving ? 'Salvando...' : 'Salvar'}
                             </button>
                         </div>
                     </div>

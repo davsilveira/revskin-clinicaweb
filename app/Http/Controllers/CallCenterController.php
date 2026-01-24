@@ -51,7 +51,8 @@ class CallCenterController extends Controller
     public function show(AtendimentoCallcenter $atendimento): Response
     {
         $atendimento->load([
-            'paciente',
+            'paciente.telefones',
+            'paciente.medico',
             'medico',
             'receita.itens.produto',
             'usuario',
