@@ -18,10 +18,16 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
         saveRef.current = saveFunction;
     }, [saveFunction]);
 
-    // Debounced save function
+    // Ref to track enabled state for debounced function
+    const enabledRef = useRef(enabled);
+    useEffect(() => {
+        enabledRef.current = enabled;
+    }, [enabled]);
+
+    // Debounced save function - uses refs to avoid stale closures
     const debouncedSave = useCallback(
         debounce(async () => {
-            if (!enabled) return;
+            if (!enabledRef.current) return;
             
             setIsSaving(true);
             try {
@@ -34,15 +40,15 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
                 setIsSaving(false);
             }
         }, delay),
-        [delay, enabled]
+        [delay]
     );
 
     // Trigger autosave on data change
     const triggerAutoSave = useCallback(() => {
-        if (!enabled) return;
+        if (!enabledRef.current) return;
         setHasUnsavedChanges(true);
         debouncedSave();
-    }, [debouncedSave, enabled]);
+    }, [debouncedSave]);
 
     // Cancel pending saves
     const cancelAutoSave = useCallback(() => {

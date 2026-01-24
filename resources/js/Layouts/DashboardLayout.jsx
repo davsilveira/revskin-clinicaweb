@@ -333,17 +333,6 @@ export default function DashboardLayout({ children }) {
 
                 {/* Footer do Sidebar */}
                 <div className={`${sidebarCollapsed ? 'p-2' : 'p-4'} border-t border-gray-200 space-y-2`}>
-                    <a
-                        href="/"
-                        className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors`}
-                        title={sidebarCollapsed ? 'Voltar ao site' : undefined}
-                    >
-                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                        {!sidebarCollapsed && <span className="font-medium">Voltar ao site</span>}
-                    </a>
-                    
                     {/* Toggle Sidebar Button */}
                     <button
                         onClick={toggleSidebar}

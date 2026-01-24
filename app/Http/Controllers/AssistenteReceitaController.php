@@ -144,10 +144,13 @@ class AssistenteReceitaController extends Controller
     }
 
     /**
-     * Process wizard step and get suggestions.
+     * Process wizard step, create recipe, and redirect to edit.
+     * This method now creates the recipe directly, skipping the product selection step.
      */
     public function processar(Request $request)
     {
+        $user = $request->user();
+
         $validated = $request->validate([
             'gravidez' => 'nullable|string',
             'rosacea' => 'nullable|string',
@@ -157,6 +160,8 @@ class AssistenteReceitaController extends Controller
             'rugas' => 'nullable|string',
             'acne' => 'nullable|string',
             'flacidez' => 'nullable|string',
+            'paciente_id' => 'required|exists:pacientes,id',
+            'medico_id' => 'nullable|exists:medicos,id',
         ]);
 
         // Montar código do caso clínico baseado nas seleções
@@ -174,27 +179,66 @@ class AssistenteReceitaController extends Controller
             $produtosSugeridos = $this->processarMetodoLegado($validated, $codigoKarnaugh);
         }
 
-        // Formatar produtos para o frontend
-        $produtosFormatados = [];
-        foreach ($produtosSugeridos as $item) {
-            $produtosFormatados[] = [
-                'produto_id' => $item['produto_id'],
-                'produto' => $item['produto'],
-                'local_uso' => $item['categoria'] ?? $item['local_uso'] ?? 'N/A',
-                'quantidade' => 1,
-                'anotacoes' => null,
-                'selecionado' => $item['selecionado'] ?? false,
-                'grupo' => $item['grupo'] ?? 'primeiro',
-                'origem' => $item['origem'] ?? 'tabela_karnaugh',
-                'nao_encontrado' => $item['produto_id'] === null,
-            ];
+        // Determinar médico: do request, do usuário, ou primeiro ativo
+        $medicoId = $validated['medico_id'] ?? $user->medico_id;
+        
+        if (!$medicoId) {
+            // Fallback: usar primeiro médico ativo
+            $medico = Medico::where('ativo', true)->first();
+            if (!$medico) {
+                return response()->json([
+                    'error' => 'Nenhum médico cadastrado. Por favor, cadastre um médico primeiro.',
+                ], 422);
+            }
+            $medicoId = $medico->id;
         }
 
+        // Criar receita diretamente com todos os produtos (recomendados e opcionais)
+        $receita = Receita::create([
+            'numero' => Receita::gerarNumero(),
+            'paciente_id' => $validated['paciente_id'],
+            'medico_id' => $medicoId,
+            'data_receita' => now(),
+            'status' => 'rascunho',
+        ]);
+
+        // Adicionar todos os produtos na receita
+        $ordem = 0;
+        foreach ($produtosSugeridos as $item) {
+            // Pular produtos não encontrados
+            if ($item['produto_id'] === null) {
+                continue;
+            }
+
+            $produto = $item['produto'];
+            $valorUnitario = $produto->preco_venda ?? $produto->preco ?? 0;
+            
+            // Determinar grupo: 'recomendado' (selecionado) ou 'opcional' (não selecionado)
+            $grupo = ($item['selecionado'] ?? false) ? 'recomendado' : 'opcional';
+            
+            // imprimir = true para recomendados, false para opcionais
+            $imprimir = $grupo === 'recomendado';
+
+            $receita->itens()->create([
+                'produto_id' => $item['produto_id'],
+                'local_uso' => $item['categoria'] ?? $item['local_uso'] ?? null,
+                'quantidade' => $item['quantidade'] ?? 1,
+                'valor_unitario' => $valorUnitario,
+                'valor_total' => ($item['quantidade'] ?? 1) * $valorUnitario,
+                'imprimir' => $imprimir,
+                'grupo' => $grupo,
+                'ordem' => $ordem++,
+            ]);
+        }
+
+        $receita->calcularTotais();
+
         return response()->json([
+            'receita_id' => $receita->id,
             'codigo_karnaugh' => $codigoKarnaugh,
-            'produtos_sugeridos' => $produtosFormatados,
             'tabela_usada' => $engine->getTabelaSelecionada()?->nome,
             'regras_aplicadas' => count($engine->getRegrasAplicadas()),
+            'redirect' => route('receitas.edit', $receita),
         ]);
     }
 
@@ -223,7 +267,9 @@ class AssistenteReceitaController extends Controller
                         'produto' => $produto,
                         'categoria' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
                         'selecionado' => true,
+                        'quantidade' => 1,
                         'grupo' => 'primeiro',
+                        'grupo_receita' => 'recomendado',
                         'origem' => 'legado',
                     ];
                 } else {
@@ -232,7 +278,9 @@ class AssistenteReceitaController extends Controller
                         'produto' => ['nome' => $nomeProduto, 'id' => null],
                         'categoria' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
                         'selecionado' => false,
+                        'quantidade' => 1,
                         'grupo' => 'primeiro',
+                        'grupo_receita' => 'opcional',
                         'origem' => 'legado',
                     ];
                 }

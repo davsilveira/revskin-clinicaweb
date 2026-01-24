@@ -96,6 +96,7 @@ class ReceitaController extends Controller
             'itens.*.quantidade' => 'required|integer|min:1',
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
+            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
 
         $receita = Receita::create([
@@ -121,6 +122,7 @@ class ReceitaController extends Controller
                 'valor_unitario' => $item['valor_unitario'],
                 'valor_total' => $item['quantidade'] * $item['valor_unitario'],
                 'imprimir' => $item['imprimir'] ?? true,
+                'grupo' => $item['grupo'] ?? 'recomendado',
                 'ordem' => $index,
             ]);
         }
@@ -217,6 +219,7 @@ class ReceitaController extends Controller
             'itens.*.quantidade' => 'required|integer|min:1',
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
+            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
 
         $receita->update([
@@ -241,6 +244,7 @@ class ReceitaController extends Controller
                 'valor_unitario' => $item['valor_unitario'],
                 'valor_total' => $item['quantidade'] * $item['valor_unitario'],
                 'imprimir' => $item['imprimir'] ?? true,
+                'grupo' => $item['grupo'] ?? 'recomendado',
                 'ordem' => $index,
             ]);
         }
@@ -295,6 +299,7 @@ class ReceitaController extends Controller
             'itens.*.quantidade' => 'required|integer|min:1',
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
+            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
 
         $id = $validated['id'] ?? null;
@@ -353,6 +358,7 @@ class ReceitaController extends Controller
                     'valor_unitario' => $item['valor_unitario'],
                     'valor_total' => $item['quantidade'] * $item['valor_unitario'],
                     'imprimir' => $item['imprimir'] ?? true,
+                    'grupo' => $item['grupo'] ?? 'recomendado',
                     'ordem' => $index,
                 ]);
             }

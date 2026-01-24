@@ -23,6 +23,7 @@ class ReceitaItem extends Model
         'valor_total',
         'data_aquisicao',
         'imprimir',
+        'grupo',
         'ordem',
     ];
 

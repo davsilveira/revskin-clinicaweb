@@ -15,12 +15,14 @@ class RegraAcao extends Model
         'tabela_karnaugh_id',
         'produto_id',
         'marcar',
+        'quantidade',
         'categoria',
         'ordem',
     ];
 
     protected $casts = [
         'marcar' => 'boolean',
+        'quantidade' => 'integer',
         'ordem' => 'integer',
     ];
 
@@ -31,6 +33,8 @@ class RegraAcao extends Model
         'usar_tabela' => 'Usar Tabela Karnaugh',
         'adicionar_item' => 'Adicionar Item',
         'remover_item' => 'Remover Item',
+        'modificar_quantidade' => 'Modificar Quantidade',
+        'alterar_marcacao' => 'Alterar Marcação',
     ];
 
     /**
@@ -79,6 +83,22 @@ class RegraAcao extends Model
     public function isRemoverItem(): bool
     {
         return $this->tipo_acao === 'remover_item';
+    }
+
+    /**
+     * Verifica se é uma ação de modificar quantidade.
+     */
+    public function isModificarQuantidade(): bool
+    {
+        return $this->tipo_acao === 'modificar_quantidade';
+    }
+
+    /**
+     * Verifica se é uma ação de alterar marcação.
+     */
+    public function isAlterarMarcacao(): bool
+    {
+        return $this->tipo_acao === 'alterar_marcacao';
     }
 
     /**

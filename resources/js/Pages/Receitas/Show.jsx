@@ -87,21 +87,17 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Produtos da Receita</h2>
                             
                             <div className="space-y-3">
-                                {receita.itens?.map((item, index) => (
-                                    <div key={index} className={`flex items-start justify-between p-4 rounded-lg ${item.imprimir ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
+                                {receita.itens?.filter(item => item.imprimir).map((item, index) => (
+                                    <div key={index} className="flex items-start justify-between p-4 rounded-lg bg-gray-50">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
-                                                <span className={`font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-500'}`}>
+                                                <span className="font-medium text-gray-900">
                                                     {item.produto?.codigo && (
-                                                        <span className={item.imprimir ? 'text-emerald-600' : 'text-gray-400'}>{item.produto.codigo}</span>
+                                                        <span className="text-emerald-600">{item.produto.codigo}</span>
                                                     )}
                                                     {' '}{item.produto?.nome || 'Produto'}
                                                 </span>
-                                                {item.imprimir ? (
-                                                    <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">Incluído</span>
-                                                ) : (
-                                                    <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-500 rounded">Não incluído</span>
-                                                )}
+                                                <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">Incluído</span>
                                             </div>
                                             {item.local_uso && (
                                                 <div className="text-sm text-gray-500 mt-1">
@@ -140,18 +136,12 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
                                         </div>
                                         {!isMedico && (
                                             <div className="text-right">
-                                                {item.imprimir ? (
-                                                    <>
-                                                        <div className="text-sm text-gray-500">
-                                                            {item.quantidade}x {formatCurrency(item.valor_unitario)}
-                                                        </div>
-                                                        <div className="font-semibold text-gray-900">
-                                                            {formatCurrency(item.valor_total)}
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-sm text-gray-400">-</div>
-                                                )}
+                                                <div className="text-sm text-gray-500">
+                                                    {item.quantidade}x {formatCurrency(item.valor_unitario)}
+                                                </div>
+                                                <div className="font-semibold text-gray-900">
+                                                    {formatCurrency(item.valor_total)}
+                                                </div>
                                             </div>
                                         )}
                                     </div>

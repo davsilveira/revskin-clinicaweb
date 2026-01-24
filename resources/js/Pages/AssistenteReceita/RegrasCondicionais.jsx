@@ -28,7 +28,7 @@ export default function RegrasCondicionais({
         tabela_karnaugh_id: '',
         ativo: true,
         condicoes: [{ campo: 'gravidez', operador: 'igual', valor: '' }],
-        acoes: [{ tipo_acao: 'usar_tabela', tabela_karnaugh_id: '', produto_id: '', marcar: true }],
+        acoes: [{ tipo_acao: 'usar_tabela', tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1 }],
     };
 
     const [form, setForm] = useState(emptyForm);
@@ -36,7 +36,12 @@ export default function RegrasCondicionais({
     // Ações disponíveis baseadas no tipo de regra
     const acoesDisponiveis = form.tipo === 'selecao_tabela'
         ? { usar_tabela: 'Usar Tabela Karnaugh' }
-        : { adicionar_item: 'Adicionar Item', remover_item: 'Remover Item' };
+        : { 
+            adicionar_item: 'Adicionar Item', 
+            remover_item: 'Remover Item',
+            modificar_quantidade: 'Modificar Quantidade',
+            alterar_marcacao: 'Alterar Marcação',
+        };
 
     // Aplicar filtro
     const handleFiltroChange = (novoFiltro) => {
@@ -69,6 +74,7 @@ export default function RegrasCondicionais({
                 tabela_karnaugh_id: a.tabela_karnaugh_id || '',
                 produto_id: a.produto_id || '',
                 marcar: a.marcar,
+                quantidade: a.quantidade || 1,
             })),
         });
         setError('');
@@ -104,7 +110,7 @@ export default function RegrasCondicionais({
         const tipoAcaoPadrao = form.tipo === 'selecao_tabela' ? 'usar_tabela' : 'adicionar_item';
         setForm(prev => ({
             ...prev,
-            acoes: [...prev.acoes, { tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true }],
+            acoes: [...prev.acoes, { tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1 }],
         }));
     };
 
@@ -115,7 +121,7 @@ export default function RegrasCondicionais({
             ...prev,
             tipo: novoTipo,
             tabela_karnaugh_id: novoTipo === 'selecao_tabela' ? '' : prev.tabela_karnaugh_id,
-            acoes: [{ tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true }],
+            acoes: [{ tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1 }],
         }));
     };
 
@@ -196,6 +202,12 @@ export default function RegrasCondicionais({
             }
             if (a.tipo_acao === 'remover_item') {
                 return `Remover: ${a.produto?.nome || 'N/A'}`;
+            }
+            if (a.tipo_acao === 'modificar_quantidade') {
+                return `Qtd ${a.quantidade || 1}x: ${a.produto?.nome || 'N/A'}`;
+            }
+            if (a.tipo_acao === 'alterar_marcacao') {
+                return `${a.marcar ? 'Marcar' : 'Desmarcar'}: ${a.produto?.nome || 'N/A'}`;
             }
             return a.tipo_acao;
         }).join(', ');
@@ -626,7 +638,8 @@ export default function RegrasCondicionais({
                                                             </select>
                                                         )}
 
-                                                        {(acao.tipo_acao === 'adicionar_item' || acao.tipo_acao === 'remover_item') && (
+                                                        {/* Ações que precisam de seleção de produto */}
+                                                        {['adicionar_item', 'remover_item', 'modificar_quantidade', 'alterar_marcacao'].includes(acao.tipo_acao) && (
                                                             <>
                                                                 <select
                                                                     value={acao.produto_id}
@@ -640,7 +653,9 @@ export default function RegrasCondicionais({
                                                                         </option>
                                                                     ))}
                                                                 </select>
-                                                                {acao.tipo_acao === 'adicionar_item' && (
+                                                                
+                                                                {/* Checkbox para marcar (adicionar_item e alterar_marcacao) */}
+                                                                {(acao.tipo_acao === 'adicionar_item' || acao.tipo_acao === 'alterar_marcacao') && (
                                                                     <label className="flex items-center gap-2 text-sm text-gray-700">
                                                                         <input
                                                                             type="checkbox"
@@ -648,8 +663,24 @@ export default function RegrasCondicionais({
                                                                             onChange={(e) => updateAcao(index, 'marcar', e.target.checked)}
                                                                             className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                                                                         />
-                                                                        Produto deve vir marcado
+                                                                        {acao.tipo_acao === 'adicionar_item' 
+                                                                            ? 'Produto deve vir marcado' 
+                                                                            : 'Marcar como recomendado'}
                                                                     </label>
+                                                                )}
+                                                                
+                                                                {/* Campo de quantidade (modificar_quantidade) */}
+                                                                {acao.tipo_acao === 'modificar_quantidade' && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <label className="text-sm text-gray-700">Quantidade:</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            value={acao.quantidade || 1}
+                                                                            onChange={(e) => updateAcao(index, 'quantidade', parseInt(e.target.value) || 1)}
+                                                                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                                        />
+                                                                    </div>
                                                                 )}
                                                             </>
                                                         )}

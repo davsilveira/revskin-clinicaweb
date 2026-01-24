@@ -35,8 +35,8 @@ if [ "$NODE_VERSION" -lt 20 ]; then
 fi
 
 # Verificar se as portas estão livres
-if lsof -Pi :9000 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
-    echo -e "${YELLOW}⚠️  Porta 9000 já está em uso${NC}"
+if lsof -Pi :9090 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+    echo -e "${YELLOW}⚠️  Porta 9090 já está em uso${NC}"
     read -p "Deseja parar o processo existente? (s/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Ss]$ ]]; then
@@ -57,7 +57,7 @@ fi
 
 echo -e "${BLUE}📡 Iniciando serviços...${NC}"
 echo ""
-echo -e "${GREEN}✅ Servidor Laravel: http://localhost:9000${NC}"
+echo -e "${GREEN}✅ Servidor Laravel: http://localhost:9090${NC}"
 echo -e "${GREEN}✅ Vite Dev Server: http://localhost:5173${NC}"
 echo -e "${GREEN}✅ Queue Worker: Processando jobs${NC}"
 echo -e "${GREEN}✅ Log Viewer: Laravel Pail${NC}"
@@ -71,9 +71,9 @@ npx concurrently \
     -c "#93c5fd,#c4b5fd,#fb7185,#fdba74,#34d399" \
     --names "server,queue,logs,vite,mail" \
     --kill-others \
-    "php artisan serve --port=9000" \
+    "php artisan serve --port=9090" \
     "php artisan queue:work --queue=default,exports --tries=3 --timeout=300 --max-jobs=1000" \
     "php artisan pail --timeout=0" \
-    "npm run dev" \
+    "LARAVEL_BYPASS_ENV_CHECK=1 npm run dev" \
     "mailpit"
 

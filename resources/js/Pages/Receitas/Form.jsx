@@ -58,6 +58,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             quantidade: item.quantidade,
             valor_unitario: parseFloat(item.valor_unitario) || 0,
             imprimir: item.imprimir ?? true,
+            grupo: item.grupo || 'recomendado',
         })) || [],
     });
 
@@ -160,6 +161,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                 quantidade: 1,
                 valor_unitario: 0,
                 imprimir: true,
+                grupo: 'recomendado',
             },
         ]);
         // Scroll para o novo item após o DOM atualizar
@@ -395,89 +397,163 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                             </div>
                         )}
 
-                        {data.itens.length > 0 ? (
-                            <div className="space-y-1">
-                                {data.itens.map((item, index) => (
-                                    <div 
-                                        key={index} 
-                                        ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
-                                    >
-                                        {/* Checkbox */}
-                                        <input
-                                            type="checkbox"
-                                            checked={item.imprimir}
-                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-                                        />
-
-                                        {/* Tipo - largura fixa */}
-                                        <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                                                {formatLocalUso(item.local_uso)}
+                        <div className="space-y-4">
+                            {/* Produtos Recomendados */}
+                            <div>
+                                {data.itens.some(item => item.grupo === 'recomendado') && (
+                                    <>
+                                        <div className="flex items-center gap-2 mb-2 pb-1 border-b border-emerald-200">
+                                            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
+                                            <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                                                Recomendados para o Tratamento
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                ({data.itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
                                             </span>
                                         </div>
-
-                                        {/* Produto - 2 partes do espaço flexível */}
-                                        <select
-                                            value={item.produto_id}
-                                            onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
-                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                                        >
-                                            <option value="">Produto...</option>
-                                            {produtos?.map((p) => (
-                                                <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                                        <div className="space-y-1 mb-2">
+                                            {data.itens.map((item, index) => item.grupo === 'recomendado' && (
+                                                <div 
+                                                    key={index} 
+                                                    ref={index === data.itens.length - 1 ? lastItemRef : null}
+                                                    className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={item.imprimir}
+                                                        onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
+                                                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+                                                    />
+                                                    <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
+                                                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
+                                                            {formatLocalUso(item.local_uso)}
+                                                        </span>
+                                                    </div>
+                                                    <select
+                                                        value={item.produto_id}
+                                                        onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                                        className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    >
+                                                        <option value="">Produto...</option>
+                                                        {produtos?.map((p) => (
+                                                            <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                                                        ))}
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Anotações..."
+                                                        value={item.anotacoes || ''}
+                                                        onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
+                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={item.quantidade}
+                                                        onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                                                        disabled={!item.imprimir}
+                                                        className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
+                                                    />
+                                                    {!isMedico && (
+                                                        <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                            {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
+                                                        </span>
+                                                    )}
+                                                    <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             ))}
-                                        </select>
-
-                                        {/* Anotações - 1 parte do espaço flexível */}
-                                        <input
-                                            type="text"
-                                            placeholder="Anotações..."
-                                            value={item.anotacoes || ''}
-                                            onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                                            className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
-                                        />
-
-                                        {/* Qtd */}
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={item.quantidade}
-                                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                            disabled={!item.imprimir}
-                                            className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
-                                        />
-
-                                        {/* Subtotal - não mostra para médico */}
-                                        {!isMedico && (
-                                            <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
-                                            </span>
-                                        )}
-
-                                        {/* Delete */}
-                                        <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ))}
+                                        </div>
+                                    </>
+                                )}
+                                
+                                {/* Add Product Button - Always in Recomendados section */}
+                                <button
+                                    type="button"
+                                    onClick={addItem}
+                                    className="w-full px-3 py-2 border border-dashed border-emerald-300 text-emerald-600 rounded hover:bg-emerald-50 hover:border-emerald-400 transition-colors flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Adicionar Produto
+                                </button>
                             </div>
-                        ) : null}
 
-                        {/* Add Product Button */}
-                        <button
-                            type="button"
-                            onClick={addItem}
-                            className="w-full mt-2 px-3 py-2 border border-dashed border-emerald-300 text-emerald-600 rounded hover:bg-emerald-50 hover:border-emerald-400 transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Adicionar Produto
-                        </button>
+                                {/* Produtos Opcionais */}
+                                {data.itens.some(item => item.grupo === 'opcional') && (
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2 pb-1 border-b border-gray-300">
+                                            <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+                                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                                Opcionais
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                ({data.itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
+                                            </span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {data.itens.map((item, index) => item.grupo === 'opcional' && (
+                                                <div 
+                                                    key={index} 
+                                                    ref={index === data.itens.length - 1 ? lastItemRef : null}
+                                                    className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={item.imprimir}
+                                                        onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
+                                                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+                                                    />
+                                                    <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
+                                                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
+                                                            {formatLocalUso(item.local_uso)}
+                                                        </span>
+                                                    </div>
+                                                    <select
+                                                        value={item.produto_id}
+                                                        onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                                        className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    >
+                                                        <option value="">Produto...</option>
+                                                        {produtos?.map((p) => (
+                                                            <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                                                        ))}
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Anotações..."
+                                                        value={item.anotacoes || ''}
+                                                        onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
+                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={item.quantidade}
+                                                        onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                                                        disabled={!item.imprimir}
+                                                        className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
+                                                    />
+                                                    {!isMedico && (
+                                                        <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                            {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
+                                                        </span>
+                                                    )}
+                                                    <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                        </div>
 
                         {/* Totais - Hidden for medico users */}
                         {data.itens.length > 0 && !isMedico && (

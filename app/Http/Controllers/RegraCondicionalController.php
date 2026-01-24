@@ -70,10 +70,11 @@ class RegraCondicionalController extends Controller
             'condicoes.*.operador' => 'required|string',
             'condicoes.*.valor' => 'nullable|string',
             'acoes' => 'required|array|min:1',
-            'acoes.*.tipo_acao' => 'required|string',
+            'acoes.*.tipo_acao' => 'required|string|in:usar_tabela,adicionar_item,remover_item,modificar_quantidade,alterar_marcacao',
             'acoes.*.tabela_karnaugh_id' => 'nullable|exists:tabelas_karnaugh,id',
             'acoes.*.produto_id' => 'nullable|exists:produtos,id',
             'acoes.*.marcar' => 'boolean',
+            'acoes.*.quantidade' => 'nullable|integer|min:1',
             'acoes.*.categoria' => 'nullable|string|max:255',
         ]);
 
@@ -89,6 +90,10 @@ class RegraCondicionalController extends Controller
             }
             if ($validated['tipo'] === 'modificacao_tabela' && $acao['tipo_acao'] === 'usar_tabela') {
                 return back()->withErrors(['acoes' => 'Regras de modificação não podem ter ação "Usar Tabela Karnaugh".']);
+            }
+            // Validar que modificar_quantidade tem quantidade definida
+            if ($acao['tipo_acao'] === 'modificar_quantidade' && empty($acao['quantidade'])) {
+                return back()->withErrors(['acoes' => 'A ação "Modificar Quantidade" requer um valor de quantidade.']);
             }
         }
 
@@ -123,6 +128,7 @@ class RegraCondicionalController extends Controller
                     'tabela_karnaugh_id' => $acao['tabela_karnaugh_id'] ?? null,
                     'produto_id' => $acao['produto_id'] ?? null,
                     'marcar' => $acao['marcar'] ?? true,
+                    'quantidade' => $acao['quantidade'] ?? null,
                     'categoria' => $acao['categoria'] ?? null,
                     'ordem' => $index,
                 ]);
@@ -150,10 +156,11 @@ class RegraCondicionalController extends Controller
             'condicoes.*.operador' => 'required|string',
             'condicoes.*.valor' => 'nullable|string',
             'acoes' => 'required|array|min:1',
-            'acoes.*.tipo_acao' => 'required|string',
+            'acoes.*.tipo_acao' => 'required|string|in:usar_tabela,adicionar_item,remover_item,modificar_quantidade,alterar_marcacao',
             'acoes.*.tabela_karnaugh_id' => 'nullable|exists:tabelas_karnaugh,id',
             'acoes.*.produto_id' => 'nullable|exists:produtos,id',
             'acoes.*.marcar' => 'boolean',
+            'acoes.*.quantidade' => 'nullable|integer|min:1',
             'acoes.*.categoria' => 'nullable|string|max:255',
         ]);
 
@@ -169,6 +176,10 @@ class RegraCondicionalController extends Controller
             }
             if ($validated['tipo'] === 'modificacao_tabela' && $acao['tipo_acao'] === 'usar_tabela') {
                 return back()->withErrors(['acoes' => 'Regras de modificação não podem ter ação "Usar Tabela Karnaugh".']);
+            }
+            // Validar que modificar_quantidade tem quantidade definida
+            if ($acao['tipo_acao'] === 'modificar_quantidade' && empty($acao['quantidade'])) {
+                return back()->withErrors(['acoes' => 'A ação "Modificar Quantidade" requer um valor de quantidade.']);
             }
         }
 
@@ -201,6 +212,7 @@ class RegraCondicionalController extends Controller
                     'tabela_karnaugh_id' => $acao['tabela_karnaugh_id'] ?? null,
                     'produto_id' => $acao['produto_id'] ?? null,
                     'marcar' => $acao['marcar'] ?? true,
+                    'quantidade' => $acao['quantidade'] ?? null,
                     'categoria' => $acao['categoria'] ?? null,
                     'ordem' => $index,
                 ]);

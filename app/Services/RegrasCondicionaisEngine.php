@@ -14,6 +14,8 @@ class RegrasCondicionaisEngine
     private ?TabelaKarnaugh $tabelaSelecionada = null;
     private array $produtosAdicionados = [];
     private array $produtosRemovidos = [];
+    private array $modificacoesQuantidade = [];
+    private array $modificacoesMarcacao = [];
     private array $regrasAplicadas = [];
 
     /**
@@ -85,6 +87,18 @@ class RegrasCondicionaisEngine
                         $this->produtosRemovidos[$acao->produto_id] = true;
                     }
                     break;
+
+                case 'modificar_quantidade':
+                    if ($acao->produto_id && $acao->quantidade) {
+                        $this->modificacoesQuantidade[$acao->produto_id] = $acao->quantidade;
+                    }
+                    break;
+
+                case 'alterar_marcacao':
+                    if ($acao->produto_id !== null) {
+                        $this->modificacoesMarcacao[$acao->produto_id] = $acao->marcar;
+                    }
+                    break;
             }
         }
     }
@@ -114,14 +128,30 @@ class RegrasCondicionaisEngine
                     continue;
                 }
 
+                // Determinar se está selecionado (pode ser sobrescrito por regra de alteração de marcação)
+                $selecionado = $item['marcar'] && $item['grupo'] === 'primeiro';
+                if ($produtoId && isset($this->modificacoesMarcacao[$produtoId])) {
+                    $selecionado = $this->modificacoesMarcacao[$produtoId];
+                }
+
+                // Determinar quantidade (padrão 1, pode ser sobrescrito por regra)
+                $quantidade = 1;
+                if ($produtoId && isset($this->modificacoesQuantidade[$produtoId])) {
+                    $quantidade = $this->modificacoesQuantidade[$produtoId];
+                }
+
+                // Determinar grupo baseado na seleção (após aplicar regras de marcação)
+                $grupoFinal = $selecionado ? 'recomendado' : 'opcional';
+
                 $produtosSugeridos[] = [
                     'produto_id' => $produtoId,
                     'produto' => $produto,
                     'categoria' => $item['categoria'],
                     'produto_codigo' => $item['produto_codigo'],
                     'grupo' => $item['grupo'],
-                    // Produtos do primeiro grupo e com flag "marcar" vêm selecionados
-                    'selecionado' => $item['marcar'] && $item['grupo'] === 'primeiro',
+                    'grupo_receita' => $grupoFinal,
+                    'selecionado' => $selecionado,
+                    'quantidade' => $quantidade,
                     'origem' => 'tabela_karnaugh',
                 ];
             }
@@ -146,13 +176,29 @@ class RegrasCondicionaisEngine
             if (!$jaExiste) {
                 $produto = Produto::find($produtoId);
                 if ($produto) {
+                    // Verificar se há modificação de marcação para este produto
+                    $selecionado = $info['marcar'];
+                    if (isset($this->modificacoesMarcacao[$produtoId])) {
+                        $selecionado = $this->modificacoesMarcacao[$produtoId];
+                    }
+
+                    // Verificar se há modificação de quantidade
+                    $quantidade = 1;
+                    if (isset($this->modificacoesQuantidade[$produtoId])) {
+                        $quantidade = $this->modificacoesQuantidade[$produtoId];
+                    }
+
+                    $grupoFinal = $selecionado ? 'recomendado' : 'opcional';
+
                     $produtosSugeridos[] = [
                         'produto_id' => $produtoId,
                         'produto' => $produto,
                         'categoria' => $info['categoria'] ?? 'Regra Condicional',
                         'produto_codigo' => $produto->codigo ?? $produto->nome,
                         'grupo' => 'regra',
-                        'selecionado' => $info['marcar'],
+                        'grupo_receita' => $grupoFinal,
+                        'selecionado' => $selecionado,
+                        'quantidade' => $quantidade,
                         'origem' => 'regra_condicional',
                     ];
                 }
@@ -228,6 +274,22 @@ class RegrasCondicionaisEngine
     public function getProdutosRemovidos(): array
     {
         return $this->produtosRemovidos;
+    }
+
+    /**
+     * Obter modificações de quantidade por regras.
+     */
+    public function getModificacoesQuantidade(): array
+    {
+        return $this->modificacoesQuantidade;
+    }
+
+    /**
+     * Obter modificações de marcação por regras.
+     */
+    public function getModificacoesMarcacao(): array
+    {
+        return $this->modificacoesMarcacao;
     }
 
     /**

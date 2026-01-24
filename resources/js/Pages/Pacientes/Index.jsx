@@ -579,9 +579,13 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     <MaskedInput
                                                         label={index === 0 ? "Número" : ""}
                                                         mask={[{ mask: '(00) 0000-0000' }, { mask: '(00) 00000-0000' }]}
+                                                        dispatch={(appended, dynamicMasked) => {
+                                                            const number = (dynamicMasked.value + appended).replace(/\D/g, '');
+                                                            return dynamicMasked.compiledMasks[number.length > 10 ? 1 : 0];
+                                                        }}
                                                         value={tel.numero}
                                                         onAccept={(value) => updateTelefone(index, 'numero', value)}
-                                                        placeholder="(00) 0000-0000"
+                                                        placeholder="(00) 00000-0000"
                                                     />
                                                 ) : (
                                                     <Input

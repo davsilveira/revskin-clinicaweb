@@ -63,10 +63,7 @@ export default function AssistenteReceitaIndex({
         flacidez: '',
     });
 
-    // Suggested products
-    const [produtosSugeridos, setProdutosSugeridos] = useState([]);
-    const [produtosSelecionados, setProdutosSelecionados] = useState([]);
-    const [codigoKarnaugh, setCodigoKarnaugh] = useState('');
+    // Error state
     const [error, setError] = useState('');
 
     // Debounced search for patients
@@ -251,6 +248,8 @@ export default function AssistenteReceitaIndex({
     };
 
     const processarCondicoes = async () => {
+        if (!selectedPaciente) return;
+
         setLoading(true);
         setError('');
         try {
@@ -260,78 +259,29 @@ export default function AssistenteReceitaIndex({
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
                 },
-                body: JSON.stringify(condicoes),
+                body: JSON.stringify({
+                    ...condicoes,
+                    paciente_id: selectedPaciente.id,
+                    medico_id: selectedMedicoId,
+                }),
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Erro ${response.status}: ${errorText}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Erro ${response.status}`);
             }
 
             const data = await response.json();
-            setCodigoKarnaugh(data.codigo_karnaugh || '');
-            setProdutosSugeridos(data.produtos_sugeridos || []);
             
-            // Usar o campo 'selecionado' que vem do backend
-            // Produtos do primeiro grupo com flag 'marcar' vêm pré-selecionados
-            // Produtos do segundo grupo ou adicionados por regras seguem suas configurações
-            setProdutosSelecionados(
-                (data.produtos_sugeridos || []).map(p => ({
-                    ...p,
-                    // Usar selecionado do backend, ou fallback para produtos válidos do primeiro grupo
-                    selecionado: p.selecionado ?? (p.produto_id !== null && p.grupo === 'primeiro'),
-                }))
-            );
-            setStep(3);
+            // Redirect directly to recipe edit page
+            if (data.receita_id) {
+                router.visit(`/receitas/${data.receita_id}/edit`);
+            } else {
+                throw new Error('Erro ao criar receita');
+            }
         } catch (err) {
             console.error('Erro ao processar:', err);
             setError(err.message || 'Erro ao processar condições');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const toggleProduto = (index) => {
-        setProdutosSelecionados(prev => 
-            prev.map((p, i) => 
-                i === index ? { ...p, selecionado: !p.selecionado } : p
-            )
-        );
-    };
-
-    const gerarReceita = async () => {
-        if (!selectedPaciente) return;
-
-        // Filtrar apenas produtos selecionados E que existem no banco
-        const itensSelecionados = produtosSelecionados.filter(p => p.selecionado && p.produto_id !== null);
-        if (itensSelecionados.length === 0) return;
-
-        setLoading(true);
-        try {
-            const response = await fetch('/assistente-receita/gerar-receita', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                },
-                body: JSON.stringify({
-                    paciente_id: selectedPaciente.id,
-                    medico_id: selectedMedicoId,
-                    itens: itensSelecionados.map(p => ({
-                        produto_id: p.produto_id,
-                        local_uso: p.local_uso,
-                        quantidade: p.quantidade || 1,
-                        valor_unitario: p.produto?.preco_venda || 0,
-                    })),
-                }),
-            });
-            const data = await response.json();
-            if (data.receita_id) {
-                router.visit(`/receitas/${data.receita_id}/edit`);
-            }
-        } catch (error) {
-            console.error('Erro ao gerar receita:', error);
-        } finally {
             setLoading(false);
         }
     };
@@ -383,7 +333,7 @@ export default function AssistenteReceitaIndex({
 
                 {/* Progress Steps */}
                 <div className="flex items-center justify-center mb-8">
-                    {[1, 2, 3].map((s) => (
+                    {[1, 2].map((s) => (
                         <div key={s} className="flex items-center">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
                                 step >= s ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
@@ -394,7 +344,7 @@ export default function AssistenteReceitaIndex({
                                     </svg>
                                 ) : s}
                             </div>
-                            {s < 3 && (
+                            {s < 2 && (
                                 <div className={`w-16 md:w-24 h-1 transition-all ${step > s ? 'bg-emerald-600' : 'bg-gray-200'}`} />
                             )}
                         </div>
@@ -404,7 +354,6 @@ export default function AssistenteReceitaIndex({
                 <div className="flex justify-center gap-6 md:gap-12 text-sm text-gray-600 mb-8">
                     <span className={step === 1 ? 'text-emerald-600 font-medium' : ''}>1. Paciente</span>
                     <span className={step === 2 ? 'text-emerald-600 font-medium' : ''}>2. Avaliação</span>
-                    <span className={step === 3 ? 'text-emerald-600 font-medium' : ''}>3. Produtos</span>
                 </div>
 
                 {/* Step 1: Selecionar Paciente */}
@@ -915,14 +864,14 @@ export default function AssistenteReceitaIndex({
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                         </svg>
-                                        Processando...
+                                        Gerando Receita...
                                     </>
                                 ) : (
                                     <>
-                                        Buscar Tratamentos
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                         </svg>
+                                        Gerar Receita
                                     </>
                                 )}
                             </button>
@@ -930,203 +879,6 @@ export default function AssistenteReceitaIndex({
                     </div>
                 )}
 
-                {/* Step 3: Produtos Sugeridos */}
-                {step === 3 && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h2 className="text-lg font-semibold text-gray-900">Produtos Sugeridos</h2>
-                                <p className="text-gray-500 mt-1">
-                                    Selecione os produtos que deseja incluir na receita
-                                </p>
-                            </div>
-                            {codigoKarnaugh && (
-                                <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg text-sm">
-                                    <span className="text-blue-600 font-medium">Caso: </span>
-                                    <span className="text-blue-800 font-mono">{codigoKarnaugh}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {produtosSelecionados.length > 0 ? (
-                            <div className="space-y-6 mb-6">
-                                {/* Produtos Recomendados (primeiro grupo) */}
-                                {produtosSelecionados.filter(p => p.grupo === 'primeiro').length > 0 && (
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                                            <h3 className="font-medium text-gray-900">Recomendados para o Tratamento</h3>
-                                            <span className="text-xs text-gray-500">({produtosSelecionados.filter(p => p.grupo === 'primeiro' && p.selecionado).length} selecionados)</span>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {produtosSelecionados.map((item, index) => item.grupo === 'primeiro' && (
-                                                <label
-                                                    key={index}
-                                                    className={`flex items-start gap-4 p-3 border rounded-lg cursor-pointer transition-all ${
-                                                        item.nao_encontrado
-                                                            ? 'border-amber-300 bg-amber-50 opacity-60 cursor-not-allowed'
-                                                            : item.selecionado
-                                                                ? 'border-emerald-500 bg-emerald-50'
-                                                                : 'border-gray-200 bg-gray-50 opacity-60'
-                                                    }`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={item.selecionado && !item.nao_encontrado}
-                                                        onChange={() => !item.nao_encontrado && toggleProduto(index)}
-                                                        disabled={item.nao_encontrado}
-                                                        className="mt-0.5 w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 disabled:opacity-50"
-                                                    />
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-medium text-gray-900">
-                                                                {item.produto?.codigo && (
-                                                                    <span className="text-emerald-600 mr-1">[{item.produto.codigo}]</span>
-                                                                )}
-                                                                {item.produto?.nome || 'Produto'}
-                                                            </span>
-                                                            {item.nao_encontrado && (
-                                                                <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
-                                                                    Não cadastrado
-                                                                </span>
-                                                            )}
-                                                            {item.local_uso && (
-                                                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                                                    {item.local_uso}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {item.anotacoes && (
-                                                            <div className="text-sm text-gray-600 mt-1 italic truncate">
-                                                                {item.anotacoes}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-right flex-shrink-0">
-                                                        <div className="text-sm text-gray-500">x{item.quantidade || 1}</div>
-                                                    </div>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Produtos Opcionais (segundo grupo) */}
-                                {produtosSelecionados.filter(p => p.grupo !== 'primeiro').length > 0 && (
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                                            <h3 className="font-medium text-gray-700">Opcionais</h3>
-                                            <span className="text-xs text-gray-500">({produtosSelecionados.filter(p => p.grupo !== 'primeiro' && p.selecionado).length} selecionados)</span>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {produtosSelecionados.map((item, index) => item.grupo !== 'primeiro' && (
-                                                <label
-                                                    key={index}
-                                                    className={`flex items-start gap-4 p-3 border rounded-lg cursor-pointer transition-all ${
-                                                        item.nao_encontrado
-                                                            ? 'border-amber-300 bg-amber-50 opacity-60 cursor-not-allowed'
-                                                            : item.selecionado
-                                                                ? 'border-blue-400 bg-blue-50'
-                                                                : 'border-gray-200 bg-gray-50 opacity-60'
-                                                    }`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={item.selecionado && !item.nao_encontrado}
-                                                        onChange={() => !item.nao_encontrado && toggleProduto(index)}
-                                                        disabled={item.nao_encontrado}
-                                                        className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
-                                                    />
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-medium text-gray-900">
-                                                                {item.produto?.codigo && (
-                                                                    <span className="text-blue-600 mr-1">[{item.produto.codigo}]</span>
-                                                                )}
-                                                                {item.produto?.nome || 'Produto'}
-                                                            </span>
-                                                            {item.nao_encontrado && (
-                                                                <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
-                                                                    Não cadastrado
-                                                                </span>
-                                                            )}
-                                                            {item.local_uso && (
-                                                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                                                    {item.local_uso}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {item.anotacoes && (
-                                                            <div className="text-sm text-gray-600 mt-1 italic truncate">
-                                                                {item.anotacoes}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-right flex-shrink-0">
-                                                        <div className="text-sm text-gray-500">x{item.quantidade || 1}</div>
-                                                    </div>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12 text-gray-500 mb-6 bg-gray-50 rounded-lg">
-                                <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                                </svg>
-                                <p className="font-medium">Nenhum produto sugerido</p>
-                                <p className="text-sm mt-1">
-                                    Não encontramos produtos para as condições informadas.
-                                </p>
-                                <button
-                                    onClick={() => setStep(2)}
-                                    className="mt-4 text-emerald-600 hover:text-emerald-700 text-sm font-medium"
-                                >
-                                    ← Alterar condições
-                                </button>
-                            </div>
-                        )}
-
-                        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                            <button
-                                onClick={() => setStep(2)}
-                                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                                Voltar
-                            </button>
-                            <div className="flex items-center gap-4">
-                                <span className="text-sm text-gray-500">
-                                    {produtosSelecionados.filter(p => p.selecionado).length} produto(s) selecionado(s)
-                                </span>
-                                <button
-                                    onClick={gerarReceita}
-                                    disabled={produtosSelecionados.filter(p => p.selecionado).length === 0 || loading}
-                                    className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            Gerando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                            Gerar Receita
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </DashboardLayout>
     );

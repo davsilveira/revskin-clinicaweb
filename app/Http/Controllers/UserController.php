@@ -40,7 +40,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
-            'role' => ['required', Rule::in(['admin', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter'])],
         ], [
             'name.required' => 'O nome é obrigatório.',
             'email.required' => 'O e-mail é obrigatório.',
@@ -49,6 +49,7 @@ class UserController extends Controller
             'password.required' => 'A senha é obrigatória.',
             'password.min' => 'A senha deve ter no mínimo 8 caracteres.',
             'role.required' => 'O perfil é obrigatório.',
+            'role.in' => 'O perfil selecionado é inválido.',
         ]);
 
         User::create([
@@ -74,7 +75,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'role' => ['required', Rule::in(['admin', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter'])],
             'is_active' => 'required|boolean',
         ], [
             'name.required' => 'O nome é obrigatório.',
@@ -82,6 +83,7 @@ class UserController extends Controller
             'email.email' => 'Digite um e-mail válido.',
             'email.unique' => 'Este e-mail já está cadastrado.',
             'role.required' => 'O perfil é obrigatório.',
+            'role.in' => 'O perfil selecionado é inválido.',
         ]);
 
         $user->update($validated);

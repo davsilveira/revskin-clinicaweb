@@ -123,20 +123,20 @@ export default function UsersIndex({ users }) {
         <DashboardLayout>
             <Head title="Usuários" />
 
-            <div>
+            <div className="p-6">
                 {/* Header */}
-                <div className="mb-8 flex items-center justify-between">
+                <div className="mb-6 flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                        <h1 className="text-2xl font-bold text-gray-900">
                             Gerenciamento de Usuários
                         </h1>
-                        <p className="text-gray-600">
+                        <p className="text-gray-600 mt-1">
                             Gerencie administradores e usuários do sistema
                         </p>
                     </div>
                     <button
                         onClick={openCreateDrawer}
-                        className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 flex items-center gap-2"
+                        className="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -172,15 +172,8 @@ export default function UsersIndex({ users }) {
                                 {users.map((user) => (
                                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-3">
-                                                    <span className="text-sm font-medium text-white">
-                                                        {user.name.charAt(0).toUpperCase()}
-                                                    </span>
-                                                </div>
-                                                <div className="text-sm font-medium text-gray-900">
-                                                    {user.name}
-                                                </div>
+                                            <div className="text-sm font-medium text-gray-900">
+                                                {user.name}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -329,7 +322,7 @@ export default function UsersIndex({ users }) {
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="px-8 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-600/30"
+                                    className="px-8 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                                 >
                                     {processing ? 'Salvando...' : 'Salvar'}
                                 </button>
