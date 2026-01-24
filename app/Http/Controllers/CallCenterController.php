@@ -75,6 +75,11 @@ class CallCenterController extends Controller
      */
     public function updateReceita(Request $request, AtendimentoCallcenter $atendimento)
     {
+        // Block changes when atendimento is in production, finalized or cancelled
+        if (in_array($atendimento->status, ['em_producao', 'finalizado', 'cancelado'])) {
+            return back()->with('error', 'Não é possível alterar produtos de um atendimento em produção ou finalizado.');
+        }
+
         $validated = $request->validate([
             'itens' => 'array',
             'itens.*.produto_id' => 'nullable|exists:produtos,id',
@@ -144,6 +149,11 @@ class CallCenterController extends Controller
      */
     public function autosaveReceita(Request $request, AtendimentoCallcenter $atendimento)
     {
+        // Block changes when atendimento is in production, finalized or cancelled
+        if (in_array($atendimento->status, ['em_producao', 'finalizado', 'cancelado'])) {
+            return response()->json(['error' => 'Não é possível alterar produtos de um atendimento em produção ou finalizado.'], 403);
+        }
+
         $validated = $request->validate([
             'itens' => 'array',
             'itens.*.produto_id' => 'nullable|exists:produtos,id',

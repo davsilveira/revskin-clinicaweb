@@ -288,7 +288,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                         onValorCaixaChange={setValorCaixa}
                         showPrices={true}
                         showGroups={true}
-                        readOnly={atendimento.status === 'finalizado' || atendimento.status === 'cancelado'}
+                        readOnly={['em_producao', 'finalizado', 'cancelado'].includes(atendimento.status)}
                     />
                 </div>
             </div>

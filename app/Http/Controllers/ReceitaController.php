@@ -172,7 +172,7 @@ class ReceitaController extends Controller
 
     public function edit(Receita $receita): Response
     {
-        $receita->load(['paciente', 'medico', 'itens.produto']);
+        $receita->load(['paciente', 'medico', 'itens.produto', 'atendimentoCallcenter']);
 
         $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
@@ -192,17 +192,29 @@ class ReceitaController extends Controller
             ->take(10)
             ->get();
 
+        // Check if receita is blocked for editing (atendimento in production or finalized)
+        $bloqueadaParaEdicao = $receita->atendimentoCallcenter && 
+            in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado']);
+
         return Inertia::render('Receitas/Form', [
             'receita' => $receita,
             'paciente' => $receita->paciente,
             'medicos' => $medicos,
             'produtos' => $produtos,
             'receitasAnteriores' => $receitasAnteriores,
+            'bloqueadaParaEdicao' => $bloqueadaParaEdicao,
         ]);
     }
 
     public function update(Request $request, Receita $receita)
     {
+        // Check if receita is blocked for editing (atendimento in production or finalized)
+        $receita->load('atendimentoCallcenter');
+        if ($receita->atendimentoCallcenter && 
+            in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
+            return back()->with('error', 'Esta receita não pode ser editada pois o atendimento já está em produção ou finalizado.');
+        }
+
         $validated = $request->validate([
             'data_receita' => 'required|date',
             'anotacoes' => 'nullable|string',
