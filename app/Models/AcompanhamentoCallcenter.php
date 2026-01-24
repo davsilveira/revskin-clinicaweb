@@ -15,6 +15,7 @@ class AcompanhamentoCallcenter extends Model
     protected $fillable = [
         'atendimento_id',
         'usuario_id',
+        'tipo',
         'descricao',
         'data_registro',
         'ativo',

@@ -87,8 +87,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/callcenter', [CallCenterController::class, 'index'])->name('callcenter.index');
         Route::get('/callcenter/{atendimento}', [CallCenterController::class, 'show'])->name('callcenter.show');
         Route::put('/callcenter/{atendimento}/status', [CallCenterController::class, 'atualizarStatus'])->name('callcenter.status');
+        Route::put('/callcenter/{atendimento}/receita', [CallCenterController::class, 'updateReceita'])->name('callcenter.receita.update');
         Route::post('/callcenter/{atendimento}/acompanhamento', [CallCenterController::class, 'addAcompanhamento'])->name('callcenter.acompanhamento');
         Route::post('/callcenter/cancelar', [CallCenterController::class, 'cancelarMultiplos'])->name('callcenter.cancelar');
+        Route::post('/api/callcenter/{atendimento}/autosave', [CallCenterController::class, 'autosaveReceita'])->name('callcenter.autosave');
     });
 
     // Tools - Infosimples (admin and finance)

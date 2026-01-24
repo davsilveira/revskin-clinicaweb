@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
+use App\Models\Produto;
+use App\Models\ReceitaItem;
 use App\Models\ReceitaItemAquisicao;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -58,10 +60,146 @@ class CallCenterController extends Controller
         ]);
 
         $statusOptions = AtendimentoCallcenter::getStatusOptions();
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'preco_venda', 'local_uso']);
 
         return Inertia::render('CallCenter/Show', [
             'atendimento' => $atendimento,
             'statusOptions' => $statusOptions,
+            'produtos' => $produtos,
+        ]);
+    }
+
+    /**
+     * Update the receita items for an atendimento.
+     */
+    public function updateReceita(Request $request, AtendimentoCallcenter $atendimento)
+    {
+        $validated = $request->validate([
+            'itens' => 'array',
+            'itens.*.produto_id' => 'nullable|exists:produtos,id',
+            'itens.*.local_uso' => 'nullable|string|max:255',
+            'itens.*.anotacoes' => 'nullable|string|max:500',
+            'itens.*.quantidade' => 'required|integer|min:1',
+            'itens.*.valor_unitario' => 'required|numeric|min:0',
+            'itens.*.imprimir' => 'boolean',
+            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
+            'desconto_percentual' => 'nullable|numeric|min:0|max:100',
+            'desconto_motivo' => 'nullable|string|max:255',
+            'valor_frete' => 'nullable|numeric|min:0',
+            'valor_caixa' => 'nullable|numeric|min:0',
+            'anotacoes' => 'nullable|string',
+        ]);
+
+        $receita = $atendimento->receita;
+        if (!$receita) {
+            return back()->with('error', 'Receita não encontrada');
+        }
+
+        // Update receita fields
+        $receita->update([
+            'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
+            'desconto_motivo' => $validated['desconto_motivo'] ?? '',
+            'valor_frete' => $validated['valor_frete'] ?? 0,
+            'valor_caixa' => $validated['valor_caixa'] ?? 0,
+            'anotacoes' => $validated['anotacoes'] ?? $receita->anotacoes,
+        ]);
+
+        // Delete existing items and recreate
+        $receita->itens()->delete();
+
+        foreach ($validated['itens'] ?? [] as $ordem => $itemData) {
+            if (empty($itemData['produto_id'])) {
+                continue;
+            }
+
+            $receita->itens()->create([
+                'produto_id' => $itemData['produto_id'],
+                'local_uso' => $itemData['local_uso'] ?? '',
+                'anotacoes' => $itemData['anotacoes'] ?? '',
+                'quantidade' => $itemData['quantidade'],
+                'valor_unitario' => $itemData['valor_unitario'],
+                'valor_total' => $itemData['quantidade'] * $itemData['valor_unitario'],
+                'imprimir' => $itemData['imprimir'] ?? true,
+                'grupo' => $itemData['grupo'] ?? 'recomendado',
+                'ordem' => $ordem,
+            ]);
+        }
+
+        // Recalculate totals
+        $receita->refresh();
+        $receita->calcularTotais();
+
+        // Update atendimento timestamp
+        $atendimento->update([
+            'data_alteracao' => now(),
+            'usuario_alteracao_id' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Produtos atualizados com sucesso!');
+    }
+
+    /**
+     * Autosave receita items (API endpoint).
+     */
+    public function autosaveReceita(Request $request, AtendimentoCallcenter $atendimento)
+    {
+        $validated = $request->validate([
+            'itens' => 'array',
+            'itens.*.produto_id' => 'nullable|exists:produtos,id',
+            'itens.*.local_uso' => 'nullable|string|max:255',
+            'itens.*.anotacoes' => 'nullable|string|max:500',
+            'itens.*.quantidade' => 'required|integer|min:1',
+            'itens.*.valor_unitario' => 'required|numeric|min:0',
+            'itens.*.imprimir' => 'boolean',
+            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
+            'desconto_percentual' => 'nullable|numeric|min:0|max:100',
+            'desconto_motivo' => 'nullable|string|max:255',
+            'valor_frete' => 'nullable|numeric|min:0',
+            'valor_caixa' => 'nullable|numeric|min:0',
+        ]);
+
+        $receita = $atendimento->receita;
+        if (!$receita) {
+            return response()->json(['error' => 'Receita não encontrada'], 404);
+        }
+
+        // Update receita fields
+        $receita->update([
+            'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
+            'desconto_motivo' => $validated['desconto_motivo'] ?? '',
+            'valor_frete' => $validated['valor_frete'] ?? 0,
+            'valor_caixa' => $validated['valor_caixa'] ?? 0,
+        ]);
+
+        // Delete existing items and recreate
+        $receita->itens()->delete();
+
+        foreach ($validated['itens'] ?? [] as $ordem => $itemData) {
+            if (empty($itemData['produto_id'])) {
+                continue;
+            }
+
+            $receita->itens()->create([
+                'produto_id' => $itemData['produto_id'],
+                'local_uso' => $itemData['local_uso'] ?? '',
+                'anotacoes' => $itemData['anotacoes'] ?? '',
+                'quantidade' => $itemData['quantidade'],
+                'valor_unitario' => $itemData['valor_unitario'],
+                'valor_total' => $itemData['quantidade'] * $itemData['valor_unitario'],
+                'imprimir' => $itemData['imprimir'] ?? true,
+                'grupo' => $itemData['grupo'] ?? 'recomendado',
+                'ordem' => $ordem,
+            ]);
+        }
+
+        // Recalculate totals
+        $receita->refresh();
+        $receita->calcularTotais();
+
+        return response()->json([
+            'success' => true,
+            'receita_id' => $receita->id,
+            'valor_total' => $receita->valor_total,
         ]);
     }
 
@@ -120,10 +258,12 @@ class CallCenterController extends Controller
     {
         $validated = $request->validate([
             'descricao' => 'required|string',
+            'tipo' => 'nullable|string|in:ligacao,whatsapp,email,observacao',
         ]);
 
         $atendimento->acompanhamentos()->create([
             'usuario_id' => $request->user()->id,
+            'tipo' => $validated['tipo'] ?? 'observacao',
             'descricao' => $validated['descricao'],
             'data_registro' => now(),
         ]);
