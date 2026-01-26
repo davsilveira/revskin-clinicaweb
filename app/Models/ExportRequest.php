@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ExportRequest extends Model
 {
     public const TYPE_DEFAULT = 'default';
+    public const TYPE_PACIENTES = 'pacientes';
+    public const TYPE_RECEITAS = 'receitas';
+    public const TYPE_ATENDIMENTOS = 'atendimentos';
+    public const TYPE_MEDICOS = 'medicos';
+    public const TYPE_PRODUTOS = 'produtos';
 
     public const STATUS_QUEUED = 'queued';
     public const STATUS_PROCESSING = 'processing';
