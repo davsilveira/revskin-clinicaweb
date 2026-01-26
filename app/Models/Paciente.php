@@ -38,6 +38,9 @@ class Paciente extends Model
         'indicado_por',
         'anotacoes',
         'medico_id',
+        'tiny_id',
+        'tiny_sync_at',
+        'tiny_updated_at',
         'ativo',
     ];
 
@@ -46,6 +49,8 @@ class Paciente extends Model
         return [
             'data_nascimento' => 'date',
             'ativo' => 'boolean',
+            'tiny_sync_at' => 'datetime',
+            'tiny_updated_at' => 'datetime',
         ];
     }
 

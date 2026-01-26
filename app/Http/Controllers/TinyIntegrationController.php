@@ -2,75 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncClienteTinyJob;
+use App\Jobs\SyncProdutosTinyJob;
 use App\Models\Paciente;
-use App\Models\Produto;
-use App\Models\Receita;
 use App\Models\Setting;
+use App\Services\TinyErpClient;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class TinyIntegrationController extends Controller
 {
-    protected string $baseUrl = 'https://api.tiny.com.br/api2/';
-
-    /**
-     * Get Tiny API token from settings.
-     */
-    protected function getToken(): ?string
-    {
-        return Setting::get('tiny_api_token');
-    }
-
     /**
      * Check if integration is configured.
      */
     protected function isConfigured(): bool
     {
-        return !empty($this->getToken());
-    }
-
-    /**
-     * Make API request to Tiny.
-     */
-    protected function makeRequest(string $endpoint, array $data = []): array
-    {
-        $token = $this->getToken();
-
-        if (!$token) {
-            return ['status' => 'error', 'message' => 'Token Tiny não configurado'];
-        }
-
-        $data['token'] = $token;
-        $data['formato'] = 'json';
-
-        try {
-            $response = Http::timeout(30)
-                ->asForm()
-                ->post($this->baseUrl . $endpoint, $data);
-
-            if ($response->successful()) {
-                $result = $response->json();
-                return $result['retorno'] ?? $result;
-            }
-
-            Log::error('Tiny API Error', [
-                'endpoint' => $endpoint,
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return ['status' => 'error', 'message' => 'Erro na comunicação com Tiny'];
-        } catch (\Exception $e) {
-            Log::error('Tiny API Exception', [
-                'endpoint' => $endpoint,
-                'message' => $e->getMessage(),
-            ]);
-
-            return ['status' => 'error', 'message' => $e->getMessage()];
-        }
+        $clientId = Setting::get('tiny_client_id');
+        $clientSecret = Setting::get('tiny_client_secret');
+        return !empty($clientId) && !empty($clientSecret);
     }
 
     /**
@@ -78,9 +29,20 @@ class TinyIntegrationController extends Controller
      */
     public function settings(): Response
     {
+        $settings = Setting::getSettings();
+        $hasRefreshToken = !empty($settings['tiny_refresh_token'] ?? null);
+        
         return Inertia::render('Settings/Integrations/Tiny', [
-            'token' => $this->getToken() ? '***configurado***' : null,
+            'settings' => [
+                'enabled' => (bool) ($settings['tiny_enabled'] ?? false),
+                'has_client_id' => !empty($settings['tiny_client_id'] ?? null),
+                'has_client_secret' => !empty($settings['tiny_client_secret'] ?? null),
+                'has_refresh_token' => $hasRefreshToken,
+                'url_base' => $settings['tiny_url_base'] ?? 'https://api.tiny.com.br/public-api/v3',
+                'last_sync' => $settings['tiny_produtos_last_sync'] ?? null,
+            ],
             'isConfigured' => $this->isConfigured(),
+            'isAuthenticated' => $hasRefreshToken,
         ]);
     }
 
@@ -90,12 +52,107 @@ class TinyIntegrationController extends Controller
     public function updateSettings(Request $request)
     {
         $validated = $request->validate([
-            'token' => 'required|string',
+            'enabled' => 'boolean',
+            'client_id' => 'nullable|string',
+            'client_secret' => 'nullable|string',
+            'remove_client_secret' => 'nullable|boolean',
+            'url_base' => 'nullable|string|url',
         ]);
 
-        Setting::set('tiny_api_token', $validated['token']);
+        Setting::set('tiny_enabled', $validated['enabled'] ?? false);
+        
+        if (!empty($validated['remove_client_secret'])) {
+            Setting::set('tiny_client_secret', null);
+        } elseif (!empty($validated['client_secret'])) {
+            Setting::set('tiny_client_secret', encrypt($validated['client_secret']));
+        }
+
+        if (!empty($validated['client_id'])) {
+            Setting::set('tiny_client_id', $validated['client_id']);
+        }
+
+        if (!empty($validated['url_base'])) {
+            Setting::set('tiny_url_base', $validated['url_base']);
+        }
 
         return back()->with('success', 'Configurações do Tiny atualizadas!');
+    }
+
+    /**
+     * Get authorization URL for OAuth2 flow
+     */
+    public function getAuthorizationUrl()
+    {
+        if (!$this->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client ID ou Client Secret não configurados.',
+            ], 400);
+        }
+
+        try {
+            $client = new TinyErpClient();
+            // URL de callback - deve corresponder exatamente ao configurado no app do Tiny
+            // Para produção: https://clinicaweb.revskin.com.br/integracoes/tiny/callback
+            // Para desenvolvimento: usar url() que detecta automaticamente
+            $redirectUri = url('/integracoes/tiny/callback');
+            $authUrl = $client->gerarUrlAutorizacao($redirectUri);
+            
+            Log::info('Tiny ERP: Gerando URL de autorização', [
+                'redirect_uri' => $redirectUri,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'auth_url' => $authUrl,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao gerar URL de autorização: ' . $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
+     * Handle OAuth2 callback
+     */
+    public function callback(Request $request)
+    {
+        $code = $request->get('code');
+        $error = $request->get('error');
+
+        if ($error) {
+            return redirect()->route('tiny.settings')
+                ->with('error', 'Erro na autorização: ' . $error);
+        }
+
+        if (!$code) {
+            return redirect()->route('tiny.settings')
+                ->with('error', 'Código de autorização não recebido.');
+        }
+
+        try {
+            $client = new TinyErpClient();
+            // Usar a mesma URL que foi usada na autorização
+            $redirectUri = url('/integracoes/tiny/callback');
+            $result = $client->trocarCodigoPorTokens($code, $redirectUri);
+
+            if ($result['status'] === 'success') {
+                return redirect()->route('tiny.settings')
+                    ->with('success', 'Autenticação realizada com sucesso! A integração está pronta para uso.');
+            }
+
+            return redirect()->route('tiny.settings')
+                ->with('error', $result['message'] ?? 'Erro ao completar autenticação.');
+        } catch (\Exception $e) {
+            Log::error('Tiny ERP: Erro no callback OAuth2', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('tiny.settings')
+                ->with('error', 'Erro ao processar autorização: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -103,159 +160,64 @@ class TinyIntegrationController extends Controller
      */
     public function testConnection()
     {
-        $result = $this->makeRequest('info.php');
-
-        if (isset($result['status']) && $result['status'] === 'OK') {
-            return response()->json([
-                'success' => true,
-                'message' => 'Conexão com Tiny estabelecida com sucesso!',
-            ]);
-        }
-
-        return response()->json([
-            'success' => false,
-            'message' => $result['message'] ?? 'Erro ao conectar com Tiny',
-        ], 400);
-    }
-
-    /**
-     * Sync products from Tiny.
-     */
-    public function syncProdutos()
-    {
-        $result = $this->makeRequest('produtos.pesquisa.php', [
-            'pesquisa' => '',
-        ]);
-
-        if (isset($result['status']) && $result['status'] === 'Erro') {
+        if (!$this->isConfigured()) {
             return response()->json([
                 'success' => false,
-                'message' => $result['erros'][0]['erro'] ?? 'Erro ao buscar produtos',
+                'message' => 'Client ID ou Client Secret não configurados.',
             ], 400);
         }
 
-        $produtos = $result['produtos'] ?? [];
-        $synced = 0;
+        try {
+            $client = new TinyErpClient();
+            $result = $client->obterInfo();
 
-        foreach ($produtos as $produtoData) {
-            $produto = $produtoData['produto'];
-            
-            Produto::updateOrCreate(
-                ['codigo' => $produto['codigo']],
-                [
-                    'nome' => $produto['nome'],
-                    'descricao' => $produto['descricao'] ?? null,
-                    'ativo' => true,
-                ]
-            );
-            $synced++;
+            if ($result['status'] === 'success') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conexão com Tiny ERP estabelecida com sucesso!',
+                    'data' => $result['data'] ?? null,
+                ]);
+            }
+
+            $requiresAuth = $result['requires_auth'] ?? false;
+
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Erro ao conectar com Tiny ERP',
+                'requires_auth' => $requiresAuth,
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao conectar: ' . $e->getMessage(),
+            ], 400);
         }
+    }
+
+    /**
+     * Sync products from Tiny (manual trigger).
+     */
+    public function syncProdutos()
+    {
+        SyncProdutosTinyJob::dispatch();
 
         return response()->json([
             'success' => true,
-            'message' => "Sincronizados {$synced} produtos do Tiny",
+            'message' => 'Sincronização de produtos iniciada em background',
         ]);
     }
 
     /**
-     * Sync cliente to Tiny.
+     * Sync cliente to Tiny (manual trigger).
      */
     public function syncCliente(Paciente $paciente)
     {
-        $clienteData = [
-            'contatos' => [
-                'contato' => [
-                    'nome' => $paciente->nome,
-                    'tipo_pessoa' => 'F',
-                    'cpf_cnpj' => preg_replace('/\D/', '', $paciente->cpf ?? ''),
-                    'email' => $paciente->email1,
-                    'fone' => preg_replace('/\D/', '', $paciente->telefone1 ?? ''),
-                    'endereco' => $paciente->endereco,
-                    'numero' => $paciente->numero,
-                    'complemento' => $paciente->complemento,
-                    'bairro' => $paciente->bairro,
-                    'cidade' => $paciente->cidade,
-                    'uf' => $paciente->uf,
-                    'cep' => preg_replace('/\D/', '', $paciente->cep ?? ''),
-                ],
-            ],
-        ];
-
-        $result = $this->makeRequest('contato.incluir.php', [
-            'contato' => json_encode($clienteData),
-        ]);
-
-        if (isset($result['status']) && $result['status'] === 'OK') {
-            // Store Tiny ID in paciente
-            $paciente->update(['tiny_id' => $result['registros'][0]['registro']['id'] ?? null]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Cliente sincronizado com Tiny',
-                'tiny_id' => $result['registros'][0]['registro']['id'] ?? null,
-            ]);
-        }
+        SyncClienteTinyJob::dispatch($paciente);
 
         return response()->json([
-            'success' => false,
-            'message' => $result['erros'][0]['erro'] ?? 'Erro ao sincronizar cliente',
-        ], 400);
-    }
-
-    /**
-     * Create proposta/pedido in Tiny from receita.
-     */
-    public function criarProposta(Receita $receita)
-    {
-        $receita->load(['paciente', 'medico', 'itens.produto']);
-
-        $itens = [];
-        foreach ($receita->itens as $item) {
-            $itens[] = [
-                'item' => [
-                    'codigo' => $item->produto->codigo,
-                    'descricao' => $item->produto->nome,
-                    'quantidade' => $item->quantidade,
-                    'valor_unitario' => $item->valor_unitario,
-                ],
-            ];
-        }
-
-        $pedidoData = [
-            'pedido' => [
-                'data_pedido' => $receita->data_receita->format('d/m/Y'),
-                'cliente' => [
-                    'nome' => $receita->paciente->nome,
-                    'cpf_cnpj' => preg_replace('/\D/', '', $receita->paciente->cpf ?? ''),
-                ],
-                'itens' => $itens,
-                'valor_frete' => $receita->valor_frete,
-                'valor_desconto' => $receita->desconto_valor,
-                'obs' => "Receita #{$receita->numero} - Médico: {$receita->medico->nome}",
-            ],
-        ];
-
-        $result = $this->makeRequest('pedido.incluir.php', [
-            'pedido' => json_encode($pedidoData),
+            'success' => true,
+            'message' => 'Sincronização de cliente iniciada em background',
         ]);
-
-        if (isset($result['status']) && $result['status'] === 'OK') {
-            $tinyPedidoId = $result['registros'][0]['registro']['id'] ?? null;
-
-            // Store reference
-            $receita->update(['tiny_pedido_id' => $tinyPedidoId]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Proposta criada no Tiny com sucesso!',
-                'tiny_pedido_id' => $tinyPedidoId,
-            ]);
-        }
-
-        return response()->json([
-            'success' => false,
-            'message' => $result['erros'][0]['erro'] ?? 'Erro ao criar proposta no Tiny',
-        ], 400);
     }
 
     /**
@@ -263,22 +225,36 @@ class TinyIntegrationController extends Controller
      */
     public function listarPedidos(Request $request)
     {
-        $result = $this->makeRequest('pedidos.pesquisa.php', [
-            'dataInicial' => $request->get('data_inicio', now()->subMonth()->format('d/m/Y')),
-            'dataFinal' => $request->get('data_fim', now()->format('d/m/Y')),
-        ]);
+        try {
+            $client = new TinyErpClient();
+            
+            $filters = [];
+            if ($request->has('data_inicio')) {
+                $filters['data_inicial'] = $request->get('data_inicio');
+            }
+            if ($request->has('data_fim')) {
+                $filters['data_final'] = $request->get('data_fim');
+            }
 
-        if (isset($result['status']) && $result['status'] === 'Erro') {
+            $result = $client->listarPedidos($filters);
+
+            if ($result['status'] === 'success') {
+                return response()->json([
+                    'success' => true,
+                    'pedidos' => $result['data']['pedidos'] ?? [],
+                ]);
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => $result['erros'][0]['erro'] ?? 'Erro ao listar pedidos',
+                'message' => $result['message'] ?? 'Erro ao listar pedidos',
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao listar pedidos: ' . $e->getMessage(),
             ], 400);
         }
-
-        return response()->json([
-            'success' => true,
-            'pedidos' => $result['pedidos'] ?? [],
-        ]);
     }
 }
 

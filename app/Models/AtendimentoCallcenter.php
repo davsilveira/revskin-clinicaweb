@@ -22,6 +22,9 @@ class AtendimentoCallcenter extends Model
         'data_alteracao',
         'usuario_id',
         'usuario_alteracao_id',
+        'tiny_pedido_id',
+        'tiny_sync_at',
+        'tiny_situacao',
         'ativo',
     ];
 
@@ -30,6 +33,7 @@ class AtendimentoCallcenter extends Model
         return [
             'data_abertura' => 'datetime',
             'data_alteracao' => 'datetime',
+            'tiny_sync_at' => 'datetime',
             'ativo' => 'boolean',
         ];
     }

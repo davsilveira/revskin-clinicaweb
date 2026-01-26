@@ -7,6 +7,7 @@ use App\Models\Medico;
 use App\Models\Produto;
 use App\Models\ReceitaItem;
 use App\Models\ReceitaItemAquisicao;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -233,6 +234,12 @@ class CallCenterController extends Controller
         // Register acquisition date when status changes to em_producao (sale closed)
         if ($novoStatus === AtendimentoCallcenter::STATUS_EM_PRODUCAO && $statusAnterior !== $novoStatus) {
             $this->registrarDatasAquisicao($atendimento);
+            
+            // Sincronizar com Tiny ERP (delay de 1 minuto) - só se integração estiver habilitada
+            if (Setting::get('tiny_enabled', false)) {
+                \App\Jobs\SyncVendaTinyJob::dispatch($atendimento)
+                    ->delay(now()->addMinute());
+            }
         }
 
         return back()->with('success', 'Status atualizado com sucesso!');

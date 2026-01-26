@@ -4,17 +4,20 @@ import Input from '@/Components/Form/Input';
 import Checkbox from '@/Components/Form/Checkbox';
 import Toast from '@/Components/Toast';
 
-export default function TinySettings({ settings, onToast }) {
+export default function TinySettings({ settings, onToast, isAuthenticated }) {
     const [toast, setToast] = useState(null);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
-    const [removeToken, setRemoveToken] = useState(false);
+    const [showClientSecret, setShowClientSecret] = useState(false);
+    const [removeClientSecret, setRemoveClientSecret] = useState(false);
+    const [authorizing, setAuthorizing] = useState(false);
 
     const { data, setData, put, processing, errors, transform } = useForm({
         enabled: settings.enabled || false,
-        token: '',
-        remove_token: false,
-        url_base: settings.url_base || 'https://api.tiny.com.br/api2',
+        client_id: '',
+        client_secret: '',
+        remove_client_secret: false,
+        url_base: settings.url_base || 'https://api.tiny.com.br/public-api/v3',
     });
 
     transform((data) => {
@@ -23,10 +26,14 @@ export default function TinySettings({ settings, onToast }) {
             url_base: data.url_base,
         };
 
-        if (data.remove_token) {
-            transformed.remove_token = true;
-        } else if (data.token && data.token.trim() !== '') {
-            transformed.token = data.token;
+        if (data.client_id && data.client_id.trim() !== '') {
+            transformed.client_id = data.client_id;
+        }
+
+        if (data.remove_client_secret) {
+            transformed.remove_client_secret = true;
+        } else if (data.client_secret && data.client_secret.trim() !== '') {
+            transformed.client_secret = data.client_secret;
         }
 
         return transformed;
@@ -41,9 +48,10 @@ export default function TinySettings({ settings, onToast }) {
                 const payload = { message: 'Configuracoes salvas com sucesso!', type: 'success' };
                 setToast(payload);
                 if (onToast) onToast(payload);
-                setData('token', '');
-                setData('remove_token', false);
-                setRemoveToken(false);
+                setData('client_id', '');
+                setData('client_secret', '');
+                setData('remove_client_secret', false);
+                setRemoveClientSecret(false);
             },
             onError: () => {
                 const payload = { message: 'Erro ao salvar configuracoes.', type: 'error' };
@@ -67,6 +75,7 @@ export default function TinySettings({ settings, onToast }) {
                 success: isSuccess,
                 message: response.data?.message,
                 data: response.data?.data,
+                requiresAuth: response.data?.requires_auth,
             });
             setToast(payload);
             if (onToast) onToast(payload);
@@ -78,11 +87,39 @@ export default function TinySettings({ settings, onToast }) {
             setTestResult({
                 success: false,
                 message: payload.message,
+                requiresAuth: error.response?.data?.requires_auth,
             });
             setToast(payload);
             if (onToast) onToast(payload);
         } finally {
             setTesting(false);
+        }
+    };
+
+    const handleAuthorize = async () => {
+        setAuthorizing(true);
+        try {
+            const response = await window.axios.get('/integracoes/tiny/auth-url');
+            if (response.data?.success && response.data?.auth_url) {
+                // Redirecionar para página de autorização do Tiny
+                window.location.href = response.data.auth_url;
+            } else {
+                const payload = {
+                    message: 'Erro ao gerar URL de autorização.',
+                    type: 'error',
+                };
+                setToast(payload);
+                if (onToast) onToast(payload);
+                setAuthorizing(false);
+            }
+        } catch (error) {
+            const payload = {
+                message: error.response?.data?.message ?? 'Erro ao iniciar autorização.',
+                type: 'error',
+            };
+            setToast(payload);
+            if (onToast) onToast(payload);
+            setAuthorizing(false);
         }
     };
 
@@ -92,19 +129,52 @@ export default function TinySettings({ settings, onToast }) {
                 <div>
                     <h2 className="text-xl font-bold text-gray-900">Integracao Tiny ERP</h2>
                     <p className="mt-1 text-sm text-gray-600">
-                        Configure o acesso a API do Tiny ERP para sincronizacao de produtos, clientes e propostas.
+                        Configure o acesso a API v3 do Tiny ERP para sincronizacao de produtos, clientes e vendas.
                     </p>
-                    {settings.updated_at && (
+                    {settings.last_sync && (
                         <p className="mt-2 text-xs text-gray-500">
-                            Ultima atualizacao: {settings.updated_at}
+                            Ultima sincronizacao de produtos: {new Date(settings.last_sync).toLocaleString('pt-BR')}
                         </p>
                     )}
                 </div>
                 <div className="flex items-center gap-3">
+                    {!isAuthenticated && settings.has_client_id && settings.has_client_secret && (
+                        <button
+                            type="button"
+                            onClick={handleAuthorize}
+                            disabled={authorizing}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {authorizing ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Redirecionando...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                    Autorizar Aplicativo
+                                </>
+                            )}
+                        </button>
+                    )}
+                    {isAuthenticated && (
+                        <span className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-lg bg-green-100 text-green-800">
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Autenticado
+                        </span>
+                    )}
                     <button
                         type="button"
                         onClick={handleTestConnection}
-                        disabled={testing || !settings.has_token}
+                        disabled={testing || !settings.has_client_id || !settings.has_client_secret}
                         className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {testing ? (
@@ -134,13 +204,27 @@ export default function TinySettings({ settings, onToast }) {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         )}
-                        <div>
+                        <div className="flex-1">
                             <p className={`font-medium ${testResult.success ? 'text-green-800' : 'text-red-800'}`}>
                                 {testResult.success ? 'Conexao estabelecida com sucesso!' : 'Falha na conexao'}
                             </p>
                             <p className={`text-sm mt-1 ${testResult.success ? 'text-green-700' : 'text-red-700'}`}>
                                 {testResult.message}
                             </p>
+                            {testResult.requiresAuth && !isAuthenticated && (
+                                <div className="mt-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleAuthorize}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                                    >
+                                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                        Autorizar Aplicativo Agora
+                                    </button>
+                                </div>
+                            )}
                             {testResult.data && (
                                 <pre className="mt-2 text-xs bg-white/50 p-2 rounded overflow-auto max-h-32">
                                     {JSON.stringify(testResult.data, null, 2)}
@@ -169,18 +253,39 @@ export default function TinySettings({ settings, onToast }) {
                         </div>
 
                         <div>
+                            <Input
+                                label="Client ID"
+                                value={data.client_id}
+                                onChange={(event) => setData('client_id', event.target.value)}
+                                placeholder={settings.has_client_id ? "Digite um novo Client ID para substituir" : "Informe o Client ID do app criado no Tiny"}
+                                error={errors.client_id}
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Client ID do aplicativo criado no painel do Tiny ERP.
+                            </p>
+                        </div>
+
+                        <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Token de acesso (API Key)
+                                Client Secret
                             </label>
-                            {settings.has_token && !data.token && !removeToken ? (
+                            {settings.has_client_secret && !data.client_secret && !removeClientSecret ? (
                                 <div className="space-y-2">
                                     <div className="relative">
                                         <Input
+                                            type={showClientSecret ? 'text' : 'password'}
                                             value="********************************"
                                             disabled
                                             className="bg-gray-50 text-gray-500 cursor-not-allowed"
                                         />
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowClientSecret(!showClientSecret)}
+                                                className="text-xs text-gray-600 hover:text-gray-800"
+                                            >
+                                                {showClientSecret ? 'Ocultar' : 'Exibir'}
+                                            </button>
                                             <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
                                                 Configurado
                                             </span>
@@ -188,34 +293,34 @@ export default function TinySettings({ settings, onToast }) {
                                     </div>
                                     <label className="inline-flex items-center gap-2 cursor-pointer">
                                         <Checkbox
-                                            checked={removeToken}
+                                            checked={removeClientSecret}
                                             onChange={(event) => {
-                                                setRemoveToken(event.target.checked);
-                                                setData('remove_token', event.target.checked);
+                                                setRemoveClientSecret(event.target.checked);
+                                                setData('remove_client_secret', event.target.checked);
                                             }}
                                         />
                                         <span className="text-xs text-gray-600">
-                                            Remover token atual e inserir um novo.
+                                            Remover Client Secret atual e inserir um novo.
                                         </span>
                                     </label>
                                 </div>
                             ) : (
                                 <Input
                                     type="password"
-                                    value={data.token}
+                                    value={data.client_secret}
                                     onChange={(event) => {
-                                        setData('token', event.target.value);
+                                        setData('client_secret', event.target.value);
                                         if (event.target.value) {
-                                            setRemoveToken(false);
-                                            setData('remove_token', false);
+                                            setRemoveClientSecret(false);
+                                            setData('remove_client_secret', false);
                                         }
                                     }}
-                                    placeholder={settings.has_token ? "Digite um novo token para substituir" : "Informe o token fornecido pelo Tiny"}
-                                    error={errors.token}
+                                    placeholder={settings.has_client_secret ? "Digite um novo Client Secret para substituir" : "Informe o Client Secret do app criado no Tiny"}
+                                    error={errors.client_secret}
                                 />
                             )}
                             <p className="mt-1 text-xs text-gray-500">
-                                Obtenha o token em: Tiny ERP {'->'} Configuracoes {'->'} Integradores {'->'} Tokens de API
+                                Client Secret do aplicativo criado no painel do Tiny ERP. Mantenha seguro e nao compartilhe.
                             </p>
                         </div>
 
@@ -224,12 +329,53 @@ export default function TinySettings({ settings, onToast }) {
                                 label="URL Base da API"
                                 value={data.url_base}
                                 onChange={(event) => setData('url_base', event.target.value)}
-                                placeholder="https://api.tiny.com.br/api2"
+                                placeholder="https://api.tiny.com.br/public-api/v3"
                                 error={errors.url_base}
+                                disabled
                             />
                             <p className="mt-1 text-xs text-gray-500">
-                                Normalmente nao precisa alterar. Use o padrao: https://api.tiny.com.br/api2
+                                URL base da API v3 do Tiny ERP. Normalmente nao precisa alterar.
                             </p>
+                        </div>
+
+                        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+                            <div className="flex items-start gap-3">
+                                <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div>
+                                    <p className="font-medium text-blue-800">URL de Redirecionamento</p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        Certifique-se de que esta URL esta configurada no app "ClinicaWeb" no painel do Tiny ERP:
+                                    </p>
+                                    <code className="mt-2 block text-xs bg-white p-2 rounded border border-blue-300 break-all">
+                                        {window.location.origin}/integracoes/tiny/callback
+                                    </code>
+                                    <p className="text-xs text-blue-600 mt-2">
+                                        A URL deve corresponder exatamente ao configurado no Tiny ERP.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+                            <div className="flex items-start gap-3">
+                                <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div>
+                                    <p className="font-medium text-blue-800">URL do Webhook</p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        Configure esta URL no app "ClinicaWeb" no painel do Tiny ERP:
+                                    </p>
+                                    <code className="mt-2 block text-xs bg-white p-2 rounded border border-blue-300 break-all">
+                                        {window.location.origin}/api/webhooks/tiny/pedido-finalizado
+                                    </code>
+                                    <p className="text-xs text-blue-600 mt-2">
+                                        Nota: Webhooks so funcionam em producao, nao em localhost.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -262,37 +408,37 @@ export default function TinySettings({ settings, onToast }) {
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Sincronizar produtos do Tiny
+                                Sincronizar produtos do Tiny (2x por dia)
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Sincronizar clientes/pacientes
+                                Sincronizar clientes/pacientes automaticamente
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Criar propostas/orcamentos
+                                Criar pedidos quando atendimento vai para producao
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Consultar estoque
+                                Receber notificacoes quando pedido e finalizado no Tiny
                             </li>
                         </ul>
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-3">Como obter o Token</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-3">Como obter as credenciais</h2>
                         <ol className="space-y-2 text-sm text-gray-600 list-decimal list-inside">
                             <li>Acesse o painel do Tiny ERP</li>
-                            <li>Va em Configuracoes {'>'} Integradores</li>
-                            <li>Clique em "Tokens de API"</li>
-                            <li>Gere um novo token ou copie existente</li>
-                            <li>Cole o token no campo acima</li>
+                            <li>Va em Configuracoes {'>'} E-commerce {'>'} Integracoes</li>
+                            <li>Procure por "API do ERP" ou crie um novo app</li>
+                            <li>Copie o Client ID e Client Secret gerados</li>
+                            <li>Cole nas configuracoes acima</li>
                         </ol>
                         <a
                             href="https://tiny.com.br/login"
@@ -315,7 +461,7 @@ export default function TinySettings({ settings, onToast }) {
                             <div>
                                 <p className="font-medium text-amber-800">Importante</p>
                                 <p className="text-sm text-amber-700 mt-1">
-                                    Mantenha o token seguro. Nao compartilhe com terceiros.
+                                    Mantenha o Client Secret seguro. Nao compartilhe com terceiros. O Client Secret e criptografado no banco de dados.
                                 </p>
                             </div>
                         </div>

@@ -164,10 +164,17 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [TinyIntegrationController::class, 'settings'])->name('settings');
             Route::put('/', [TinyIntegrationController::class, 'updateSettings'])->name('settings.update');
             Route::post('/test', [TinyIntegrationController::class, 'testConnection'])->name('test');
+            Route::get('/auth-url', [TinyIntegrationController::class, 'getAuthorizationUrl'])->name('auth-url');
+            Route::get('/callback', [TinyIntegrationController::class, 'callback'])->name('callback');
             Route::post('/sync-produtos', [TinyIntegrationController::class, 'syncProdutos'])->name('sync-produtos');
             Route::post('/sync-cliente/{paciente}', [TinyIntegrationController::class, 'syncCliente'])->name('sync-cliente');
             Route::post('/criar-proposta/{receita}', [TinyIntegrationController::class, 'criarProposta'])->name('criar-proposta');
             Route::get('/pedidos', [TinyIntegrationController::class, 'listarPedidos'])->name('pedidos');
         });
+
+        // Webhook Tiny ERP (sem autenticação CSRF)
+        Route::post('/api/webhooks/tiny/pedido-finalizado', [\App\Http\Controllers\WebhookTinyController::class, 'pedidoFinalizado'])
+            ->withoutMiddleware(['csrf', 'auth'])
+            ->name('webhooks.tiny.pedido-finalizado');
     });
 });

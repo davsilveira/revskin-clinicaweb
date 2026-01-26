@@ -26,6 +26,7 @@ class Produto extends Model
         'estoque_minimo',
         'unidade',
         'tiny_id',
+        'tiny_sync_at',
         'ativo',
     ];
 
@@ -36,6 +37,7 @@ class Produto extends Model
             'preco' => 'decimal:2',
             'preco_custo' => 'decimal:2',
             'estoque_minimo' => 'integer',
+            'tiny_sync_at' => 'datetime',
         ];
     }
 

@@ -16,14 +16,19 @@ class SettingsController extends Controller
 
         $settings = Setting::getSettings();
 
+        $hasRefreshToken = !empty($settings['tiny_refresh_token'] ?? null);
+        
         return Inertia::render('Settings/Index', [
             'tiny' => [
                 'settings' => [
                     'enabled' => (bool) ($settings['tiny_enabled'] ?? false),
-                    'has_token' => !empty($settings['tiny_token'] ?? null),
-                    'url_base' => $settings['tiny_url_base'] ?? 'https://api.tiny.com.br/api2',
-                    'updated_at' => $settings['tiny_updated_at'] ?? null,
+                    'has_client_id' => !empty($settings['tiny_client_id'] ?? null),
+                    'has_client_secret' => !empty($settings['tiny_client_secret'] ?? null),
+                    'has_refresh_token' => $hasRefreshToken,
+                    'url_base' => $settings['tiny_url_base'] ?? 'https://api.tiny.com.br/public-api/v3',
+                    'last_sync' => $settings['tiny_produtos_last_sync'] ?? null,
                 ],
+                'isAuthenticated' => $hasRefreshToken,
             ],
         ]);
     }
@@ -34,24 +39,27 @@ class SettingsController extends Controller
 
         $validated = $request->validate([
             'enabled' => 'boolean',
-            'token' => 'nullable|string',
-            'remove_token' => 'nullable|boolean',
+            'client_id' => 'nullable|string',
+            'client_secret' => 'nullable|string',
+            'remove_client_secret' => 'nullable|boolean',
             'url_base' => 'nullable|string|url',
         ]);
 
         Setting::set('tiny_enabled', $validated['enabled'] ?? false);
         
-        if (!empty($validated['remove_token'])) {
-            Setting::set('tiny_token', null);
-        } elseif (!empty($validated['token'])) {
-            Setting::set('tiny_token', encrypt($validated['token']));
+        if (!empty($validated['remove_client_secret'])) {
+            Setting::set('tiny_client_secret', null);
+        } elseif (!empty($validated['client_secret'])) {
+            Setting::set('tiny_client_secret', encrypt($validated['client_secret']));
+        }
+
+        if (!empty($validated['client_id'])) {
+            Setting::set('tiny_client_id', $validated['client_id']);
         }
 
         if (!empty($validated['url_base'])) {
             Setting::set('tiny_url_base', $validated['url_base']);
         }
-
-        Setting::set('tiny_updated_at', now()->format('d/m/Y H:i'));
 
         return back()->with('success', 'Configuracoes salvas com sucesso!');
     }
@@ -61,50 +69,69 @@ class SettingsController extends Controller
         $this->ensureAdmin();
 
         $settings = Setting::getSettings();
-        $token = $settings['tiny_token'] ?? null;
+        $clientId = $settings['tiny_client_id'] ?? null;
+        $clientSecret = $settings['tiny_client_secret'] ?? null;
         
-        if (!$token) {
+        if (!$clientId || !$clientSecret) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token nao configurado.',
-            ]);
+                'message' => 'Client ID ou Client Secret não configurados.',
+            ], 400);
         }
 
         try {
-            $decryptedToken = decrypt($token);
-            $urlBase = $settings['tiny_url_base'] ?? 'https://api.tiny.com.br/api2';
+            // Verificar se client_secret está criptografado
+            try {
+                decrypt($clientSecret);
+                $isEncrypted = true;
+            } catch (\Exception $e) {
+                $isEncrypted = false;
+            }
 
-            // Testar conexao listando produtos
-            $response = Http::timeout(30)->asForm()->post("{$urlBase}/produtos.pesquisa.php", [
-                'token' => $decryptedToken,
-                'formato' => 'json',
-                'pesquisa' => '',
-            ]);
+            $client = new \App\Services\TinyErpClient();
+            $result = $client->obterInfo();
 
-            $data = $response->json();
-
-            if (isset($data['retorno']['status']) && $data['retorno']['status'] === 'OK') {
+            if ($result['status'] === 'success') {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Conexao estabelecida com sucesso!',
-                    'data' => [
-                        'status' => $data['retorno']['status'],
-                        'registros' => $data['retorno']['numero_paginas'] ?? 0,
-                    ],
+                    'message' => 'Conexão estabelecida com sucesso!',
+                    'data' => $result['data'] ?? null,
                 ]);
+            }
+
+            // Retornar mais detalhes do erro para debug
+            $errorMessage = $result['message'] ?? 'Erro desconhecido na API.';
+            $errorDetails = [
+                'status_code' => $result['status_code'] ?? null,
+                'error_data' => $result['data'] ?? null,
+            ];
+
+            // Se for erro de autenticação, dar dica mais específica
+            if (isset($result['status_code']) && $result['status_code'] === 401) {
+                $errorMessage = 'Erro de autenticação. Verifique se Client ID e Client Secret estão corretos e se o app tem as permissões necessárias no Tiny ERP.';
             }
 
             return response()->json([
                 'success' => false,
-                'message' => $data['retorno']['erros'][0]['erro'] ?? 'Erro desconhecido na API.',
-                'data' => $data['retorno'] ?? null,
-            ]);
+                'message' => $errorMessage,
+                'details' => $errorDetails,
+                'debug' => [
+                    'client_id_set' => !empty($clientId),
+                    'client_secret_set' => !empty($clientSecret),
+                    'client_secret_encrypted' => $isEncrypted,
+                ],
+            ], 400);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Tiny ERP Test Connection Exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao conectar: ' . $e->getMessage(),
-            ]);
+            ], 400);
         }
     }
 

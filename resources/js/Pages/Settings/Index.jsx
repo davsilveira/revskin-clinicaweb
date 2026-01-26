@@ -53,6 +53,7 @@ export default function SettingsIndex({ tiny }) {
                             {activeTab === 'tiny' && (
                                 <TinySettings
                                     settings={tiny?.settings || {}}
+                                    isAuthenticated={tiny?.isAuthenticated || false}
                                     onToast={setToast}
                                 />
                             )}
