@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -38,6 +39,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $medico = null;
+        $pendingCallCenterCount = 0;
 
         if ($user && $user->isMedico() && $user->medico_id) {
             $medico = Medico::select([
@@ -45,6 +47,12 @@ class HandleInertiaRequests extends Middleware
                 'email1', 'cep', 'endereco', 'numero', 'complemento', 'bairro',
                 'cidade', 'uf', 'rodape_receita', 'assinatura_path'
             ])->find($user->medico_id);
+        }
+
+        if ($user && $user->isCallcenter()) {
+            $pendingCallCenterCount = AtendimentoCallcenter::ativo()
+                ->where('status', AtendimentoCallcenter::STATUS_ENTRAR_EM_CONTATO)
+                ->count();
         }
 
         return [
@@ -59,6 +67,7 @@ class HandleInertiaRequests extends Middleware
                     'medico_id' => $user->medico_id,
                 ] : null,
                 'medico' => $medico,
+                'pendingCallCenterCount' => $pendingCallCenterCount,
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

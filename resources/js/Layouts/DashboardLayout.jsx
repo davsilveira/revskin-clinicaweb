@@ -41,6 +41,7 @@ export default function DashboardLayout({ children }) {
     const isAdmin = auth.user.role === 'admin';
     const isMedico = auth.user.role === 'medico';
     const isCallcenter = auth.user.role === 'callcenter';
+    const pendingCallCenterCount = auth.pendingCallCenterCount || 0;
 
     const getRoleLabel = (role) => {
         const labels = {
@@ -141,27 +142,61 @@ export default function DashboardLayout({ children }) {
                         {(isAdmin || isCallcenter) && (
                             <Link
                                 href="/callcenter"
-                                className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
+                                className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2 relative' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
                                     isActive('/callcenter')
                                         ? 'bg-emerald-50 text-emerald-700'
                                         : 'text-gray-700 hover:bg-gray-100'
                                 }`}
                                 title={sidebarCollapsed ? 'Call Center' : undefined}
                             >
-                                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                </svg>
-                                {!sidebarCollapsed && <span className="font-medium">Call Center</span>}
+                                <div className="relative">
+                                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                    {sidebarCollapsed && isCallcenter && pendingCallCenterCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-4 px-1 flex items-center justify-center text-[10px] font-semibold">
+                                            {pendingCallCenterCount > 99 ? '99+' : pendingCallCenterCount}
+                                        </span>
+                                    )}
+                                </div>
+                                {!sidebarCollapsed && (
+                                    <>
+                                        <span className="font-medium">Call Center</span>
+                                        {isCallcenter && pendingCallCenterCount > 0 && (
+                                            <span className="bg-red-500 text-white rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold">
+                                                {pendingCallCenterCount > 99 ? '99+' : pendingCallCenterCount}
+                                            </span>
+                                        )}
+                                    </>
+                                )}
                             </Link>
                         )}
 
-                        {/* Cadastros Section - Admin and Call Center */}
+                        {/* Produtos - Admin and Call Center */}
                         {(isAdmin || isCallcenter) && (
+                            <Link
+                                href="/produtos"
+                                className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
+                                    isActive('/produtos')
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                                title={sidebarCollapsed ? 'Produtos' : undefined}
+                            >
+                                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                                {!sidebarCollapsed && <span className="font-medium">Produtos</span>}
+                            </Link>
+                        )}
+
+                        {/* Administração Section - Admin only */}
+                        {isAdmin && (
                             <>
                                 {!sidebarCollapsed && (
                                     <div className="pt-4 pb-2">
                                         <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Cadastros
+                                            Administração
                                         </div>
                                     </div>
                                 )}
@@ -196,35 +231,6 @@ export default function DashboardLayout({ children }) {
                                     </svg>
                                     {!sidebarCollapsed && <span className="font-medium">Clínicas</span>}
                                 </Link>
-
-                                <Link
-                                    href="/produtos"
-                                    className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
-                                        isActive('/produtos')
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title={sidebarCollapsed ? 'Produtos' : undefined}
-                                >
-                                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                    </svg>
-                                    {!sidebarCollapsed && <span className="font-medium">Produtos</span>}
-                                </Link>
-                            </>
-                        )}
-
-                        {/* Administração Section - Admin only */}
-                        {isAdmin && (
-                            <>
-                                {!sidebarCollapsed && (
-                                    <div className="pt-4 pb-2">
-                                        <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Administração
-                                        </div>
-                                    </div>
-                                )}
-                                {sidebarCollapsed && <div className="pt-4 border-t border-gray-200 mt-2" />}
 
                                 <Link
                                     href="/users"

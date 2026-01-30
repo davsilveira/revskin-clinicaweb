@@ -27,6 +27,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     };
 
     const handleSave = () => {
+        closeDrawer();
         setToast({ 
             message: editingPaciente ? 'Paciente atualizado com sucesso!' : 'Paciente cadastrado com sucesso!', 
             type: 'success' 

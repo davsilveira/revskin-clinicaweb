@@ -54,6 +54,8 @@ class ClinicaController extends Controller
 
     public function index(Request $request): Response
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $query = Clinica::with(['medicos:id,nome,crm'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
@@ -81,11 +83,15 @@ class ClinicaController extends Controller
 
     public function create(): Response
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         return Inertia::render('Clinicas/Form');
     }
 
     public function store(Request $request)
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'cnpj' => ['nullable', 'string', 'max:18', function ($attribute, $value, $fail) {
@@ -129,6 +135,8 @@ class ClinicaController extends Controller
 
     public function show(Clinica $clinica): Response
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $clinica->load(['medicos' => fn($q) => $q->ativo()->orderBy('nome')]);
 
         return Inertia::render('Clinicas/Show', [
@@ -138,6 +146,8 @@ class ClinicaController extends Controller
 
     public function edit(Clinica $clinica): Response
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         return Inertia::render('Clinicas/Form', [
             'clinica' => $clinica,
         ]);
@@ -145,6 +155,8 @@ class ClinicaController extends Controller
 
     public function update(Request $request, Clinica $clinica)
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'cnpj' => ['nullable', 'string', 'max:18', function ($attribute, $value, $fail) {
@@ -186,6 +198,8 @@ class ClinicaController extends Controller
 
     public function destroy(Clinica $clinica)
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $clinica->update(['ativo' => false]);
 
         return redirect()->route('clinicas.index')

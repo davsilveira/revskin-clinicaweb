@@ -199,8 +199,15 @@ class PacienteController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Paciente $paciente): Response
+    public function show(Request $request, Paciente $paciente): Response
     {
+        $user = $request->user();
+        
+        // Check if user can access this paciente
+        if (!$user->canAccessPaciente($paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $paciente->load(['medico:id,nome', 'receitas' => function ($q) {
             $q->with('medico:id,nome')->orderByDesc('data_receita')->limit(10);
         }]);
@@ -213,8 +220,15 @@ class PacienteController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Paciente $paciente): Response
+    public function edit(Request $request, Paciente $paciente): Response
     {
+        $user = $request->user();
+        
+        // Check if user can access this paciente
+        if (!$user->canAccessPaciente($paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Pacientes/Form', [
@@ -267,6 +281,17 @@ class PacienteController extends Controller
             return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
         }
 
+        // Check if user can access this paciente
+        $user = $request->user();
+        if (!$user->canAccessPaciente($paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        // Prevent medico from changing medico_id
+        if ($user->isMedico() && $user->medico_id) {
+            $validated['medico_id'] = $user->medico_id;
+        }
+
         $telefones = $validated['telefones'] ?? [];
         unset($validated['telefones']);
 
@@ -296,8 +321,14 @@ class PacienteController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Paciente $paciente)
+    public function destroy(Request $request, Paciente $paciente)
     {
+        // Check if user can access this paciente
+        $user = $request->user();
+        if (!$user->canAccessPaciente($paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         // Soft delete by setting ativo to false
         $paciente->update(['ativo' => false]);
 

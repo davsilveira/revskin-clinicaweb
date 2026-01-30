@@ -330,7 +330,7 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
                                     Copiar Receita
                                 </button>
 
-                                {receita.status !== 'cancelada' && (
+                                {receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada') && (
                                     <button
                                         onClick={() => setShowCancelarModal(true)}
                                         className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm"

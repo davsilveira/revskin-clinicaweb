@@ -23,6 +23,8 @@ class MedicoController extends Controller
      */
     public function index(Request $request): Response
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $query = Medico::with(['clinica:id,nome', 'clinicas:id,nome', 'enderecos'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
@@ -61,6 +63,8 @@ class MedicoController extends Controller
      */
     public function create(): Response
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Medicos/Form', [
@@ -73,6 +77,8 @@ class MedicoController extends Controller
      */
     public function store(Request $request)
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'apelido' => 'nullable|string|max:255',
@@ -191,6 +197,8 @@ class MedicoController extends Controller
      */
     public function show(Medico $medico): Response
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $medico->load(['clinica:id,nome', 'pacientes' => function ($q) {
             $q->ativo()->orderBy('nome')->limit(10);
         }]);
@@ -205,6 +213,8 @@ class MedicoController extends Controller
      */
     public function edit(Medico $medico): Response
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Medicos/Form', [
@@ -218,6 +228,8 @@ class MedicoController extends Controller
      */
     public function update(Request $request, Medico $medico)
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'apelido' => 'nullable|string|max:255',
@@ -308,6 +320,8 @@ class MedicoController extends Controller
      */
     public function destroy(Medico $medico)
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $medico->update(['ativo' => false]);
 
         return redirect()->route('medicos.index')
@@ -319,6 +333,8 @@ class MedicoController extends Controller
      */
     public function uploadAssinatura(Request $request, Medico $medico)
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $request->validate([
             'assinatura' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
@@ -340,6 +356,8 @@ class MedicoController extends Controller
      */
     public function search(Request $request)
     {
+        abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
+
         $search = $request->get('q', '');
 
         $medicos = Medico::ativo()

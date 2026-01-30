@@ -104,18 +104,19 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/tools/infosimples/history', [InfosimplesIntegrationController::class, 'clearHistory'])
         ->name('tools.infosimples.clearHistory');
 
-    // Cadastros - Admin and Call Center
+    // Cadastros - Produtos (Call Center and Admin)
     Route::middleware('callcenter')->group(function () {
-        Route::resource('medicos', MedicoController::class);
-        Route::post('/medicos/{medico}/assinatura', [MedicoController::class, 'uploadAssinatura'])->name('medicos.assinatura');
-        Route::get('/api/medicos/search', [MedicoController::class, 'search'])->name('medicos.search');
-        
-        Route::resource('clinicas', ClinicaController::class);
         Route::resource('produtos', ProdutoController::class);
     });
 
     // Admin only routes
     Route::middleware('admin')->group(function () {
+        // Cadastros - Médicos e Clínicas (Admin only)
+        Route::resource('medicos', MedicoController::class);
+        Route::post('/medicos/{medico}/assinatura', [MedicoController::class, 'uploadAssinatura'])->name('medicos.assinatura');
+        Route::get('/api/medicos/search', [MedicoController::class, 'search'])->name('medicos.search');
+        
+        Route::resource('clinicas', ClinicaController::class);
         // Users management
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');

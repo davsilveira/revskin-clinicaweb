@@ -135,6 +135,12 @@ class AssistenteReceitaController extends Controller
         $paciente = null;
         if ($validated['paciente_id']) {
             $paciente = Paciente::find($validated['paciente_id']);
+            
+            // Check if user can access this paciente
+            $user = $request->user();
+            if ($paciente && !$user->canAccessPaciente($paciente)) {
+                return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
         }
 
         return response()->json([
@@ -233,13 +239,8 @@ class AssistenteReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        return response()->json([
-            'receita_id' => $receita->id,
-            'codigo_karnaugh' => $codigoKarnaugh,
-            'tabela_usada' => $engine->getTabelaSelecionada()?->nome,
-            'regras_aplicadas' => count($engine->getRegrasAplicadas()),
-            'redirect' => route('receitas.edit', $receita),
-        ]);
+        // Retornar redirect Inertia para permitir uso correto do router.post no frontend
+        return redirect()->route('receitas.edit', $receita);
     }
 
     /**

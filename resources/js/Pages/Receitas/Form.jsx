@@ -279,22 +279,32 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Médico:</span>
-                                    {medicos?.length === 1 ? (
-                                        <span className="font-medium text-gray-900">{medicos[0].nome}</span>
-                                    ) : (
-                                        <select
-                                            value={data.medico_id}
-                                            onChange={(e) => setData('medico_id', e.target.value)}
-                                            className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                                        >
-                                            {medicos?.map((medico) => (
-                                                <option key={medico.id} value={medico.id}>{medico.nome}</option>
-                                            ))}
-                                        </select>
-                                    )}
-                                </div>
+                                {!isMedico && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-500">Médico:</span>
+                                        {medicos?.length === 1 ? (
+                                            <span className="font-medium text-gray-900">{medicos[0].nome}</span>
+                                        ) : (
+                                            <select
+                                                value={data.medico_id}
+                                                onChange={(e) => setData('medico_id', e.target.value)}
+                                                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                            >
+                                                {medicos?.map((medico) => (
+                                                    <option key={medico.id} value={medico.id}>{medico.nome}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+                                )}
+                                {isMedico && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-500">Médico:</span>
+                                        <span className="font-medium text-gray-900">
+                                            {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className={`px-2 py-0.5 rounded text-xs font-medium ${
                                     data.status === 'finalizada' ? 'bg-green-100 text-green-700' :
                                     data.status === 'cancelada' ? 'bg-red-100 text-red-700' :
@@ -373,15 +383,25 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 </div>
 
                                 {/* Medico */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
-                                    <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                        disabled={medicos?.length === 1}>
-                                        <option value="">Selecione</option>
-                                        {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
-                                    </select>
-                                </div>
+                                {!isMedico && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
+                                        <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            disabled={medicos?.length === 1}>
+                                            <option value="">Selecione</option>
+                                            {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
+                                        </select>
+                                    </div>
+                                )}
+                                {isMedico && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
+                                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                            {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

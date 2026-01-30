@@ -19,4 +19,3 @@ use Illuminate\Support\Facades\Schedule;
 // Sincronização de produtos com Tiny ERP (2x por dia)
 Schedule::job(new SyncProdutosTinyJob)->dailyAt('12:00')->name('tiny-sync-produtos-12h');
 Schedule::job(new SyncProdutosTinyJob)->dailyAt('00:00')->name('tiny-sync-produtos-00h');
-

@@ -188,19 +188,39 @@ export default function AssistenteReceitaIndex({
         setCreateError('');
 
         try {
+            // Obter token CSRF dinamicamente do meta tag (atualizado pelo Inertia)
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
+            if (!csrfToken) {
+                throw new Error('Token CSRF não encontrado. Por favor, recarregue a página.');
+            }
+            
             const response = await fetch('/api/pacientes/quick-create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify(novoPaciente),
             });
 
+            if (!response.ok) {
+                // Se for erro 419, recarregar a página para obter novo token CSRF
+                if (response.status === 419) {
+                    window.location.reload();
+                    return false;
+                }
+                
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || errorData.message || 'Erro ao cadastrar paciente');
+            }
+
             const data = await response.json();
 
-            if (response.ok && data.success) {
+            if (data.success && data.paciente) {
                 setSelectedPaciente(data.paciente);
                 setShowCreateForm(false);
                 setNovoPaciente({
@@ -216,7 +236,7 @@ export default function AssistenteReceitaIndex({
             }
         } catch (error) {
             console.error('Erro ao criar paciente:', error);
-            setCreateError('Erro ao cadastrar paciente');
+            setCreateError(error.message || 'Erro ao cadastrar paciente');
             return false;
         } finally {
             setCreatingPaciente(false);
@@ -247,43 +267,38 @@ export default function AssistenteReceitaIndex({
         setCondicoes(prev => ({ ...prev, [field]: value }));
     };
 
-    const processarCondicoes = async () => {
+    const processarCondicoes = () => {
         if (!selectedPaciente) return;
 
         setLoading(true);
         setError('');
-        try {
-            const response = await fetch('/assistente-receita/processar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                },
-                body: JSON.stringify({
-                    ...condicoes,
-                    paciente_id: selectedPaciente.id,
-                    medico_id: selectedMedicoId,
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `Erro ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            // Redirect directly to recipe edit page
-            if (data.receita_id) {
-                router.visit(`/receitas/${data.receita_id}/edit`);
-            } else {
-                throw new Error('Erro ao criar receita');
-            }
-        } catch (err) {
-            console.error('Erro ao processar:', err);
-            setError(err.message || 'Erro ao processar condições');
-            setLoading(false);
-        }
+        
+        // Usar router.post do Inertia que gerencia CSRF automaticamente
+        router.post('/assistente-receita/processar', {
+            ...condicoes,
+            paciente_id: selectedPaciente.id,
+            medico_id: selectedMedicoId,
+        }, {
+            preserveState: false,
+            preserveScroll: false,
+            onError: (errors) => {
+                console.error('Erro ao processar:', errors);
+                // Tratar erros de validação ou outros erros
+                if (errors.error) {
+                    setError(errors.error);
+                } else if (typeof errors === 'string') {
+                    setError(errors);
+                } else if (errors.message) {
+                    setError(errors.message);
+                } else {
+                    setError('Erro ao processar condições');
+                }
+                setLoading(false);
+            },
+            onFinish: () => {
+                setLoading(false);
+            },
+        });
     };
 
     const condicaoLabels = {

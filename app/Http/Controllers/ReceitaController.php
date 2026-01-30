@@ -33,8 +33,7 @@ class ReceitaController extends Controller
             $query->where('medico_id', $user->medico_id);
         }
 
-        $receitas = $query->orderByDesc('data_receita')
-            ->orderByDesc('id')
+        $receitas = $query->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
@@ -54,6 +53,11 @@ class ReceitaController extends Controller
 
         if ($request->paciente_id) {
             $paciente = Paciente::find($request->paciente_id);
+            
+            // Check if user can access this paciente
+            if ($paciente && !$user->canAccessPaciente($paciente)) {
+                abort(403, 'Acesso não autorizado.');
+            }
         }
 
         $medicos = $user->isMedico() && $user->medico_id
@@ -78,6 +82,8 @@ class ReceitaController extends Controller
 
     public function store(Request $request)
     {
+        $user = $request->user();
+        
         $validated = $request->validate([
             'paciente_id' => 'required|exists:pacientes,id',
             'medico_id' => 'required|exists:medicos,id',
@@ -98,6 +104,11 @@ class ReceitaController extends Controller
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
+
+        // If user is medico, ensure they can only create receitas for themselves
+        if ($user->isMedico() && $user->medico_id && $validated['medico_id'] != $user->medico_id) {
+            return back()->with('error', 'Você não pode criar receitas para outros médicos.');
+        }
 
         $receita = Receita::create([
             'numero' => Receita::gerarNumero(),
@@ -170,7 +181,7 @@ class ReceitaController extends Controller
         ]);
     }
 
-    public function edit(Receita $receita): Response
+    public function edit(Request $request, Receita $receita): Response
     {
         $receita->load(['paciente', 'medico', 'itens.produto', 'atendimentoCallcenter']);
 
@@ -192,9 +203,17 @@ class ReceitaController extends Controller
             ->take(10)
             ->get();
 
-        // Check if receita is blocked for editing (atendimento in production or finalized)
-        $bloqueadaParaEdicao = $receita->atendimentoCallcenter && 
+        $user = $request->user();
+        
+        // Check if receita is blocked for editing
+        // Condition 1: atendimento in production or finalized
+        $bloqueadaPorAtendimento = $receita->atendimentoCallcenter && 
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado']);
+        
+        // Condition 2: médico trying to edit finalized receita
+        $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
+        
+        $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
         return Inertia::render('Receitas/Form', [
             'receita' => $receita,
@@ -208,11 +227,18 @@ class ReceitaController extends Controller
 
     public function update(Request $request, Receita $receita)
     {
+        $user = $request->user();
+        
         // Check if receita is blocked for editing (atendimento in production or finalized)
         $receita->load('atendimentoCallcenter');
         if ($receita->atendimentoCallcenter && 
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
             return back()->with('error', 'Esta receita não pode ser editada pois o atendimento já está em produção ou finalizado.');
+        }
+        
+        // Check if médico is trying to edit finalized receita
+        if ($user->isMedico() && $receita->status === 'finalizada') {
+            return back()->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
         }
 
         $validated = $request->validate([
@@ -234,7 +260,9 @@ class ReceitaController extends Controller
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
 
-        $receita->update([
+        // If user is medico, ensure they cannot change medico_id
+        // For admin/callcenter, allow medico_id to be updated if provided
+        $updateData = [
             'data_receita' => $validated['data_receita'],
             'anotacoes' => $validated['anotacoes'] ?? null,
             'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
@@ -243,7 +271,15 @@ class ReceitaController extends Controller
             'valor_caixa' => $validated['valor_caixa'] ?? 0,
             'valor_frete' => $validated['valor_frete'] ?? 0,
             'status' => $validated['status'] ?? $receita->status,
-        ]);
+        ];
+        
+        // Only allow medico_id update for admin/callcenter
+        if (!$user->isMedico() && $request->has('medico_id')) {
+            $updateData['medico_id'] = $request->input('medico_id');
+        }
+        // For medico, ensure medico_id remains unchanged (already set to their own)
+
+        $receita->update($updateData);
 
         // Sync items
         $receita->itens()->delete();
