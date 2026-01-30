@@ -304,6 +304,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                         showGroups={true}
                         readOnly={['em_producao', 'finalizado', 'cancelado'].includes(atendimento.status)}
                         itensComAquisicoes={itensComAquisicoes}
+                        itensOriginais={atendimento.receita?.itens || []}
                     />
                 </div>
             </div>

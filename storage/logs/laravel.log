@@ -747,3 +747,21 @@
 #54 /Users/darvin/Apps/revskin/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php(23): require_once('/Users/darvin/A...')
 #55 {main}
 "} 
+[2026-01-26 08:07:41] local.INFO: Export completed successfully {"export_request_id":1,"file_name":"default_2026-01-26_080741.csv","total_records":2} 
+[2026-01-26 08:19:00] local.INFO: Export completed successfully {"export_request_id":2,"file_name":"pacientes_2026-01-26_081900.csv","total_records":2} 
+[2026-01-26 08:19:34] local.INFO: Export completed successfully {"export_request_id":3,"file_name":"produtos_2026-01-26_081934.csv","total_records":2} 
+[2026-01-26 08:21:16] local.INFO: Export completed successfully {"export_request_id":4,"file_name":"atendimentos_2026-01-26_082116.csv","total_records":2} 
+[2026-01-26 08:26:21] local.INFO: Starting export {"export_request_id":5,"type":"produtos","filters":[],"export_all_fields":true,"selected_fields_count":0} 
+[2026-01-26 08:26:21] local.INFO: Exporting produtos {"filters":[],"query_count":40} 
+[2026-01-26 08:26:21] local.INFO: Export completed successfully {"export_request_id":5,"type":"produtos","file_name":"produtos_20260126_082621_5.csv","total_records":40} 
+[2026-01-26 08:26:36] local.INFO: Starting export {"export_request_id":6,"type":"pacientes","filters":[],"export_all_fields":true,"selected_fields_count":0} 
+[2026-01-26 08:26:36] local.INFO: Exporting pacientes {"filters":[],"query_count":3} 
+[2026-01-26 08:26:36] local.INFO: Export completed successfully {"export_request_id":6,"type":"pacientes","file_name":"pacientes_20260126_082636_6.csv","total_records":3} 
+[2026-01-26 09:51:03] local.ERROR: Tiny ERP: Erro ao obter access token {"status":401,"body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}"} 
+[2026-01-26 09:51:52] local.ERROR: Tiny ERP: Erro ao obter access token {"status":401,"body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}"} 
+[2026-01-26 09:51:59] local.ERROR: Tiny ERP: Erro ao obter access token {"status":401,"body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}"} 
+[2026-01-26 09:57:40] local.WARNING: Tiny ERP: Tentativa com client_credentials falhou, tentando sem escopo {"status":401,"body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}"} 
+[2026-01-26 09:57:40] local.ERROR: Tiny ERP: Erro ao obter access token {"status":401,"status_text":"Unauthorized","body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}","json":{"error":"unauthorized_client","error_description":"Client not enabled to retrieve service account"},"client_id_length":60,"client_secret_length":32,"client_id_prefix":"tiny-api-c...","token_url":"https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/token","error_message":"Credenciais inválidas ou não autorizadas. Verifique Client ID e Client Secret."} 
+[2026-01-26 09:57:47] local.WARNING: Tiny ERP: Tentativa com client_credentials falhou, tentando sem escopo {"status":401,"body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}"} 
+[2026-01-26 09:57:47] local.ERROR: Tiny ERP: Erro ao obter access token {"status":401,"status_text":"Unauthorized","body":"{\"error\":\"unauthorized_client\",\"error_description\":\"Client not enabled to retrieve service account\"}","json":{"error":"unauthorized_client","error_description":"Client not enabled to retrieve service account"},"client_id_length":60,"client_secret_length":32,"client_id_prefix":"tiny-api-c...","token_url":"https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/token","error_message":"Credenciais inválidas ou não autorizadas. Verifique Client ID e Client Secret."} 
+[2026-01-26 09:59:51] local.INFO: Tiny ERP: Gerando URL de autorização {"redirect_uri":"http://localhost:9090/integracoes/tiny/callback"} 

@@ -5,6 +5,7 @@ import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
+import 'tippy.js/themes/light-border.css';
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -36,6 +37,28 @@ const formatLocalUso = (localUso) => {
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('pt-BR');
+};
+
+const formatRelativeTime = (dateString) => {
+    if (!dateString) return null;
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return null;
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) return 'hoje';
+        if (diffDays === 1) return 'há 1 dia';
+        if (diffDays < 30) return `há ${diffDays} dias`;
+        if (diffDays < 60) return 'há 1 mês';
+        const diffMonths = Math.floor(diffDays / 30);
+        if (diffMonths < 12) return `há ${diffMonths} meses`;
+        const diffYears = Math.floor(diffDays / 365);
+        return `há ${diffYears} ${diffYears === 1 ? 'ano' : 'anos'}`;
+    } catch (e) {
+        return null;
+    }
 };
 
 export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false }) {
@@ -309,6 +332,18 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             }
         }
 
+        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, buscar
+        if (field === 'imprimir' && value === true && currentItem.produto_id && !currentItem.ultima_aquisicao) {
+            const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
+            if (pacienteId) {
+                const dadosAquisicao = buscarDadosAquisicao(currentItem.produto_id, pacienteId);
+                if (dadosAquisicao.ultima_aquisicao) {
+                    newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
+                    newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao;
+                }
+            }
+        }
+
         setData('itens', newItens);
     };
 
@@ -565,6 +600,29 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                 ({data.itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
                                             </span>
                                         </div>
+                                        {/* Cabeçalhos da tabela */}
+                                        <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                            <div className="w-4 flex-shrink-0"></div>
+                                            <div className="w-36 flex-shrink-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
+                                            </div>
+                                            <div className="flex-[2] min-w-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
+                                            </div>
+                                            <div className="flex-[0.8] min-w-0"></div>
+                                            <div className="w-36 flex-shrink-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                                            </div>
+                                            <div className="w-14 flex-shrink-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                            </div>
+                                            {!isMedico && (
+                                                <div className="w-20 flex-shrink-0 text-right">
+                                                    <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                                </div>
+                                            )}
+                                            {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
+                                        </div>
                                         <div className="space-y-1 mb-2">
                                             {data.itens.map((item, index) => {
                                                 if (item.grupo !== 'recomendado') return null;
@@ -597,7 +655,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             value={item.produto_id}
                                                             onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
                                                             disabled={isReadOnly}
-                                                            className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
                                                         >
                                                             <option value="">Produto...</option>
                                                             {produtos?.map((p) => (
@@ -613,37 +671,52 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                                                         />
                                                         {/* Data de Aquisição */}
-                                                        <div className="w-40 flex-shrink-0 flex items-center gap-1.5">
+                                                        <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
                                                             {ultimaAquisicao && ultimaAquisicao !== '-' ? (
-                                                                <>
-                                                                    <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
-                                                                        UA
-                                                                    </span>
+                                                                <div className="flex items-center gap-1.5">
                                                                     {temHistorico && datasAquisicao.length > 1 ? (
                                                                         <Tippy
                                                                             content={
-                                                                                <div className="text-xs">
-                                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
-                                                                                    {datasAquisicao.map((data, idx) => (
-                                                                                        <div key={idx}>{formatDate(data)}</div>
-                                                                                    ))}
+                                                                                <div className="text-xs py-1">
+                                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
+                                                                                    <div className="space-y-1">
+                                                                                        {datasAquisicao.map((data, idx) => (
+                                                                                            <div key={idx} className="text-gray-700">
+                                                                                                {formatDate(data)}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
                                                                                 </div>
                                                                             }
                                                                             placement="top"
                                                                             interactive={true}
+                                                                            theme="light-border"
                                                                         >
-                                                                            <span className="text-xs text-gray-600 cursor-help underline decoration-dotted hover:text-gray-800">
-                                                                                {formatDate(ultimaAquisicao)}
+                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
+                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
+                                                                                    +{datasAquisicao.length - 1}
+                                                                                </span>
                                                                             </span>
                                                                         </Tippy>
                                                                     ) : (
-                                                                        <span className="text-xs text-gray-600">
-                                                                            {formatDate(ultimaAquisicao)}
-                                                                        </span>
+                                                                        <Tippy
+                                                                            content={
+                                                                                <div className="text-xs text-gray-700">
+                                                                                    {formatDate(ultimaAquisicao)}
+                                                                                </div>
+                                                                            }
+                                                                            placement="top"
+                                                                            theme="light-border"
+                                                                        >
+                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
+                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                            </span>
+                                                                        </Tippy>
                                                                     )}
-                                                                </>
+                                                                </div>
                                                             ) : (
-                                                                <span className="text-xs text-gray-400">-</span>
+                                                                <span className="text-xs text-gray-400">—</span>
                                                             )}
                                                         </div>
                                                         <input
@@ -700,6 +773,29 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                 ({data.itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
                                             </span>
                                         </div>
+                                        {/* Cabeçalhos da tabela */}
+                                        <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                            <div className="w-4 flex-shrink-0"></div>
+                                            <div className="w-36 flex-shrink-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
+                                            </div>
+                                            <div className="flex-[2] min-w-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
+                                            </div>
+                                            <div className="flex-[0.8] min-w-0"></div>
+                                            <div className="w-36 flex-shrink-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                                            </div>
+                                            <div className="w-14 flex-shrink-0">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                            </div>
+                                            {!isMedico && (
+                                                <div className="w-20 flex-shrink-0 text-right">
+                                                    <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                                </div>
+                                            )}
+                                            {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
+                                        </div>
                                         <div className="space-y-1">
                                             {data.itens.map((item, index) => {
                                                 if (item.grupo !== 'opcional') return null;
@@ -732,7 +828,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             value={item.produto_id}
                                                             onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
                                                             disabled={isReadOnly}
-                                                            className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
                                                         >
                                                             <option value="">Produto...</option>
                                                             {produtos?.map((p) => (
@@ -748,37 +844,52 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                                                         />
                                                         {/* Data de Aquisição */}
-                                                        <div className="w-40 flex-shrink-0 flex items-center gap-1.5">
+                                                        <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
                                                             {ultimaAquisicao && ultimaAquisicao !== '-' ? (
-                                                                <>
-                                                                    <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
-                                                                        UA
-                                                                    </span>
+                                                                <div className="flex items-center gap-1.5">
                                                                     {temHistorico && datasAquisicao.length > 1 ? (
                                                                         <Tippy
                                                                             content={
-                                                                                <div className="text-xs">
-                                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
-                                                                                    {datasAquisicao.map((data, idx) => (
-                                                                                        <div key={idx}>{formatDate(data)}</div>
-                                                                                    ))}
+                                                                                <div className="text-xs py-1">
+                                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
+                                                                                    <div className="space-y-1">
+                                                                                        {datasAquisicao.map((data, idx) => (
+                                                                                            <div key={idx} className="text-gray-700">
+                                                                                                {formatDate(data)}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
                                                                                 </div>
                                                                             }
                                                                             placement="top"
                                                                             interactive={true}
+                                                                            theme="light-border"
                                                                         >
-                                                                            <span className="text-xs text-gray-600 cursor-help underline decoration-dotted hover:text-gray-800">
-                                                                                {formatDate(ultimaAquisicao)}
+                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
+                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
+                                                                                    +{datasAquisicao.length - 1}
+                                                                                </span>
                                                                             </span>
                                                                         </Tippy>
                                                                     ) : (
-                                                                        <span className="text-xs text-gray-600">
-                                                                            {formatDate(ultimaAquisicao)}
-                                                                        </span>
+                                                                        <Tippy
+                                                                            content={
+                                                                                <div className="text-xs text-gray-700">
+                                                                                    {formatDate(ultimaAquisicao)}
+                                                                                </div>
+                                                                            }
+                                                                            placement="top"
+                                                                            theme="light-border"
+                                                                        >
+                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
+                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                            </span>
+                                                                        </Tippy>
                                                                     )}
-                                                                </>
+                                                                </div>
                                                             ) : (
-                                                                <span className="text-xs text-gray-400">-</span>
+                                                                <span className="text-xs text-gray-400">—</span>
                                                             )}
                                                         </div>
                                                         <input
@@ -1110,29 +1221,52 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                                 const datasAquisicao = item.datas_aquisicao || (item.aquisicoes ? item.aquisicoes.map(a => a.data_aquisicao) : []);
                                                                                 const temHistorico = datasAquisicao.length > 1;
                                                                                 
-                                                                                if (!ultimaAquisicao) return <span>-</span>;
+                                                                                if (!ultimaAquisicao) return <span className="text-gray-400">—</span>;
                                                                                 
                                                                                 if (temHistorico) {
                                                                                     return (
                                                                                         <Tippy
                                                                                             content={
-                                                                                                <div className="text-xs">
-                                                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
-                                                                                                    {datasAquisicao.map((data, idx) => (
-                                                                                                        <div key={idx}>{formatDate(data)}</div>
-                                                                                                    ))}
+                                                                                                <div className="text-xs py-1">
+                                                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
+                                                                                                    <div className="space-y-1">
+                                                                                                        {datasAquisicao.map((data, idx) => (
+                                                                                                            <div key={idx} className="text-gray-700">
+                                                                                                                {formatDate(data)}
+                                                                                                            </div>
+                                                                                                        ))}
+                                                                                                    </div>
                                                                                                 </div>
                                                                                             }
                                                                                             placement="top"
+                                                                                            interactive={true}
+                                                                                            theme="light-border"
                                                                                         >
-                                                                                            <span className="cursor-help underline decoration-dotted">
-                                                                                                {formatDate(ultimaAquisicao)}
+                                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
+                                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
+                                                                                                    +{datasAquisicao.length - 1}
+                                                                                                </span>
                                                                                             </span>
                                                                                         </Tippy>
                                                                                     );
                                                                                 }
                                                                                 
-                                                                                return <span>{formatDate(ultimaAquisicao)}</span>;
+                                                                                return (
+                                                                                    <Tippy
+                                                                                        content={
+                                                                                            <div className="text-xs text-gray-700">
+                                                                                                {formatDate(ultimaAquisicao)}
+                                                                                            </div>
+                                                                                        }
+                                                                                        placement="top"
+                                                                                        theme="light-border"
+                                                                                    >
+                                                                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors inline-flex">
+                                                                                            <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                        </span>
+                                                                                    </Tippy>
+                                                                                );
                                                                             })()}
                                                                         </td>
                                                                     </tr>

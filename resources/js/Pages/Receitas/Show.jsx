@@ -3,6 +3,7 @@ import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
+import 'tippy.js/themes/light-border.css';
 
 export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const { auth } = usePage().props;
@@ -10,10 +11,32 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const [showCopiarModal, setShowCopiarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        return new Date(dateString).toLocaleDateString('pt-BR');
-    };
+const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('pt-BR');
+};
+
+const formatRelativeTime = (dateString) => {
+    if (!dateString) return null;
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return null;
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) return 'hoje';
+        if (diffDays === 1) return 'há 1 dia';
+        if (diffDays < 30) return `há ${diffDays} dias`;
+        if (diffDays < 60) return 'há 1 mês';
+        const diffMonths = Math.floor(diffDays / 30);
+        if (diffMonths < 12) return `há ${diffMonths} meses`;
+        const diffYears = Math.floor(diffDays / 365);
+        return `há ${diffYears} ${diffYears === 1 ? 'ano' : 'anos'}`;
+    } catch (e) {
+        return null;
+    }
+};
 
     const getStatusBadge = (status) => {
         const badges = {
@@ -106,28 +129,45 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
                                             )}
                                             {item.ultima_aquisicao && (
                                                 <div className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
-                                                    <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
-                                                        UA
-                                                    </span>
                                                     {item.datas_aquisicao?.length > 1 ? (
                                                         <Tippy
                                                             content={
-                                                                <div className="text-xs">
-                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
-                                                                    {item.datas_aquisicao.map((data, idx) => (
-                                                                        <div key={idx}>{formatDate(data)}</div>
-                                                                    ))}
+                                                                <div className="text-xs py-1">
+                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
+                                                                    <div className="space-y-1">
+                                                                        {item.datas_aquisicao.map((data, idx) => (
+                                                                            <div key={idx} className="text-gray-700">
+                                                                                {formatDate(data)}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
                                                             }
                                                             placement="top"
                                                             interactive={true}
+                                                            theme="light-border"
                                                         >
-                                                            <span className="cursor-help underline decoration-dotted hover:text-gray-700">
-                                                                {formatDate(item.ultima_aquisicao)}
+                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
+                                                                <span>{formatRelativeTime(item.ultima_aquisicao) || formatDate(item.ultima_aquisicao)}</span>
+                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
+                                                                    +{item.datas_aquisicao.length - 1}
+                                                                </span>
                                                             </span>
                                                         </Tippy>
                                                     ) : (
-                                                        <span>{formatDate(item.ultima_aquisicao)}</span>
+                                                        <Tippy
+                                                            content={
+                                                                <div className="text-xs text-gray-700">
+                                                                    {formatDate(item.ultima_aquisicao)}
+                                                                </div>
+                                                            }
+                                                            placement="top"
+                                                            theme="light-border"
+                                                        >
+                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
+                                                                <span>{formatRelativeTime(item.ultima_aquisicao) || formatDate(item.ultima_aquisicao)}</span>
+                                                            </span>
+                                                        </Tippy>
                                                     )}
                                                 </div>
                                             )}

@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
+import 'tippy.js/themes/light-border.css';
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -38,6 +39,28 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
 };
 
+const formatRelativeTime = (dateString) => {
+    if (!dateString) return null;
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return null;
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) return 'hoje';
+        if (diffDays === 1) return 'há 1 dia';
+        if (diffDays < 30) return `há ${diffDays} dias`;
+        if (diffDays < 60) return 'há 1 mês';
+        const diffMonths = Math.floor(diffDays / 30);
+        if (diffMonths < 12) return `há ${diffMonths} meses`;
+        const diffYears = Math.floor(diffDays / 365);
+        return `há ${diffYears} ${diffYears === 1 ? 'ano' : 'anos'}`;
+    } catch (e) {
+        return null;
+    }
+};
+
 /**
  * ProductItemsEditor - Componente reutilizável para edição de produtos em receitas
  * 
@@ -59,6 +82,7 @@ const formatDate = (dateString) => {
  * - compact: layout compacto para Call Center
  * - errors: objeto de erros de validação
  * - itensComAquisicoes: objeto mapeando item_id para dados de aquisição {ultima_aquisicao, datas_aquisicao}
+ * - itensOriginais: array opcional com os itens originais carregados do backend (para buscar dados de aquisição)
  */
 export default function ProductItemsEditor({
     itens = [],
@@ -78,6 +102,7 @@ export default function ProductItemsEditor({
     compact = false,
     errors = {},
     itensComAquisicoes = {},
+    itensOriginais = [],
 }) {
     const lastItemRef = useRef(null);
 
@@ -110,7 +135,8 @@ export default function ProductItemsEditor({
 
     const updateItem = (index, field, value) => {
         const newItens = [...itens];
-        newItens[index] = { ...newItens[index], [field]: value };
+        const currentItem = newItens[index];
+        newItens[index] = { ...currentItem, [field]: value };
 
         // Se mudou o produto, atualiza o preco e local_uso padrao
         if (field === 'produto_id') {
@@ -118,6 +144,59 @@ export default function ProductItemsEditor({
             if (produto) {
                 newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
+                
+                // Buscar dados de aquisição se disponíveis
+                if (itensComAquisicoes[currentItem.id]) {
+                    const dadosAquisicao = itensComAquisicoes[currentItem.id];
+                    newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
+                    newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
+                }
+            }
+        }
+
+        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, buscar
+        if (field === 'imprimir' && value === true && currentItem.produto_id && !currentItem.ultima_aquisicao) {
+            // Primeiro tentar buscar pelo ID do item nos itensComAquisicoes
+            const itemId = currentItem.id;
+            if (itemId && itensComAquisicoes[itemId]) {
+                const dadosAquisicao = itensComAquisicoes[itemId];
+                newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
+                newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
+            } else if (itensOriginais.length > 0) {
+                // Buscar nos itens originais por produto_id
+                const itemOriginal = itensOriginais.find(i => 
+                    i.produto_id === currentItem.produto_id && 
+                    (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
+                );
+                
+                if (itemOriginal) {
+                    newItens[index].ultima_aquisicao = itemOriginal.ultima_aquisicao;
+                    newItens[index].datas_aquisicao = itemOriginal.datas_aquisicao || [];
+                }
+            } else {
+                // Buscar em todos os itens atuais que têm o mesmo produto_id e já têm dados de aquisição
+                const itensComMesmoProduto = itens.filter(i => 
+                    i.produto_id === currentItem.produto_id && 
+                    (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
+                );
+                
+                if (itensComMesmoProduto.length > 0) {
+                    const primeiroItem = itensComMesmoProduto[0];
+                    newItens[index].ultima_aquisicao = primeiroItem.ultima_aquisicao;
+                    newItens[index].datas_aquisicao = primeiroItem.datas_aquisicao || [];
+                } else {
+                    // Tentar buscar nos itensComAquisicoes por produto_id
+                    const itemComAquisicao = Object.entries(itensComAquisicoes).find(([key, _]) => {
+                        const originalItem = itens.find(i => i.id === parseInt(key));
+                        return originalItem && originalItem.produto_id === currentItem.produto_id;
+                    });
+                    
+                    if (itemComAquisicao) {
+                        const [, dadosAquisicao] = itemComAquisicao;
+                        newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
+                        newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
+                    }
+                }
             }
         }
 
@@ -186,7 +265,7 @@ export default function ProductItemsEditor({
                     value={item.produto_id}
                     onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
                     disabled={readOnly}
-                    className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
                 >
                     <option value="">Produto...</option>
                     {produtos?.map((p) => (
@@ -205,37 +284,52 @@ export default function ProductItemsEditor({
                 />
                 
                 {/* Data de Aquisição */}
-                <div className="w-40 flex-shrink-0 flex items-center gap-1.5">
+                <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
                     {ultimaAquisicao && ultimaAquisicao !== '-' ? (
-                        <>
-                            <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
-                                UA
-                            </span>
+                        <div className="flex items-center gap-1.5">
                             {temHistorico && datasAquisicao.length > 1 ? (
                                 <Tippy
                                     content={
-                                        <div className="text-xs">
-                                            <div className="font-medium mb-1">Histórico de aquisições:</div>
-                                            {datasAquisicao.map((data, idx) => (
-                                                <div key={idx}>{formatDate(data)}</div>
-                                            ))}
+                                        <div className="text-xs py-1">
+                                            <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
+                                            <div className="space-y-1">
+                                                {datasAquisicao.map((data, idx) => (
+                                                    <div key={idx} className="text-gray-700">
+                                                        {formatDate(data)}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     }
                                     placement="top"
                                     interactive={true}
+                                    theme="light-border"
                                 >
-                                    <span className="text-xs text-gray-600 cursor-help underline decoration-dotted hover:text-gray-800">
-                                        {formatDate(ultimaAquisicao)}
+                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
+                                        <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                        <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
+                                            +{datasAquisicao.length - 1}
+                                        </span>
                                     </span>
                                 </Tippy>
                             ) : (
-                                <span className="text-xs text-gray-600">
-                                    {formatDate(ultimaAquisicao)}
-                                </span>
+                                <Tippy
+                                    content={
+                                        <div className="text-xs text-gray-700">
+                                            {formatDate(ultimaAquisicao)}
+                                        </div>
+                                    }
+                                    placement="top"
+                                    theme="light-border"
+                                >
+                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
+                                        <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                    </span>
+                                </Tippy>
                             )}
-                        </>
+                        </div>
                     ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-gray-400">—</span>
                     )}
                 </div>
                 
@@ -334,6 +428,29 @@ export default function ProductItemsEditor({
                                     ({itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
                                 </span>
                             </div>
+                            {/* Cabeçalhos da tabela */}
+                            <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                <div className="w-4 flex-shrink-0"></div>
+                                <div className="w-36 flex-shrink-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
+                                </div>
+                                <div className="flex-[2] min-w-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
+                                </div>
+                                <div className="flex-[0.8] min-w-0"></div>
+                                <div className="w-36 flex-shrink-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                                </div>
+                                <div className="w-14 flex-shrink-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                </div>
+                                {showPrices && (
+                                    <div className="w-20 flex-shrink-0 text-right">
+                                        <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                    </div>
+                                )}
+                                {!readOnly && <div className="w-8 flex-shrink-0"></div>}
+                            </div>
                             <div className="space-y-1">
                                 {itens.map((item, index) => 
                                     item.grupo === 'recomendado' && renderItemRow(item, index, index === itens.length - 1)
@@ -366,6 +483,29 @@ export default function ProductItemsEditor({
                                     ({itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
                                 </span>
                             </div>
+                            {/* Cabeçalhos da tabela */}
+                            <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                <div className="w-4 flex-shrink-0"></div>
+                                <div className="w-36 flex-shrink-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
+                                </div>
+                                <div className="flex-[2] min-w-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
+                                </div>
+                                <div className="flex-[0.8] min-w-0"></div>
+                                <div className="w-36 flex-shrink-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                                </div>
+                                <div className="w-14 flex-shrink-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                </div>
+                                {showPrices && (
+                                    <div className="w-20 flex-shrink-0 text-right">
+                                        <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                    </div>
+                                )}
+                                {!readOnly && <div className="w-8 flex-shrink-0"></div>}
+                            </div>
                             <div className="space-y-1">
                                 {itens.map((item, index) => 
                                     item.grupo === 'opcional' && renderItemRow(item, index, index === itens.length - 1)
@@ -376,6 +516,29 @@ export default function ProductItemsEditor({
                 ) : (
                     // Sem grupos - lista simples
                     <>
+                        {/* Cabeçalhos da tabela */}
+                        <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                            <div className="w-4 flex-shrink-0"></div>
+                            <div className="w-36 flex-shrink-0">
+                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
+                            </div>
+                            <div className="flex-[2] min-w-0">
+                                <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
+                            </div>
+                            <div className="flex-[0.8] min-w-0"></div>
+                            <div className="w-36 flex-shrink-0">
+                                <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                            </div>
+                            <div className="w-14 flex-shrink-0">
+                                <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                            </div>
+                            {showPrices && (
+                                <div className="w-20 flex-shrink-0 text-right">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                </div>
+                            )}
+                            {!readOnly && <div className="w-8 flex-shrink-0"></div>}
+                        </div>
                         <div className="space-y-1">
                             {itens.map((item, index) => renderItemRow(item, index, index === itens.length - 1))}
                         </div>
