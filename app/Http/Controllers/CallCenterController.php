@@ -56,10 +56,36 @@ class CallCenterController extends Controller
             'paciente.medico',
             'medico',
             'receita.itens.produto',
+            'receita.itens.aquisicoes',
             'usuario',
             'usuarioAlteracao',
             'acompanhamentos.usuario',
         ]);
+
+        // Format acquisition dates for each item
+        // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
+        if ($atendimento->receita && $atendimento->receita->itens) {
+            $atendimento->receita->itens->each(function ($item) use ($atendimento) {
+                if (!$item->produto_id) {
+                    $item->ultima_aquisicao = null;
+                    $item->datas_aquisicao = [];
+                    return;
+                }
+                
+                // Buscar todas as aquisições deste produto para este paciente em todas as receitas
+                $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($atendimento, $item) {
+                    $query->where('produto_id', $item->produto_id)
+                          ->whereHas('receita', function ($q) use ($atendimento) {
+                              $q->where('paciente_id', $atendimento->paciente_id);
+                          });
+                })->orderByDesc('data_aquisicao')->get();
+
+                $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
+                
+                $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
+                $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
+            });
+        }
 
         $statusOptions = AtendimentoCallcenter::getStatusOptions();
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'preco_venda', 'local_uso']);
@@ -240,6 +266,11 @@ class CallCenterController extends Controller
                 \App\Jobs\SyncVendaTinyJob::dispatch($atendimento)
                     ->delay(now()->addMinute());
             }
+        }
+
+        // Register acquisition date when status changes to finalizado (sale completed)
+        if ($novoStatus === AtendimentoCallcenter::STATUS_FINALIZADO && $statusAnterior !== $novoStatus) {
+            $this->registrarDatasAquisicao($atendimento);
         }
 
         return back()->with('success', 'Status atualizado com sucesso!');

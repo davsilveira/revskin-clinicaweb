@@ -105,9 +105,11 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
                                                 </div>
                                             )}
                                             {item.ultima_aquisicao && (
-                                                <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                                                    <span>Última aquisição: {formatDate(item.ultima_aquisicao)}</span>
-                                                    {item.datas_aquisicao?.length > 1 && (
+                                                <div className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
+                                                    <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
+                                                        UA
+                                                    </span>
+                                                    {item.datas_aquisicao?.length > 1 ? (
                                                         <Tippy
                                                             content={
                                                                 <div className="text-xs">
@@ -118,13 +120,14 @@ export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
                                                                 </div>
                                                             }
                                                             placement="top"
+                                                            interactive={true}
                                                         >
-                                                            <button type="button" className="text-emerald-600 hover:text-emerald-700">
-                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                            </button>
+                                                            <span className="cursor-help underline decoration-dotted hover:text-gray-700">
+                                                                {formatDate(item.ultima_aquisicao)}
+                                                            </span>
                                                         </Tippy>
+                                                    ) : (
+                                                        <span>{formatDate(item.ultima_aquisicao)}</span>
                                                     )}
                                                 </div>
                                             )}

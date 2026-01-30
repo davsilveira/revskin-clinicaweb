@@ -1,4 +1,6 @@
 import { useRef } from 'react';
+import Tippy from '@tippyjs/react';
+import 'tippy.js/dist/tippy.css';
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -31,6 +33,11 @@ const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('pt-BR');
+};
+
 /**
  * ProductItemsEditor - Componente reutilizável para edição de produtos em receitas
  * 
@@ -51,6 +58,7 @@ const formatCurrency = (value) => {
  * - readOnly: desabilitar edição
  * - compact: layout compacto para Call Center
  * - errors: objeto de erros de validação
+ * - itensComAquisicoes: objeto mapeando item_id para dados de aquisição {ultima_aquisicao, datas_aquisicao}
  */
 export default function ProductItemsEditor({
     itens = [],
@@ -69,6 +77,7 @@ export default function ProductItemsEditor({
     readOnly = false,
     compact = false,
     errors = {},
+    itensComAquisicoes = {},
 }) {
     const lastItemRef = useRef(null);
 
@@ -139,86 +148,129 @@ export default function ProductItemsEditor({
     };
 
     // Renderizar linha de item
-    const renderItemRow = (item, index, isLastItem) => (
-        <div 
-            key={index} 
-            ref={isLastItem ? lastItemRef : null}
-            className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${
-                item.imprimir 
-                    ? (item.grupo === 'opcional' ? 'hover:bg-gray-50' : 'hover:bg-emerald-50/50') 
-                    : 'bg-gray-50 opacity-50'
-            }`}
-        >
-            {/* Checkbox */}
-            <input
-                type="checkbox"
-                checked={item.imprimir}
-                onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                disabled={readOnly}
-                className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-            />
-            
-            {/* Local de Uso */}
-            <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                    {formatLocalUso(item.local_uso)}
-                </span>
-            </div>
-            
-            {/* Produto Select */}
-            <select
-                value={item.produto_id}
-                onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
-                disabled={readOnly}
-                className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+    const renderItemRow = (item, index, isLastItem) => {
+        // Buscar dados de aquisição para este item
+        const aquisicaoData = item.id ? itensComAquisicoes[item.id] : null;
+        const ultimaAquisicao = aquisicaoData?.ultima_aquisicao || item.ultima_aquisicao;
+        const datasAquisicao = aquisicaoData?.datas_aquisicao || item.datas_aquisicao || [];
+        const temHistorico = datasAquisicao.length > 1;
+
+        return (
+            <div 
+                key={index} 
+                ref={isLastItem ? lastItemRef : null}
+                className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${
+                    item.imprimir 
+                        ? (item.grupo === 'opcional' ? 'hover:bg-gray-50' : 'hover:bg-emerald-50/50') 
+                        : 'bg-gray-50 opacity-50'
+                }`}
             >
-                <option value="">Produto...</option>
-                {produtos?.map((p) => (
-                    <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                ))}
-            </select>
-            
-            {/* Anotações */}
-            <input
-                type="text"
-                placeholder="Anotações..."
-                value={item.anotacoes || ''}
-                onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                disabled={readOnly}
-                className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
-            />
-            
-            {/* Quantidade */}
-            <input
-                type="number"
-                min="1"
-                value={item.quantidade}
-                onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                disabled={readOnly || !item.imprimir}
-                className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
-            />
-            
-            {/* Valor/Subtotal */}
-            {showPrices && (
-                <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                    {item.imprimir ? formatCurrency(calcularSubtotalItem(item)) : '-'}
-                </span>
-            )}
-            
-            {/* Remover */}
-            {!readOnly && (
-                <button 
-                    type="button" 
-                    onClick={() => removeItem(index)} 
-                    className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded"
+                {/* Checkbox */}
+                <input
+                    type="checkbox"
+                    checked={item.imprimir}
+                    onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
+                    disabled={readOnly}
+                    className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+                />
+                
+                {/* Local de Uso */}
+                <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
+                    <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
+                        {formatLocalUso(item.local_uso)}
+                    </span>
+                </div>
+                
+                {/* Produto Select */}
+                <select
+                    value={item.produto_id}
+                    onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                    disabled={readOnly}
+                    className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
                 >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                </button>
-            )}
-        </div>
-    );
+                    <option value="">Produto...</option>
+                    {produtos?.map((p) => (
+                        <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                    ))}
+                </select>
+                
+                {/* Anotações */}
+                <input
+                    type="text"
+                    placeholder="Anotações..."
+                    value={item.anotacoes || ''}
+                    onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
+                    disabled={readOnly}
+                    className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                />
+                
+                {/* Data de Aquisição */}
+                <div className="w-40 flex-shrink-0 flex items-center gap-1.5">
+                    {ultimaAquisicao && ultimaAquisicao !== '-' ? (
+                        <>
+                            <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
+                                UA
+                            </span>
+                            {temHistorico && datasAquisicao.length > 1 ? (
+                                <Tippy
+                                    content={
+                                        <div className="text-xs">
+                                            <div className="font-medium mb-1">Histórico de aquisições:</div>
+                                            {datasAquisicao.map((data, idx) => (
+                                                <div key={idx}>{formatDate(data)}</div>
+                                            ))}
+                                        </div>
+                                    }
+                                    placement="top"
+                                    interactive={true}
+                                >
+                                    <span className="text-xs text-gray-600 cursor-help underline decoration-dotted hover:text-gray-800">
+                                        {formatDate(ultimaAquisicao)}
+                                    </span>
+                                </Tippy>
+                            ) : (
+                                <span className="text-xs text-gray-600">
+                                    {formatDate(ultimaAquisicao)}
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                    )}
+                </div>
+                
+                {/* Quantidade */}
+                <input
+                    type="number"
+                    min="1"
+                    value={item.quantidade}
+                    onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                    disabled={readOnly || !item.imprimir}
+                    className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
+                />
+                
+                {/* Valor/Subtotal */}
+                {showPrices && (
+                    <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {item.imprimir ? formatCurrency(calcularSubtotalItem(item)) : '-'}
+                    </span>
+                )}
+                
+                {/* Remover */}
+                {!readOnly && (
+                    <button 
+                        type="button" 
+                        onClick={() => removeItem(index)} 
+                        className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                )}
+            </div>
+        );
+    };
 
     const itensRecomendados = itens.filter(item => item.grupo === 'recomendado');
     const itensOpcionais = itens.filter(item => item.grupo === 'opcional');

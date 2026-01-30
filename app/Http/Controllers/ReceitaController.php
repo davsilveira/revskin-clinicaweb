@@ -161,9 +161,26 @@ class ReceitaController extends Controller
         $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
 
         // Add acquisition dates to each item
-        $receita->itens->each(function ($item) {
-            $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
-            $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn($d) => $d->format('Y-m-d'))->toArray();
+        // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
+        $receita->itens->each(function ($item) use ($receita) {
+            if (!$item->produto_id) {
+                $item->ultima_aquisicao = null;
+                $item->datas_aquisicao = [];
+                return;
+            }
+            
+            // Buscar todas as aquisições deste produto para este paciente em todas as receitas
+            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
+                $query->where('produto_id', $item->produto_id)
+                      ->whereHas('receita', function ($q) use ($receita) {
+                          $q->where('paciente_id', $receita->paciente_id);
+                      });
+            })->orderByDesc('data_aquisicao')->get();
+
+            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
+            
+            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
+            $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
         });
 
         // Get other receitas from the same patient with items
@@ -183,7 +200,30 @@ class ReceitaController extends Controller
 
     public function edit(Request $request, Receita $receita): Response
     {
-        $receita->load(['paciente', 'medico', 'itens.produto', 'atendimentoCallcenter']);
+        $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+
+        // Format acquisition dates for current receita items
+        // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
+        $receita->itens->each(function ($item) use ($receita) {
+            if (!$item->produto_id) {
+                $item->ultima_aquisicao = null;
+                $item->datas_aquisicao = [];
+                return;
+            }
+            
+            // Buscar todas as aquisições deste produto para este paciente em todas as receitas
+            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
+                $query->where('produto_id', $item->produto_id)
+                      ->whereHas('receita', function ($q) use ($receita) {
+                          $q->where('paciente_id', $receita->paciente_id);
+                      });
+            })->orderByDesc('data_aquisicao')->get();
+
+            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
+            
+            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
+            $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
+        });
 
         $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
@@ -202,6 +242,14 @@ class ReceitaController extends Controller
             ->orderByDesc('data_receita')
             ->take(10)
             ->get();
+
+        // Format acquisition dates for previous receitas items
+        $receitasAnteriores->each(function ($r) {
+            $r->itens->each(function ($item) {
+                $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
+                $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn($d) => $d->format('Y-m-d'))->toArray();
+            });
+        });
 
         $user = $request->user();
         

@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
+import Tippy from '@tippyjs/react';
+import 'tippy.js/dist/tippy.css';
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -31,6 +33,11 @@ const formatLocalUso = (localUso) => {
     return localUsoLabels[key] || localUso;
 };
 
+const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('pt-BR');
+};
+
 export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false }) {
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
@@ -53,6 +60,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         valor_frete: receita?.valor_frete || 0,
         status: receita?.status || 'rascunho',
         itens: receita?.itens?.map(item => ({
+            id: item.id,
             produto_id: item.produto_id,
             local_uso: item.local_uso || '',
             anotacoes: item.anotacoes || '',
@@ -60,6 +68,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             valor_unitario: parseFloat(item.valor_unitario) || 0,
             imprimir: item.imprimir ?? true,
             grupo: item.grupo || 'recomendado',
+            ultima_aquisicao: item.ultima_aquisicao || null,
+            datas_aquisicao: item.datas_aquisicao || [],
         })) || [],
     });
 
@@ -106,6 +116,94 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         isSaving: isAutoSaving, 
         triggerAutoSave,
     } = useAutoSave(performAutoSave, 2000, canAutoSave);
+
+    // Função para buscar dados de aquisição de um produto para o paciente
+    const buscarDadosAquisicao = useCallback((produtoId, pacienteId) => {
+        if (!produtoId || !pacienteId) return { ultima_aquisicao: null, datas_aquisicao: [] };
+
+        // Buscar nas receitas anteriores já carregadas
+        const receitasComProduto = receitasAnteriores.filter(r => 
+            r.itens?.some(i => i.produto_id === produtoId)
+        );
+        
+        if (receitasComProduto.length > 0) {
+            const todasAquisicoes = [];
+            receitasComProduto.forEach(r => {
+                r.itens?.forEach(i => {
+                    if (i.produto_id === produtoId) {
+                        if (i.datas_aquisicao && i.datas_aquisicao.length > 0) {
+                            todasAquisicoes.push(...i.datas_aquisicao);
+                        } else if (i.ultima_aquisicao) {
+                            todasAquisicoes.push(i.ultima_aquisicao);
+                        }
+                    }
+                });
+            });
+            
+            const datasUnicas = [...new Set(todasAquisicoes)].sort().reverse();
+            if (datasUnicas.length > 0) {
+                return {
+                    ultima_aquisicao: datasUnicas[0],
+                    datas_aquisicao: datasUnicas,
+                };
+            }
+        }
+
+        return { ultima_aquisicao: null, datas_aquisicao: [] };
+    }, [receitasAnteriores]);
+
+    // Atualizar dados de aquisição quando receita mudar, paciente mudar ou receitas anteriores mudarem
+    const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
+    
+    useEffect(() => {
+        if (!pacienteId || data.itens.length === 0) return;
+        
+        const newItens = data.itens.map(item => {
+            // Se já tem dados de aquisição, manter
+            if (item.ultima_aquisicao) {
+                return item;
+            }
+            
+            // Se tem produto_id mas não tem dados de aquisição, buscar
+            if (item.produto_id) {
+                const itemOriginal = receita?.itens?.find(i => i.id === item.id);
+                
+                // Primeiro tentar usar dados do item original se disponível
+                if (itemOriginal && (itemOriginal.ultima_aquisicao || itemOriginal.datas_aquisicao?.length > 0)) {
+                    return {
+                        ...item,
+                        ultima_aquisicao: itemOriginal.ultima_aquisicao || null,
+                        datas_aquisicao: itemOriginal.datas_aquisicao || [],
+                    };
+                }
+                
+                // Se não tem no original, buscar nas receitas anteriores
+                const dadosAquisicao = buscarDadosAquisicao(item.produto_id, pacienteId);
+                if (dadosAquisicao.ultima_aquisicao) {
+                    return {
+                        ...item,
+                        ultima_aquisicao: dadosAquisicao.ultima_aquisicao,
+                        datas_aquisicao: dadosAquisicao.datas_aquisicao,
+                    };
+                }
+            }
+            
+            return item;
+        });
+        
+        // Verificar se há diferenças antes de atualizar (comparação profunda)
+        const hasChanges = newItens.some((item, index) => {
+            const original = data.itens[index];
+            if (!original) return false;
+            return item.ultima_aquisicao !== original.ultima_aquisicao || 
+                   JSON.stringify(item.datas_aquisicao || []) !== JSON.stringify(original.datas_aquisicao || []);
+        });
+        
+        if (hasChanges) {
+            setData('itens', newItens);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [receita?.id, pacienteId, receitasAnteriores.length]);
 
     // Trigger autosave when data changes
     useEffect(() => {
@@ -163,6 +261,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                 valor_unitario: 0,
                 imprimir: true,
                 grupo: 'recomendado',
+                ultima_aquisicao: null,
+                datas_aquisicao: [],
             },
         ]);
         // Scroll para o novo item após o DOM atualizar
@@ -179,7 +279,16 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
 
     const updateItem = (index, field, value) => {
         const newItens = [...data.itens];
-        newItens[index] = { ...newItens[index], [field]: value };
+        const currentItem = newItens[index];
+        
+        // Preservar dados de aquisição ao atualizar
+        newItens[index] = { 
+            ...currentItem, 
+            [field]: value,
+            // Preservar dados de aquisição se existirem
+            ultima_aquisicao: currentItem.ultima_aquisicao,
+            datas_aquisicao: currentItem.datas_aquisicao || [],
+        };
 
         // Se mudou o produto, atualiza o preco e local_uso padrao
         if (field === 'produto_id') {
@@ -187,6 +296,16 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             if (produto) {
                 newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
+                
+                // Buscar aquisições deste produto para este paciente
+                const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
+                if (pacienteId) {
+                    const dadosAquisicao = buscarDadosAquisicao(produto.id, pacienteId);
+                    if (dadosAquisicao.ultima_aquisicao) {
+                        newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
+                        newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao;
+                    }
+                }
             }
         }
 
@@ -276,7 +395,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         type="date"
                                         value={data.data_receita}
                                         onChange={(e) => setData('data_receita', e.target.value)}
-                                        className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                        disabled={isReadOnly}
+                                        className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     />
                                 </div>
                                 {!isMedico && (
@@ -288,7 +408,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             <select
                                                 value={data.medico_id}
                                                 onChange={(e) => setData('medico_id', e.target.value)}
-                                                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                disabled={isReadOnly || medicos?.length === 1}
+                                                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                             >
                                                 {medicos?.map((medico) => (
                                                     <option key={medico.id} value={medico.id}>{medico.nome}</option>
@@ -379,7 +500,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
                                     <input type="date" value={data.data_receita} onChange={(e) => setData('data_receita', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+                                        disabled={isReadOnly}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
 
                                 {/* Medico */}
@@ -387,8 +509,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
                                         <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                            disabled={medicos?.length === 1}>
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                            disabled={isReadOnly || medicos?.length === 1}>
                                             <option value="">Selecione</option>
                                             {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
                                         </select>
@@ -444,65 +566,109 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             </span>
                                         </div>
                                         <div className="space-y-1 mb-2">
-                                            {data.itens.map((item, index) => item.grupo === 'recomendado' && (
-                                                <div 
-                                                    key={index} 
-                                                    ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                    className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={item.imprimir}
-                                                        onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                                                        disabled={isReadOnly}
-                                                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-                                                    />
-                                                    <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                                                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                                                            {formatLocalUso(item.local_uso)}
-                                                        </span>
-                                                    </div>
-                                                    <select
-                                                        value={item.produto_id}
-                                                        onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
-                                                        disabled={isReadOnly}
-                                                        className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                            {data.itens.map((item, index) => {
+                                                if (item.grupo !== 'recomendado') return null;
+                                                
+                                                // Buscar dados de aquisição do item original se disponível
+                                                const itemOriginal = receita?.itens?.find(i => i.id === item.id);
+                                                const ultimaAquisicao = item.ultima_aquisicao || itemOriginal?.ultima_aquisicao;
+                                                const datasAquisicao = item.datas_aquisicao || itemOriginal?.datas_aquisicao || [];
+                                                const temHistorico = datasAquisicao && datasAquisicao.length > 1;
+                                                
+                                                return (
+                                                    <div 
+                                                        key={index} 
+                                                        ref={index === data.itens.length - 1 ? lastItemRef : null}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
                                                     >
-                                                        <option value="">Produto...</option>
-                                                        {produtos?.map((p) => (
-                                                            <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                                                        ))}
-                                                    </select>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Anotações..."
-                                                        value={item.anotacoes || ''}
-                                                        onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                                                        disabled={isReadOnly}
-                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
-                                                    />
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        value={item.quantidade}
-                                                        onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                                        disabled={isReadOnly || !item.imprimir}
-                                                        className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
-                                                    />
-                                                    {!isMedico && (
-                                                        <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                            {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
-                                                        </span>
-                                                    )}
-                                                    {!isReadOnly && (
-                                                        <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={item.imprimir}
+                                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
+                                                            disabled={isReadOnly}
+                                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+                                                        />
+                                                        <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
+                                                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
+                                                                {formatLocalUso(item.local_uso)}
+                                                            </span>
+                                                        </div>
+                                                        <select
+                                                            value={item.produto_id}
+                                                            onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                                            disabled={isReadOnly}
+                                                            className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                        >
+                                                            <option value="">Produto...</option>
+                                                            {produtos?.map((p) => (
+                                                                <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                                                            ))}
+                                                        </select>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Anotações..."
+                                                            value={item.anotacoes || ''}
+                                                            onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
+                                                            disabled={isReadOnly}
+                                                            className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                                        />
+                                                        {/* Data de Aquisição */}
+                                                        <div className="w-40 flex-shrink-0 flex items-center gap-1.5">
+                                                            {ultimaAquisicao && ultimaAquisicao !== '-' ? (
+                                                                <>
+                                                                    <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
+                                                                        UA
+                                                                    </span>
+                                                                    {temHistorico && datasAquisicao.length > 1 ? (
+                                                                        <Tippy
+                                                                            content={
+                                                                                <div className="text-xs">
+                                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
+                                                                                    {datasAquisicao.map((data, idx) => (
+                                                                                        <div key={idx}>{formatDate(data)}</div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            }
+                                                                            placement="top"
+                                                                            interactive={true}
+                                                                        >
+                                                                            <span className="text-xs text-gray-600 cursor-help underline decoration-dotted hover:text-gray-800">
+                                                                                {formatDate(ultimaAquisicao)}
+                                                                            </span>
+                                                                        </Tippy>
+                                                                    ) : (
+                                                                        <span className="text-xs text-gray-600">
+                                                                            {formatDate(ultimaAquisicao)}
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400">-</span>
+                                                            )}
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={item.quantidade}
+                                                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                                                            disabled={isReadOnly || !item.imprimir}
+                                                            className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
+                                                        />
+                                                        {!isMedico && (
+                                                            <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                                {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
+                                                            </span>
+                                                        )}
+                                                        {!isReadOnly && (
+                                                            <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </>
                                 )}
@@ -535,65 +701,109 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             </span>
                                         </div>
                                         <div className="space-y-1">
-                                            {data.itens.map((item, index) => item.grupo === 'opcional' && (
-                                                <div 
-                                                    key={index} 
-                                                    ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                    className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={item.imprimir}
-                                                        onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                                                        disabled={isReadOnly}
-                                                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-                                                    />
-                                                    <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                                                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                                                            {formatLocalUso(item.local_uso)}
-                                                        </span>
-                                                    </div>
-                                                    <select
-                                                        value={item.produto_id}
-                                                        onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
-                                                        disabled={isReadOnly}
-                                                        className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                            {data.itens.map((item, index) => {
+                                                if (item.grupo !== 'opcional') return null;
+                                                
+                                                // Buscar dados de aquisição do item original se disponível
+                                                const itemOriginal = receita?.itens?.find(i => i.id === item.id);
+                                                const ultimaAquisicao = item.ultima_aquisicao || itemOriginal?.ultima_aquisicao;
+                                                const datasAquisicao = item.datas_aquisicao || itemOriginal?.datas_aquisicao || [];
+                                                const temHistorico = datasAquisicao && datasAquisicao.length > 1;
+                                                
+                                                return (
+                                                    <div 
+                                                        key={index} 
+                                                        ref={index === data.itens.length - 1 ? lastItemRef : null}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
                                                     >
-                                                        <option value="">Produto...</option>
-                                                        {produtos?.map((p) => (
-                                                            <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                                                        ))}
-                                                    </select>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Anotações..."
-                                                        value={item.anotacoes || ''}
-                                                        onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                                                        disabled={isReadOnly}
-                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
-                                                    />
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        value={item.quantidade}
-                                                        onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                                        disabled={isReadOnly || !item.imprimir}
-                                                        className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
-                                                    />
-                                                    {!isMedico && (
-                                                        <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                            {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
-                                                        </span>
-                                                    )}
-                                                    {!isReadOnly && (
-                                                        <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={item.imprimir}
+                                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
+                                                            disabled={isReadOnly}
+                                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+                                                        />
+                                                        <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
+                                                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
+                                                                {formatLocalUso(item.local_uso)}
+                                                            </span>
+                                                        </div>
+                                                        <select
+                                                            value={item.produto_id}
+                                                            onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                                            disabled={isReadOnly}
+                                                            className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                        >
+                                                            <option value="">Produto...</option>
+                                                            {produtos?.map((p) => (
+                                                                <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
+                                                            ))}
+                                                        </select>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Anotações..."
+                                                            value={item.anotacoes || ''}
+                                                            onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
+                                                            disabled={isReadOnly}
+                                                            className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                                        />
+                                                        {/* Data de Aquisição */}
+                                                        <div className="w-40 flex-shrink-0 flex items-center gap-1.5">
+                                                            {ultimaAquisicao && ultimaAquisicao !== '-' ? (
+                                                                <>
+                                                                    <span className="px-1.5 py-0.5 bg-gray-500 text-white text-[10px] font-semibold rounded">
+                                                                        UA
+                                                                    </span>
+                                                                    {temHistorico && datasAquisicao.length > 1 ? (
+                                                                        <Tippy
+                                                                            content={
+                                                                                <div className="text-xs">
+                                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
+                                                                                    {datasAquisicao.map((data, idx) => (
+                                                                                        <div key={idx}>{formatDate(data)}</div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            }
+                                                                            placement="top"
+                                                                            interactive={true}
+                                                                        >
+                                                                            <span className="text-xs text-gray-600 cursor-help underline decoration-dotted hover:text-gray-800">
+                                                                                {formatDate(ultimaAquisicao)}
+                                                                            </span>
+                                                                        </Tippy>
+                                                                    ) : (
+                                                                        <span className="text-xs text-gray-600">
+                                                                            {formatDate(ultimaAquisicao)}
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400">-</span>
+                                                            )}
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={item.quantidade}
+                                                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                                                            disabled={isReadOnly || !item.imprimir}
+                                                            className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
+                                                        />
+                                                        {!isMedico && (
+                                                            <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                                {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
+                                                            </span>
+                                                        )}
+                                                        {!isReadOnly && (
+                                                            <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -695,8 +905,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 <textarea
                                     value={data.anotacoes}
                                     onChange={(e) => setData('anotacoes', e.target.value)}
+                                    disabled={isReadOnly}
                                     rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     placeholder="Observações internas (não aparecem no PDF)..."
                                 />
                             </div>
@@ -705,8 +916,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 <textarea
                                     value={data.anotacoes_paciente}
                                     onChange={(e) => setData('anotacoes_paciente', e.target.value)}
+                                    disabled={isReadOnly}
                                     rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     placeholder="Instruções que aparecerão no PDF..."
                                 />
                             </div>
@@ -714,70 +926,72 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                     </div>
 
                     {/* Actions */}
-                    <div className="flex justify-end items-center bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-                        <div className="flex items-center gap-4">
-                            {/* Autosave indicator */}
-                            {(isAutoSaving || lastSavedText) && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1">
-                                    {isAutoSaving ? (
-                                        <>
-                                            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            <span>Salvando...</span>
-                                        </>
-                                    ) : lastSavedText ? (
-                                        <>
-                                            <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            <span>Salvo às {lastSavedText}</span>
-                                        </>
-                                    ) : null}
-                                </div>
-                            )}
-                            {!isReadOnly && (
-                                <div className="flex gap-2">
-                                    <button
-                                        type="submit"
-                                        disabled={processing || data.itens.length === 0}
-                                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-                                    >
-                                        {processing ? (
+                    {(isAutoSaving || lastSavedText || !isReadOnly) && (
+                        <div className="flex justify-end items-center bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+                            <div className="flex items-center gap-4">
+                                {/* Autosave indicator */}
+                                {(isAutoSaving || lastSavedText) && (
+                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                        {isAutoSaving ? (
                                             <>
-                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                 </svg>
-                                                Salvando...
+                                                <span>Salvando...</span>
                                             </>
-                                        ) : (
+                                        ) : lastSavedText ? (
                                             <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                 </svg>
-                                                Salvar
+                                                <span>Salvo às {lastSavedText}</span>
                                             </>
-                                        )}
-                                    </button>
-                                    {(isEditing || currentReceitaId) && data.status === 'rascunho' && (
+                                        ) : null}
+                                    </div>
+                                )}
+                                {!isReadOnly && (
+                                    <div className="flex gap-2">
                                         <button
-                                            type="button"
-                                            onClick={() => setShowFinalizarModal(true)}
+                                            type="submit"
                                             disabled={processing || data.itens.length === 0}
-                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+                                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
                                         >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            Finalizar
+                                            {processing ? (
+                                                <>
+                                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                    </svg>
+                                                    Salvando...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Salvar
+                                                </>
+                                            )}
                                         </button>
-                                    )}
-                                </div>
-                            )}
+                                        {(isEditing || currentReceitaId) && data.status === 'rascunho' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowFinalizarModal(true)}
+                                                disabled={processing || data.itens.length === 0}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Finalizar
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </form>
 
                 {/* Receitas Anteriores - Accordion */}
@@ -889,10 +1103,37 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             </td>
                                                                         )}
                                                                         <td className="px-2 py-1 text-gray-500">
-                                                                            {item.aquisicoes && item.aquisicoes.length > 0 
-                                                                                ? new Date(item.aquisicoes[item.aquisicoes.length - 1].data_aquisicao).toLocaleDateString('pt-BR')
-                                                                                : '-'
-                                                                            }
+                                                                            {(() => {
+                                                                                const ultimaAquisicao = item.ultima_aquisicao || (item.aquisicoes && item.aquisicoes.length > 0 
+                                                                                    ? item.aquisicoes[item.aquisicoes.length - 1].data_aquisicao 
+                                                                                    : null);
+                                                                                const datasAquisicao = item.datas_aquisicao || (item.aquisicoes ? item.aquisicoes.map(a => a.data_aquisicao) : []);
+                                                                                const temHistorico = datasAquisicao.length > 1;
+                                                                                
+                                                                                if (!ultimaAquisicao) return <span>-</span>;
+                                                                                
+                                                                                if (temHistorico) {
+                                                                                    return (
+                                                                                        <Tippy
+                                                                                            content={
+                                                                                                <div className="text-xs">
+                                                                                                    <div className="font-medium mb-1">Histórico de aquisições:</div>
+                                                                                                    {datasAquisicao.map((data, idx) => (
+                                                                                                        <div key={idx}>{formatDate(data)}</div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            }
+                                                                                            placement="top"
+                                                                                        >
+                                                                                            <span className="cursor-help underline decoration-dotted">
+                                                                                                {formatDate(ultimaAquisicao)}
+                                                                                            </span>
+                                                                                        </Tippy>
+                                                                                    );
+                                                                                }
+                                                                                
+                                                                                return <span>{formatDate(ultimaAquisicao)}</span>;
+                                                                            })()}
                                                                         </td>
                                                                     </tr>
                                                                 ))}

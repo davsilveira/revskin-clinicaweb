@@ -18,6 +18,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
     // Form for receita items
     const [itens, setItens] = useState(
         atendimento.receita?.itens?.map(item => ({
+            id: item.id,
             produto_id: item.produto_id,
             local_uso: item.local_uso || '',
             anotacoes: item.anotacoes || '',
@@ -25,8 +26,21 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
             valor_unitario: parseFloat(item.valor_unitario) || 0,
             imprimir: item.imprimir ?? true,
             grupo: item.grupo || 'recomendado',
+            ultima_aquisicao: item.ultima_aquisicao,
+            datas_aquisicao: item.datas_aquisicao || [],
         })) || []
     );
+
+    // Map acquisition data by item ID
+    const itensComAquisicoes = {};
+    atendimento.receita?.itens?.forEach(item => {
+        if (item.id) {
+            itensComAquisicoes[item.id] = {
+                ultima_aquisicao: item.ultima_aquisicao,
+                datas_aquisicao: item.datas_aquisicao || [],
+            };
+        }
+    });
     const [descontoPercentual, setDescontoPercentual] = useState(atendimento.receita?.desconto_percentual || 0);
     const [descontoMotivo, setDescontoMotivo] = useState(atendimento.receita?.desconto_motivo || '');
     const [valorFrete, setValorFrete] = useState(atendimento.receita?.valor_frete || 0);
@@ -289,6 +303,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                         showPrices={true}
                         showGroups={true}
                         readOnly={['em_producao', 'finalizado', 'cancelado'].includes(atendimento.status)}
+                        itensComAquisicoes={itensComAquisicoes}
                     />
                 </div>
             </div>
