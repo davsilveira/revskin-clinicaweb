@@ -186,7 +186,7 @@ export default function RelatoriosIndex({ medicos, relatorio }) {
                                                         href={`/receitas/${receita.id}`}
                                                         className="text-emerald-600 hover:text-emerald-700 font-medium"
                                                     >
-                                                        #{receita.id.toString().padStart(5, '0')}
+                                                        #{receita.numero}
                                                     </Link>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

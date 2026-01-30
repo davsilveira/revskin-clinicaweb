@@ -90,7 +90,7 @@ const formatRelativeTime = (dateString) => {
                     <div className="flex justify-between items-start mt-2">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">
-                                Receita #{receita.numero || receita.id.toString().padStart(5, '0')}
+                                Receita #{receita.numero}
                             </h1>
                             <p className="text-gray-500 mt-1">
                                 Criada em {new Date(receita.created_at).toLocaleDateString('pt-BR')}
@@ -401,7 +401,7 @@ const formatRelativeTime = (dateString) => {
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <span className="text-sm font-medium text-gray-900">
-                                                        #{r.numero || r.id.toString().padStart(5, '0')}
+                                                        #{r.numero}
                                                     </span>
                                                     <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${
                                                         r.status === 'finalizada' ? 'bg-green-100 text-green-700' :

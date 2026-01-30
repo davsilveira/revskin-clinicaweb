@@ -46,7 +46,7 @@ class HandleInertiaRequests extends Middleware
                 'id', 'nome', 'crm', 'especialidade', 'telefone1', 'telefone2',
                 'email1', 'cep', 'endereco', 'numero', 'complemento', 'bairro',
                 'cidade', 'uf', 'rodape_receita', 'assinatura_path'
-            ])->find($user->medico_id);
+            ])->with('enderecos')->find($user->medico_id);
         }
 
         if ($user && $user->isCallcenter()) {

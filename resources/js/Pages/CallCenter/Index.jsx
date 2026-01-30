@@ -169,7 +169,7 @@ export default function CallCenterIndex({ atendimentos, filters }) {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-medium text-gray-900">
-                                                #{atendimento.receita_id?.toString().padStart(5, '0')}
+                                                #{atendimento.receita?.numero}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">

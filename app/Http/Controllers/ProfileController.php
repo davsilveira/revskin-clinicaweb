@@ -99,17 +99,32 @@ class ProfileController extends Controller
             'telefone1' => 'nullable|string|max:20',
             'telefone2' => 'nullable|string|max:20',
             'email1' => 'nullable|email|max:255',
-            'cep' => 'nullable|string|max:10',
-            'endereco' => 'nullable|string|max:255',
-            'numero' => 'nullable|string|max:20',
-            'complemento' => 'nullable|string|max:255',
-            'bairro' => 'nullable|string|max:255',
-            'cidade' => 'nullable|string|max:255',
-            'uf' => 'nullable|string|max:2',
             'rodape_receita' => 'nullable|string',
+            'enderecos' => 'nullable|array',
+            'enderecos.*.nome' => 'required|string|max:100',
+            'enderecos.*.cep' => 'nullable|string|max:10',
+            'enderecos.*.endereco' => 'nullable|string|max:255',
+            'enderecos.*.numero' => 'nullable|string|max:20',
+            'enderecos.*.complemento' => 'nullable|string|max:255',
+            'enderecos.*.bairro' => 'nullable|string|max:255',
+            'enderecos.*.cidade' => 'nullable|string|max:255',
+            'enderecos.*.uf' => 'nullable|string|max:2',
         ]);
 
+        $enderecos = $validated['enderecos'] ?? [];
+        unset($validated['enderecos']);
+
+        // Update medico basic data
         $medico->update($validated);
+
+        // Sync enderecos
+        $medico->enderecos()->delete();
+        foreach ($enderecos as $index => $endereco) {
+            $medico->enderecos()->create([
+                ...$endereco,
+                'principal' => $index === 0,
+            ]);
+        }
 
         // Also update user name to match
         $user->update(['name' => $validated['nome']]);

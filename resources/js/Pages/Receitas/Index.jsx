@@ -121,7 +121,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                     <tr key={receita.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-medium text-gray-900">
-                                                #{receita.id.toString().padStart(5, '0')}
+                                                #{receita.numero}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">

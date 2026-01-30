@@ -188,7 +188,7 @@ class ReceitaController extends Controller
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
             ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
-            ->orderByDesc('data_receita')
+            ->orderByDesc('id')
             ->take(10)
             ->get();
 
@@ -239,7 +239,7 @@ class ReceitaController extends Controller
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
             ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
-            ->orderByDesc('data_receita')
+            ->orderByDesc('id')
             ->take(10)
             ->get();
 

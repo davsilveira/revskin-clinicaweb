@@ -10,7 +10,7 @@ export default function ProfileDrawer({ isOpen, onClose }) {
     const isMedico = auth.user?.role === 'medico';
     const [activeTab, setActiveTab] = useState('profile');
     const [toast, setToast] = useState(null);
-    const [loadingCep, setLoadingCep] = useState(false);
+    const [savingMedico, setSavingMedico] = useState(false);
 
     const profileForm = useForm({
         name: auth.user.name,
@@ -30,38 +30,64 @@ export default function ProfileDrawer({ isOpen, onClose }) {
         telefone1: auth.medico?.telefone1 || '',
         telefone2: auth.medico?.telefone2 || '',
         email1: auth.medico?.email1 || '',
-        cep: auth.medico?.cep || '',
-        endereco: auth.medico?.endereco || '',
-        numero: auth.medico?.numero || '',
-        complemento: auth.medico?.complemento || '',
-        bairro: auth.medico?.bairro || '',
-        cidade: auth.medico?.cidade || '',
-        uf: auth.medico?.uf || '',
         rodape_receita: auth.medico?.rodape_receita || '',
+        enderecos: auth.medico?.enderecos?.map(e => ({
+            nome: e.nome || '',
+            cep: e.cep || '',
+            endereco: e.endereco || '',
+            numero: e.numero || '',
+            complemento: e.complemento || '',
+            bairro: e.bairro || '',
+            cidade: e.cidade || '',
+            uf: e.uf || '',
+        })) || [],
     });
 
-    const buscarCep = useCallback(async () => {
-        const cepLimpo = medicoForm.data.cep?.replace(/\D/g, '');
+    const [loadingCepIndex, setLoadingCepIndex] = useState(null);
+
+    // Endereco management functions
+    const addEndereco = () => {
+        medicoForm.setData('enderecos', [...medicoForm.data.enderecos, { 
+            nome: '', cep: '', endereco: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '' 
+        }]);
+    };
+
+    const removeEndereco = (index) => {
+        const newEnderecos = [...medicoForm.data.enderecos];
+        newEnderecos.splice(index, 1);
+        medicoForm.setData('enderecos', newEnderecos);
+    };
+
+    const updateEndereco = (index, field, value) => {
+        const newEnderecos = [...medicoForm.data.enderecos];
+        newEnderecos[index] = { ...newEnderecos[index], [field]: value };
+        medicoForm.setData('enderecos', newEnderecos);
+    };
+
+    const buscarCepEndereco = useCallback(async (index) => {
+        const cepLimpo = medicoForm.data.enderecos[index]?.cep?.replace(/\D/g, '');
         if (!cepLimpo || cepLimpo.length < 8) return;
-        setLoadingCep(true);
+        setLoadingCepIndex(index);
         try {
             const response = await fetch(`/api/cep/${cepLimpo}`);
             const result = await response.json();
             if (result.success) {
-                medicoForm.setData(prev => ({
-                    ...prev,
+                const newEnderecos = [...medicoForm.data.enderecos];
+                newEnderecos[index] = {
+                    ...newEnderecos[index],
                     endereco: result.data.logradouro || '',
                     bairro: result.data.bairro || '',
                     cidade: result.data.localidade || '',
                     uf: result.data.uf || '',
-                }));
+                };
+                medicoForm.setData('enderecos', newEnderecos);
             }
         } catch (e) {
             console.error(e);
         } finally {
-            setLoadingCep(false);
+            setLoadingCepIndex(null);
         }
-    }, [medicoForm.data.cep]);
+    }, [medicoForm.data.enderecos]);
 
     const handleProfileUpdate = (e) => {
         e.preventDefault();
@@ -88,10 +114,37 @@ export default function ProfileDrawer({ isOpen, onClose }) {
 
     const handleMedicoUpdate = (e) => {
         e.preventDefault();
-        medicoForm.put('/profile/medico', {
+        
+        setSavingMedico(true);
+        
+        // Filter enderecos before submitting (only send those with nome filled)
+        const filteredEnderecos = medicoForm.data.enderecos.filter(e => e.nome && e.nome.trim());
+        
+        // Prepare data for submission
+        const submitData = {
+            ...medicoForm.data,
+            enderecos: filteredEnderecos,
+        };
+        
+        // Use router.put directly to avoid issues with transform
+        router.put('/profile/medico', submitData, {
             preserveScroll: true,
             onSuccess: () => {
+                // Update form data to reflect saved state
+                medicoForm.setData('enderecos', filteredEnderecos);
                 setToast({ message: 'Dados profissionais atualizados com sucesso!', type: 'success' });
+                setSavingMedico(false);
+                onClose();
+            },
+            onError: (errors) => {
+                // Set errors on form if any
+                Object.keys(errors).forEach(key => {
+                    medicoForm.setError(key, errors[key]);
+                });
+                setSavingMedico(false);
+            },
+            onFinish: () => {
+                setSavingMedico(false);
             },
         });
     };
@@ -285,48 +338,90 @@ export default function ProfileDrawer({ isOpen, onClose }) {
                                     onChange={(e) => medicoForm.setData('email1', e.target.value)}
                                 />
 
-                                <div className="border-t pt-4">
-                                    <h3 className="text-sm font-medium text-gray-900 mb-3">Endereço</h3>
-                                    <div className="grid grid-cols-6 gap-3">
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
-                                            <input
-                                                type="text"
-                                                value={medicoForm.data.cep}
-                                                onChange={(e) => medicoForm.setData('cep', e.target.value)}
-                                                onBlur={buscarCep}
-                                                placeholder="00000-000"
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                                            />
-                                            {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
-                                        </div>
-                                        <div className="col-span-4">
-                                            <Input label="Endereço" value={medicoForm.data.endereco} onChange={(e) => medicoForm.setData('endereco', e.target.value)} />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <Input label="Nº" value={medicoForm.data.numero} onChange={(e) => medicoForm.setData('numero', e.target.value)} />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <Input label="Complemento" value={medicoForm.data.complemento} onChange={(e) => medicoForm.setData('complemento', e.target.value)} />
-                                        </div>
-                                        <div className="col-span-3">
-                                            <Input label="Bairro" value={medicoForm.data.bairro} onChange={(e) => medicoForm.setData('bairro', e.target.value)} />
-                                        </div>
-                                        <div className="col-span-4">
-                                            <Input label="Cidade" value={medicoForm.data.cidade} onChange={(e) => medicoForm.setData('cidade', e.target.value)} />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <Select
-                                                label="UF"
-                                                value={medicoForm.data.uf}
-                                                onChange={(e) => medicoForm.setData('uf', e.target.value)}
-                                                options={[
-                                                    { value: '', label: 'UF' },
-                                                    ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))
-                                                ]}
-                                            />
-                                        </div>
+                                {/* Multiple Addresses Section */}
+                                <div className="border-t pt-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-sm font-medium text-gray-900">Endereços</h3>
+                                        <button
+                                            type="button"
+                                            onClick={addEndereco}
+                                            className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                            </svg>
+                                            Adicionar Endereço
+                                        </button>
                                     </div>
+                                    {medicoForm.data.enderecos.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {medicoForm.data.enderecos.map((endereco, index) => (
+                                                <div key={index} className="border border-gray-200 rounded-lg p-3 relative bg-gray-50/50">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeEndereco(index)}
+                                                        className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                    <div className="space-y-2">
+                                                        <div className="pr-6">
+                                                            <Input
+                                                                label="Nome do Endereço"
+                                                                placeholder="Ex: Consultório, Residência, Comercial..."
+                                                                value={endereco.nome}
+                                                                onChange={(e) => updateEndereco(index, 'nome', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="grid grid-cols-12 gap-2">
+                                                            <div className="col-span-3">
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={endereco.cep}
+                                                                    onChange={(e) => updateEndereco(index, 'cep', e.target.value)}
+                                                                    onBlur={() => buscarCepEndereco(index)}
+                                                                    placeholder="00000-000"
+                                                                    className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm"
+                                                                />
+                                                                {loadingCepIndex === index && <span className="text-xs text-gray-500">Buscando...</span>}
+                                                            </div>
+                                                            <div className="col-span-9">
+                                                                <Input label="Endereço" value={endereco.endereco} onChange={(e) => updateEndereco(index, 'endereco', e.target.value)} />
+                                                            </div>
+                                                            <div className="col-span-2">
+                                                                <Input label="Nº" value={endereco.numero} onChange={(e) => updateEndereco(index, 'numero', e.target.value)} />
+                                                            </div>
+                                                            <div className="col-span-4">
+                                                                <Input label="Complemento" value={endereco.complemento} onChange={(e) => updateEndereco(index, 'complemento', e.target.value)} />
+                                                            </div>
+                                                            <div className="col-span-6">
+                                                                <Input label="Bairro" value={endereco.bairro} onChange={(e) => updateEndereco(index, 'bairro', e.target.value)} />
+                                                            </div>
+                                                            <div className="col-span-9">
+                                                                <Input label="Cidade" value={endereco.cidade} onChange={(e) => updateEndereco(index, 'cidade', e.target.value)} />
+                                                            </div>
+                                                            <div className="col-span-3">
+                                                                <Select
+                                                                    label="UF"
+                                                                    value={endereco.uf}
+                                                                    onChange={(e) => updateEndereco(index, 'uf', e.target.value)}
+                                                                    options={[
+                                                                        { value: '', label: 'UF' },
+                                                                        ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))
+                                                                    ]}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">Clique em "Adicionar Endereço" para incluir endereços</p>
+                                    )}
                                 </div>
 
                                 <div className="border-t pt-4">
@@ -372,10 +467,10 @@ export default function ProfileDrawer({ isOpen, onClose }) {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={medicoForm.processing}
+                                        disabled={savingMedico}
                                         className="px-8 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-600/30"
                                     >
-                                        {medicoForm.processing ? 'Salvando...' : 'Salvar Alterações'}
+                                        {savingMedico ? 'Salvando...' : 'Salvar Alterações'}
                                     </button>
                                 </div>
                             </div>

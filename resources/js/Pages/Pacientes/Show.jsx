@@ -209,7 +209,7 @@ export default function PacienteShow({ paciente }) {
                                 <tbody className="divide-y divide-gray-200">
                                     {paciente.receitas.map((receita) => (
                                         <tr key={receita.id} className="hover:bg-gray-50">
-                                            <td className="px-4 py-3 text-sm text-gray-900">{receita.numero || `#${receita.id}`}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-900">{receita.numero}</td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{formatDate(receita.data_receita)}</td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{receita.medico?.nome || '-'}</td>
                                             <td className="px-4 py-3">

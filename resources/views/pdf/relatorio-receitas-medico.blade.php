@@ -185,7 +185,7 @@
         <tbody>
             @forelse($receitas as $receita)
                 <tr>
-                    <td>#{{ $receita->numero ?? str_pad($receita->id, 5, '0', STR_PAD_LEFT) }}</td>
+                    <td>#{{ $receita->numero }}</td>
                     <td>{{ $receita->data_receita->format('d/m/Y') }}</td>
                     <td>{{ $receita->paciente->nome ?? '-' }}</td>
                     @if(!$medico)
