@@ -5,7 +5,7 @@
     <title>Receita {{ $receita->numero }}</title>
     <style>
         @page {
-            margin: 25mm 20mm;
+            margin: 20mm 25mm;
         }
         * {
             margin: 0;
@@ -13,308 +13,358 @@
             box-sizing: border-box;
         }
         body {
-            font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 11px;
-            line-height: 1.5;
-            color: #333;
+            font-family: 'DejaVu Serif', 'Times New Roman', serif;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #1a1a1a;
+            background: #fff;
         }
         .container {
-            padding: 0;
+            max-width: 100%;
+            padding: 0 15mm;
         }
-        .header {
-            text-align: center;
+        
+        /* Cabeçalho */
+        .cabecalho {
             margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #059669;
-        }
-        .header h1 {
-            font-size: 22px;
-            color: #059669;
-            margin-bottom: 5px;
-            letter-spacing: 1px;
-        }
-        .header .clinica-nome {
-            font-size: 14px;
-            color: #333;
-            font-weight: bold;
-        }
-        .header .clinica-info {
-            font-size: 10px;
-            color: #666;
-            margin-top: 3px;
-        }
-        .meta-info {
-            position: absolute;
-            top: 25mm;
-            right: 20mm;
-            text-align: right;
-        }
-        .meta-info .numero-receita {
-            font-size: 9px;
-            color: #999;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .meta-info .data-receita {
-            font-size: 11px;
-            font-weight: bold;
-            color: #333;
-        }
-        .section {
-            margin-bottom: 20px;
-        }
-        .section-title {
-            font-size: 12px;
-            font-weight: bold;
-            color: #059669;
+            margin-top: 0;
+            padding-bottom: 18px;
+            padding-top: 0;
             border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .info-grid {
             display: table;
             width: 100%;
         }
-        .info-row {
-            display: table-row;
-        }
-        .info-label {
+        .cabecalho-logo {
             display: table-cell;
+            width: 80px;
+            vertical-align: top;
+            padding-right: 20px;
+            padding-top: 0;
+        }
+        .logo-placeholder {
+            width: 70px;
+            height: 70px;
+            border: 1px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: #999;
+            text-align: center;
+            padding: 5px;
+            margin-top: 2px;
+        }
+        .cabecalho-profissional {
+            display: table-cell;
+            vertical-align: top;
+            padding-top: 0;
+        }
+        .nome-profissional {
+            font-size: 15px;
             font-weight: bold;
-            width: 100px;
-            padding: 4px 0;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            margin-top: 0;
+            padding-top: 0;
+            line-height: 1.1;
+        }
+        .profissao-especialidade {
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .registro-profissional {
+            font-size: 11px;
             color: #555;
+            margin-bottom: 3px;
         }
-        .info-value {
-            display: table-cell;
-            padding: 4px 0;
-        }
-        table.produtos {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        table.produtos th {
-            background: #059669;
-            color: white;
-            padding: 10px 8px;
-            text-align: left;
+        .contato-profissional {
             font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Dados do Paciente */
+        .dados-paciente {
+            margin-bottom: 22px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .dados-paciente-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #555;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            margin-bottom: 10px;
         }
-        table.produtos td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e5e7eb;
-            vertical-align: top;
+        .paciente-info {
+            font-size: 12px;
+            line-height: 1.7;
+            color: #1a1a1a;
         }
-        table.produtos tr:nth-child(even) {
-            background: #f9fafb;
+        .paciente-info > div {
+            margin-bottom: 4px;
         }
-        table.produtos .produto-nome {
+        .paciente-info strong {
             font-weight: bold;
             color: #333;
         }
-        table.produtos .produto-codigo {
-            font-size: 9px;
-            color: #059669;
-            margin-right: 5px;
+        
+        /* Corpo da Receita - Fórmulas */
+        .corpo-receita {
+            margin-bottom: 30px;
         }
-        table.produtos .produto-anotacoes {
-            font-size: 9px;
-            color: #666;
-            font-style: italic;
-            margin-top: 3px;
+        .formula {
+            margin-bottom: 20px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #e5e5e5;
         }
-        .anotacoes-paciente {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 8px;
+        .formula:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
         }
-        .anotacoes-paciente h3 {
-            font-size: 11px;
+        .formula-nome {
+            font-size: 13px;
             font-weight: bold;
-            color: #059669;
-            margin-bottom: 8px;
-            text-transform: uppercase;
+            color: #1a1a1a;
+            margin-bottom: 10px;
         }
-        .anotacoes-paciente p {
+        .formula-composicao {
             font-size: 11px;
             color: #333;
+            line-height: 1.6;
+            margin-bottom: 10px;
             white-space: pre-line;
         }
-        .assinatura {
-            margin-top: 50px;
+        .formula-detalhes {
+            margin-top: 10px;
+        }
+        .formula-detalhe-item {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 5px;
+            line-height: 1.5;
+        }
+        .formula-detalhe-label {
+            font-weight: bold;
+            color: #444;
+        }
+        
+        /* Rodapé */
+        .rodape {
+            margin-top: 35px;
+            padding-top: 25px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+        }
+        .assinatura-section {
+            margin-bottom: 20px;
+        }
+        .assinatura-container {
+            display: inline-block;
             text-align: center;
         }
         .assinatura-img {
-            max-height: 70px;
-            max-width: 200px;
-            margin-bottom: 10px;
+            max-height: 55px;
+            max-width: 160px;
+            margin-bottom: 12px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
         }
-        .assinatura .linha {
+        .assinatura-linha {
             border-top: 1px solid #333;
-            width: 220px;
-            margin: 0 auto 8px;
+            width: 180px;
+            margin: 0 auto 12px;
         }
-        .assinatura .nome {
+        .assinatura-nome {
             font-weight: bold;
             font-size: 12px;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+        .assinatura-registro {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 2px;
+        }
+        .validade {
+            font-size: 11px;
+            color: #555;
+            margin-top: 15px;
+        }
+        .validade-label {
+            font-weight: bold;
             color: #333;
-        }
-        .assinatura .crm {
-            font-size: 10px;
-            color: #666;
-            margin-top: 2px;
-        }
-        .assinatura .especialidade {
-            font-size: 9px;
-            color: #666;
-            font-style: italic;
-        }
-        .rodape {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #ddd;
-            font-size: 9px;
-            color: #666;
-            text-align: center;
-            line-height: 1.6;
-        }
-        .watermark {
-            position: fixed;
-            bottom: 10mm;
-            right: 10mm;
-            font-size: 8px;
-            color: #ccc;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="meta-info">
-            <div class="numero-receita">Receita N° {{ $receita->numero }}</div>
-            <div class="data-receita">{{ $receita->data_receita->format('d/m/Y') }}</div>
-        </div>
-
-        <div class="header">
-            <h1>RECEITA MÉDICA</h1>
-            @if($receita->medico->clinica)
-                <div class="clinica-nome">{{ $receita->medico->clinica->nome }}</div>
-                @if($receita->medico->clinica->endereco)
-                    <div class="clinica-info">
-                        {{ $receita->medico->clinica->endereco }}
-                        @if($receita->medico->clinica->numero), {{ $receita->medico->clinica->numero }}@endif
-                        @if($receita->medico->clinica->bairro) - {{ $receita->medico->clinica->bairro }}@endif
-                        @if($receita->medico->clinica->cidade) | {{ $receita->medico->clinica->cidade }}@endif
-                        @if($receita->medico->clinica->uf)/{{ $receita->medico->clinica->uf }}@endif
+        <!-- Cabeçalho -->
+        <div class="cabecalho">
+            <div class="cabecalho-logo">
+                <div class="logo-placeholder">
+                    [ LOGO ]
+                </div>
+            </div>
+            <div class="cabecalho-profissional">
+                <div class="nome-profissional">
+                    {{ $receita->medico->nome }}
+                </div>
+                <div class="profissao-especialidade">
+                    Médico
+                    @if($receita->medico->especialidade)
+                        {{ $receita->medico->especialidade }}
+                    @endif
+                </div>
+                @if($receita->medico->crm)
+                    <div class="registro-profissional">
+                        CRM
+                        @if($receita->medico->uf)
+                            -{{ $receita->medico->uf }}
+                        @endif
+                        {{ $receita->medico->crm }}
                     </div>
                 @endif
-            @endif
-        </div>
-
-        <div class="section">
-            <div class="section-title">Dados do Paciente</div>
-            <div class="info-grid">
-                <div class="info-row">
-                    <div class="info-label">Nome:</div>
-                    <div class="info-value">{{ $receita->paciente->nome }}</div>
-                </div>
-                @if($receita->paciente->data_nascimento)
-                <div class="info-row">
-                    <div class="info-label">Nascimento:</div>
-                    <div class="info-value">{{ $receita->paciente->data_nascimento->format('d/m/Y') }}</div>
-                </div>
-                @endif
-                @if($receita->paciente->telefone1)
-                <div class="info-row">
-                    <div class="info-label">Telefone:</div>
-                    <div class="info-value">{{ $receita->paciente->telefone1 }}</div>
-                </div>
-                @endif
-                @if($receita->paciente->endereco)
-                <div class="info-row">
-                    <div class="info-label">Endereço:</div>
-                    <div class="info-value">
-                        {{ $receita->paciente->endereco }}
-                        @if($receita->paciente->numero), {{ $receita->paciente->numero }}@endif
-                        @if($receita->paciente->complemento) - {{ $receita->paciente->complemento }}@endif
-                        @if($receita->paciente->bairro) - {{ $receita->paciente->bairro }}@endif
-                        @if($receita->paciente->cidade) | {{ $receita->paciente->cidade }}@endif
-                        @if($receita->paciente->uf)/{{ $receita->paciente->uf }}@endif
-                        @if($receita->paciente->cep) - CEP: {{ $receita->paciente->cep }}@endif
+                @if($receita->medico->cidade || $receita->medico->uf || $receita->medico->telefone1)
+                    <div class="contato-profissional">
+                        @if($receita->medico->cidade)
+                            {{ $receita->medico->cidade }}
+                        @endif
+                        @if($receita->medico->cidade && $receita->medico->uf)
+                            /
+                        @endif
+                        @if($receita->medico->uf)
+                            {{ $receita->medico->uf }}
+                        @endif
+                        @if($receita->medico->telefone1)
+                            @if($receita->medico->cidade || $receita->medico->uf)
+                                | 
+                            @endif
+                            {{ $receita->medico->telefone1 }}
+                        @endif
                     </div>
-                </div>
                 @endif
             </div>
         </div>
 
-        <div class="section">
-            <div class="section-title">Produtos Prescritos</div>
-            <table class="produtos">
-                <thead>
-                    <tr>
-                        <th style="width: 100px;">Local de Uso</th>
-                        <th>Produto</th>
-                        <th style="width: 60px; text-align: center;">Qtd</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($receita->itens as $item)
-                    <tr>
-                        <td>{{ $item->local_uso ?: '-' }}</td>
-                        <td>
-                            <div class="produto-nome">
-                                @if($item->produto->codigo)
-                                    <span class="produto-codigo">[{{ $item->produto->codigo }}]</span>
+        <!-- Dados do Paciente -->
+        <div class="dados-paciente">
+            <div class="dados-paciente-title">Dados do Paciente</div>
+            <div class="paciente-info">
+                <div>
+                    <strong>Paciente:</strong> {{ $receita->paciente->nome }}
+                </div>
+                @if($receita->paciente->data_nascimento)
+                    <div>
+                        <strong>Data de Nascimento:</strong> {{ $receita->paciente->data_nascimento->format('d/m/Y') }}
+                        @if($receita->paciente->idade)
+                            ({{ $receita->paciente->idade }} anos)
+                        @endif
+                    </div>
+                @endif
+                @if($receita->paciente->sexo)
+                    <div>
+                        <strong>Sexo:</strong> {{ ucfirst($receita->paciente->sexo) }}
+                    </div>
+                @endif
+                <div>
+                    <strong>Data:</strong> {{ $receita->data_receita->format('d/m/Y') }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Corpo da Receita -->
+        <div class="corpo-receita">
+            @foreach($receita->itens as $index => $item)
+                <div class="formula">
+                    <div class="formula-nome">
+                        {{ $item->produto->nome }}
+                    </div>
+                    
+                    @if($item->produto->descricao)
+                        <div class="formula-composicao">
+                            {{ $item->produto->descricao }}
+                        </div>
+                    @endif
+                    
+                    <div class="formula-detalhes">
+                        @if($item->quantidade)
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label">Quantidade:</span> {{ $item->quantidade }}
+                                @if($item->produto->unidade)
+                                    {{ $item->produto->unidade }}
                                 @endif
-                                {{ $item->produto->nome }}
                             </div>
-                            @if($item->anotacoes)
-                                <div class="produto-anotacoes">{{ $item->anotacoes }}</div>
-                            @endif
-                        </td>
-                        <td style="text-align: center;">{{ $item->quantidade }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                        @endif
+                        
+                        @if($item->produto->modo_uso)
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label">Posologia / Modo de usar:</span> {{ $item->produto->modo_uso }}
+                            </div>
+                        @elseif($item->anotacoes)
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label">Posologia / Modo de usar:</span> {{ $item->anotacoes }}
+                            </div>
+                        @endif
+                        
+                        @if($item->local_uso)
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label">Via de uso:</span> {{ $item->local_uso }}
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
         </div>
 
-        @if($receita->anotacoes_paciente)
-        <div class="anotacoes-paciente">
-            <h3>Observações Importantes</h3>
-            <p>{{ $receita->anotacoes_paciente }}</p>
-        </div>
-        @endif
-
-        <div class="assinatura">
-            @if($receita->medico->assinatura_path && file_exists(storage_path('app/public/' . $receita->medico->assinatura_path)))
-                <img class="assinatura-img" src="{{ storage_path('app/public/' . $receita->medico->assinatura_path) }}" alt="Assinatura">
-            @else
-                <div class="linha"></div>
-            @endif
-            <div class="nome">{{ $receita->medico->nome }}</div>
-            @if($receita->medico->crm)
-                <div class="crm">CRM: {{ $receita->medico->crm }}@if($receita->medico->clinica && $receita->medico->clinica->uf)/{{ $receita->medico->clinica->uf }}@endif</div>
-            @endif
-            @if($receita->medico->especialidade)
-                <div class="especialidade">{{ $receita->medico->especialidade }}</div>
-            @endif
-        </div>
-
-        @if($receita->medico->rodape_receita)
+        <!-- Rodapé -->
         <div class="rodape">
-            {!! nl2br(e($receita->medico->rodape_receita)) !!}
-        </div>
-        @endif
-
-        <div class="watermark">
-            Gerado em {{ now()->format('d/m/Y H:i') }} | RevSkin
+            <div class="assinatura-section">
+                <div class="assinatura-container">
+                    @php
+                        $assinaturaPath = null;
+                        if ($receita->medico->assinatura_path) {
+                            $fullPath = storage_path('app/public/' . $receita->medico->assinatura_path);
+                            if (file_exists($fullPath)) {
+                                $assinaturaPath = $fullPath;
+                            }
+                        }
+                    @endphp
+                    @if($assinaturaPath)
+                        <img class="assinatura-img" src="{{ $assinaturaPath }}" alt="Assinatura">
+                    @else
+                        <div class="assinatura-linha"></div>
+                    @endif
+                    
+                    <div class="assinatura-nome">
+                        {{ $receita->medico->nome }}
+                    </div>
+                    
+                    @if($receita->medico->crm)
+                        <div class="assinatura-registro">
+                            CRM
+                            @if($receita->medico->uf)
+                                -{{ $receita->medico->uf }}
+                            @endif
+                            {{ $receita->medico->crm }}
+                        </div>
+                    @endif
+                    
+                    @if($receita->medico->especialidade)
+                        <div class="assinatura-registro">
+                            {{ $receita->medico->especialidade }}
+                        </div>
+                    @endif
+                </div>
+            </div>
+            
+            <div class="validade">
+                <span class="validade-label">Validade:</span> 30 dias
+            </div>
         </div>
     </div>
 </body>
