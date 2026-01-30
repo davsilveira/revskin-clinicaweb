@@ -410,7 +410,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         Voltar para Receitas
                     </Link>
                     <h1 className="text-2xl font-bold text-gray-900 mt-2">
-                        {isEditing ? `Editar Receita #${receita.numero || receita.id}` : 'Nova Receita'}
+                        {isEditing ? `Editar Receita #${receita.numero}` : 'Nova Receita'}
                     </h1>
                 </div>
 
@@ -1125,7 +1125,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
                                             <span className="text-sm font-medium text-gray-900">
-                                                #{r.numero || r.id.toString().padStart(5, '0')}
+                                                #{r.numero}
                                             </span>
                                             <span className="text-xs text-gray-500">
                                                 {new Date(r.data_receita).toLocaleDateString('pt-BR')}
@@ -1184,9 +1184,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             )}
                                             
                                             {/* Produtos */}
-                                            {r.itens && r.itens.length > 0 ? (
+                                            {r.itens && r.itens.filter(item => item.imprimir).length > 0 ? (
                                                 <div className="space-y-1">
-                                                    <div className="text-xs font-medium text-gray-700 mb-2">Produtos ({r.itens.length})</div>
+                                                    <div className="text-xs font-medium text-gray-700 mb-2">Produtos ({r.itens.filter(item => item.imprimir).length})</div>
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-xs">
                                                             <thead className="bg-gray-50">
@@ -1199,7 +1199,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {r.itens.map((item, idx) => (
+                                                                {r.itens.filter(item => item.imprimir).map((item, idx) => (
                                                                     <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                                                         <td className="px-2 py-1 text-gray-600">
                                                                             {formatLocalUso(item.local_uso || item.produto?.local_uso)}

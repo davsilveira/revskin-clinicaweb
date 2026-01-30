@@ -95,6 +95,10 @@ class RegraCondicionalController extends Controller
             if ($acao['tipo_acao'] === 'modificar_quantidade' && empty($acao['quantidade'])) {
                 return back()->withErrors(['acoes' => 'A ação "Modificar Quantidade" requer um valor de quantidade.']);
             }
+            // Validar que adicionar_item tem categoria definida
+            if ($acao['tipo_acao'] === 'adicionar_item' && empty($acao['categoria'])) {
+                return back()->withErrors(['acoes' => 'A ação "Adicionar Item" requer que o campo "Tipo do Produto" seja preenchido.']);
+            }
         }
 
         DB::transaction(function () use ($validated) {
@@ -180,6 +184,10 @@ class RegraCondicionalController extends Controller
             // Validar que modificar_quantidade tem quantidade definida
             if ($acao['tipo_acao'] === 'modificar_quantidade' && empty($acao['quantidade'])) {
                 return back()->withErrors(['acoes' => 'A ação "Modificar Quantidade" requer um valor de quantidade.']);
+            }
+            // Validar que adicionar_item tem categoria definida
+            if ($acao['tipo_acao'] === 'adicionar_item' && empty($acao['categoria'])) {
+                return back()->withErrors(['acoes' => 'A ação "Adicionar Item" requer que o campo "Tipo do Produto" seja preenchido.']);
             }
         }
 

@@ -28,7 +28,7 @@ export default function RegrasCondicionais({
         tabela_karnaugh_id: '',
         ativo: true,
         condicoes: [{ campo: 'gravidez', operador: 'igual', valor: '' }],
-        acoes: [{ tipo_acao: 'usar_tabela', tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1 }],
+        acoes: [{ tipo_acao: 'usar_tabela', tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1, categoria: '' }],
     };
 
     const [form, setForm] = useState(emptyForm);
@@ -75,6 +75,7 @@ export default function RegrasCondicionais({
                 produto_id: a.produto_id || '',
                 marcar: a.marcar,
                 quantidade: a.quantidade || 1,
+                categoria: a.categoria || '',
             })),
         });
         setError('');
@@ -110,7 +111,7 @@ export default function RegrasCondicionais({
         const tipoAcaoPadrao = form.tipo === 'selecao_tabela' ? 'usar_tabela' : 'adicionar_item';
         setForm(prev => ({
             ...prev,
-            acoes: [...prev.acoes, { tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1 }],
+            acoes: [...prev.acoes, { tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1, categoria: '' }],
         }));
     };
 
@@ -121,7 +122,7 @@ export default function RegrasCondicionais({
             ...prev,
             tipo: novoTipo,
             tabela_karnaugh_id: novoTipo === 'selecao_tabela' ? '' : prev.tabela_karnaugh_id,
-            acoes: [{ tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1 }],
+            acoes: [{ tipo_acao: tipoAcaoPadrao, tabela_karnaugh_id: '', produto_id: '', marcar: true, quantidade: 1, categoria: '' }],
         }));
     };
 
@@ -147,6 +148,16 @@ export default function RegrasCondicionais({
         e.preventDefault();
         setSaving(true);
         setError('');
+
+        // Validar categoria obrigatória para adicionar_item
+        const acoesSemCategoria = form.acoes.filter(a => 
+            a.tipo_acao === 'adicionar_item' && !a.categoria?.trim()
+        );
+        if (acoesSemCategoria.length > 0) {
+            setError('O campo "Tipo do Produto" é obrigatório para ações "Adicionar Item"');
+            setSaving(false);
+            return;
+        }
 
         const url = editingRegra 
             ? `/assistente/regras/${editingRegra.id}`
@@ -667,6 +678,26 @@ export default function RegrasCondicionais({
                                                                             ? 'Produto deve vir marcado' 
                                                                             : 'Marcar como recomendado'}
                                                                     </label>
+                                                                )}
+                                                                
+                                                                {/* Campo Tipo do Produto (apenas para adicionar_item) */}
+                                                                {acao.tipo_acao === 'adicionar_item' && (
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                            Tipo do Produto *
+                                                                        </label>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={acao.categoria || ''}
+                                                                            onChange={(e) => updateAcao(index, 'categoria', e.target.value)}
+                                                                            placeholder="Ex: Creme Facial, Sérum Vitamina C, etc."
+                                                                            required={acao.tipo_acao === 'adicionar_item'}
+                                                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                                        />
+                                                                        <p className="text-xs text-gray-500 mt-1">
+                                                                            Este tipo será exibido na receita ao invés de "Regra Condicional"
+                                                                        </p>
+                                                                    </div>
                                                                 )}
                                                                 
                                                                 {/* Campo de quantidade (modificar_quantidade) */}
