@@ -107,7 +107,12 @@ Route::middleware(['auth'])->group(function () {
     // Cadastros - Produtos (Call Center and Admin)
     Route::middleware('callcenter')->group(function () {
         Route::resource('produtos', ProdutoController::class);
+        Route::get('/api/produtos/search', [ProdutoController::class, 'search'])->name('produtos.search');
     });
+
+    // Relatórios - Aquisição de Produtos (admin e médico)
+    Route::get('/relatorios/aquisicao-produtos', [RelatorioController::class, 'aquisicaoProdutos'])->name('relatorios.aquisicao-produtos');
+    Route::get('/relatorios/aquisicao-produtos/export/{format}', [RelatorioController::class, 'exportAquisicaoProdutos'])->name('relatorios.aquisicao-produtos.export');
 
     // Admin only routes
     Route::middleware('admin')->group(function () {

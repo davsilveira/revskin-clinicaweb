@@ -5,7 +5,7 @@
     <title>Relatório de Receitas por Médico</title>
     <style>
         @page {
-            margin: 20mm 15mm;
+            margin: 20mm 20mm;
         }
         * {
             margin: 0;
@@ -17,6 +17,11 @@
             font-size: 10px;
             line-height: 1.4;
             color: #333;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0 10mm;
         }
         .header {
             text-align: center;
@@ -135,6 +140,7 @@
     </style>
 </head>
 <body>
+    <div class="container">
     <div class="header">
         <h1>RELATÓRIO DE RECEITAS</h1>
         @if($medico)
@@ -219,6 +225,7 @@
         </tbody>
     </table>
 
+    </div>
     <div class="footer">
         Gerado em {{ now()->format('d/m/Y H:i') }} | RevSkin - Sistema de Gestão de Receitas
     </div>
