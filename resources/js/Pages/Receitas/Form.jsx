@@ -761,13 +761,13 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 )}
                             </div>
 
-                                {/* Produtos Opcionais */}
+                                {/* Produtos Complementares */}
                                 {data.itens.some(item => item.grupo === 'opcional') && (
                                     <div>
                                         <div className="flex items-center gap-2 mb-2 pb-1 border-b border-gray-300">
                                             <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
                                             <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                                                Opcionais
+                                                Complementares
                                             </span>
                                             <span className="text-xs text-gray-500">
                                                 ({data.itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})

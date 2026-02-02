@@ -209,7 +209,7 @@ export default function RegrasCondicionais({
                 return `Usar tabela: ${a.tabela_karnaugh?.nome || 'N/A'}`;
             }
             if (a.tipo_acao === 'adicionar_item') {
-                return `Adicionar: ${a.produto?.nome || 'N/A'}${a.marcar ? ' (marcado)' : ''}`;
+                return `Adicionar: ${a.produto?.nome || 'N/A'}${a.marcar ? ' (recomendado)' : ''}`;
             }
             if (a.tipo_acao === 'remover_item') {
                 return `Remover: ${a.produto?.nome || 'N/A'}`;
@@ -675,7 +675,7 @@ export default function RegrasCondicionais({
                                                                             className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                                                                         />
                                                                         {acao.tipo_acao === 'adicionar_item' 
-                                                                            ? 'Produto deve vir marcado' 
+                                                                            ? 'Adicionar como produto Recomendado' 
                                                                             : 'Marcar como recomendado'}
                                                                     </label>
                                                                 )}
