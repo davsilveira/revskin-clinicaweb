@@ -33,12 +33,14 @@ class RelatorioController extends Controller
             'medico_id' => 'nullable|exists:medicos,id',
             'data_inicio' => 'nullable|date',
             'data_fim' => 'nullable|date|after_or_equal:data_inicio',
+            'per_page' => 'nullable|integer|in:15,30,50,100',
         ]);
 
         $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         $dados = null;
-        if ($request->has('medico_id') || $request->has('data_inicio')) {
+        // Executar query se houver filtros ou se houver paginação (page parameter)
+        if ($request->has('medico_id') || $request->has('data_inicio') || $request->has('page')) {
             $query = Receita::with(['paciente:id,nome', 'medico:id,nome'])
                 ->whereIn('status', ['finalizada', 'rascunho'])
                 ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
@@ -46,19 +48,27 @@ class RelatorioController extends Controller
                 ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_receita', '<=', $data))
                 ->orderBy('data_receita', 'desc');
 
+            // Calcular totais antes da paginação (clonar query para não afetar paginação)
+            $totaisQuery = clone $query;
+            $totais = [
+                'quantidade' => $totaisQuery->count(),
+                'valor_total' => $totaisQuery->sum('valor_total'),
+            ];
+
+            // Aplicar paginação preservando query strings
+            $perPage = $request->input('per_page', 15);
+            $receitas = $query->paginate($perPage)->withQueryString();
+
             $dados = [
-                'receitas' => $query->get(),
-                'totais' => [
-                    'quantidade' => $query->count(),
-                    'valor_total' => $query->sum('valor_total'),
-                ],
+                'receitas' => $receitas,
+                'totais' => $totais,
             ];
         }
 
         return Inertia::render('Relatorios/ReceitasMedico', [
             'medicos' => $medicos,
             'dados' => $dados,
-            'filters' => $request->only(['medico_id', 'data_inicio', 'data_fim']),
+            'filters' => $request->only(['medico_id', 'data_inicio', 'data_fim', 'per_page']),
         ]);
     }
 

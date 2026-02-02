@@ -1,11 +1,21 @@
 import { Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import Pagination from '@/Components/Pagination';
 
 export default function ReceitasMedico({ medicos, dados, filters }) {
     const [medicoId, setMedicoId] = useState(filters?.medico_id || '');
     const [dataInicio, setDataInicio] = useState(filters?.data_inicio || '');
     const [dataFim, setDataFim] = useState(filters?.data_fim || '');
+    const [perPage, setPerPage] = useState(filters?.per_page || 15);
+
+    // Sincronizar estado com filters quando mudarem (ex: navegação de paginação)
+    useEffect(() => {
+        setMedicoId(filters?.medico_id || '');
+        setDataInicio(filters?.data_inicio || '');
+        setDataFim(filters?.data_fim || '');
+        setPerPage(filters?.per_page || 15);
+    }, [filters]);
 
     const handleFiltrar = (e) => {
         e.preventDefault();
@@ -13,6 +23,18 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
             medico_id: medicoId,
             data_inicio: dataInicio,
             data_fim: dataFim,
+            per_page: perPage,
+        }, { preserveState: true });
+    };
+
+    const handlePerPageChange = (e) => {
+        const newPerPage = Number(e.target.value);
+        setPerPage(newPerPage);
+        router.get('/relatorios/receitas-medico', {
+            medico_id: medicoId,
+            data_inicio: dataInicio,
+            data_fim: dataFim,
+            per_page: newPerPage,
         }, { preserveState: true });
     };
 
@@ -122,7 +144,26 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                         {/* Tabela */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="flex justify-between items-center p-4 border-b border-gray-200">
-                                <h3 className="font-semibold text-gray-900">Receitas</h3>
+                                <div className="flex items-center gap-4">
+                                    {dados?.receitas && (
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <span>
+                                                {dados.receitas.total} registros
+                                            </span>
+                                            <span className="text-gray-400">/</span>
+                                            <select
+                                                value={perPage}
+                                                onChange={handlePerPageChange}
+                                                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            >
+                                                <option value={15}>15 por página</option>
+                                                <option value={30}>30 por página</option>
+                                                <option value={50}>50 por página</option>
+                                                <option value={100}>100 por página</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => handleExport('pdf')}
@@ -169,8 +210,8 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {dados.receitas?.length > 0 ? (
-                                        dados.receitas.map((receita) => (
+                                    {dados.receitas?.data?.length > 0 ? (
+                                        dados.receitas.data.map((receita) => (
                                             <tr key={receita.id} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <Link
@@ -217,6 +258,11 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                     )}
                                 </tbody>
                             </table>
+
+                            {/* Pagination */}
+                            {dados.receitas?.links && dados.receitas.links.length > 3 && (
+                                <Pagination links={dados.receitas.links} />
+                            )}
                         </div>
                     </>
                 )}
