@@ -40,6 +40,7 @@ class PacienteObserver
             'cpf',
             'email1',
             'telefone1',
+            'celular',
             'endereco',
             'numero',
             'complemento',

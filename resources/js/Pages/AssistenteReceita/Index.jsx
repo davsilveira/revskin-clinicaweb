@@ -37,7 +37,7 @@ export default function AssistenteReceitaIndex({
         sexo: '',
         email1: '',
         telefone1: '',
-        telefone2: '',
+        celular: '',
         cep: '',
         endereco: '',
         numero: '',
@@ -166,9 +166,9 @@ export default function AssistenteReceitaIndex({
         }
         
         // Celular é obrigatório
-        const celularLimpo = novoPaciente.telefone2?.replace(/\D/g, '');
+        const celularLimpo = novoPaciente.celular?.replace(/\D/g, '');
         if (!celularLimpo || celularLimpo.length < 10) {
-            errors.telefone2 = 'O celular é obrigatório';
+            errors.celular = 'O celular é obrigatório';
         }
         
         // CPF - validar apenas se preenchido
@@ -225,7 +225,7 @@ export default function AssistenteReceitaIndex({
                 setShowCreateForm(false);
                 setNovoPaciente({
                     nome: '', cpf: '', data_nascimento: '', sexo: '', email1: '',
-                    telefone1: '', telefone2: '', cep: '', endereco: '', numero: '',
+                    telefone1: '', celular: '', cep: '', endereco: '', numero: '',
                     complemento: '', bairro: '', cidade: '', uf: '', pais: 'Brasil',
                 });
                 setFieldErrors({});
@@ -518,13 +518,13 @@ export default function AssistenteReceitaIndex({
                                         <MaskedInput
                                             label="Celular"
                                             mask="(00) 00000-0000"
-                                            value={novoPaciente.telefone2}
+                                            value={novoPaciente.celular}
                                             onAccept={(value) => {
-                                                updateNovoPaciente('telefone2', value);
-                                                setFieldErrors(prev => ({ ...prev, telefone2: null }));
+                                                updateNovoPaciente('celular', value);
+                                                setFieldErrors(prev => ({ ...prev, celular: null }));
                                             }}
                                             placeholder="(00) 00000-0000"
-                                            error={fieldErrors.telefone2}
+                                            error={fieldErrors.celular}
                                             required
                                         />
                                     </div>

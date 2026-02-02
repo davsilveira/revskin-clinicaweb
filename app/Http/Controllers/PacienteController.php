@@ -73,6 +73,7 @@ class PacienteController extends Controller
                     $query->where('nome', 'like', "%{$search}%")
                         ->orWhere('cpf', 'like', "%{$search}%")
                         ->orWhere('telefone1', 'like', "%{$search}%")
+                        ->orWhere('celular', 'like', "%{$search}%")
                         ->orWhere('email1', 'like', "%{$search}%")
                         ->orWhereHas('telefones', fn($tq) => $tq->where('numero', 'like', "%{$search}%"));
                 });
@@ -130,15 +131,15 @@ class PacienteController extends Controller
     {
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
-            'data_nascimento' => 'nullable|date',
+            'data_nascimento' => 'required|date',
             'sexo' => 'nullable|string|max:20',
             'fototipo' => 'nullable|string|max:50',
-            'cpf' => 'nullable|string|max:14|unique:pacientes,cpf',
+            'cpf' => 'required|string|max:14|unique:pacientes,cpf',
             'rg' => 'nullable|string|max:20',
             'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
+            'celular' => 'required|string|max:20',
             'telefone3' => 'nullable|string|max:20',
-            'email1' => 'nullable|email|max:255',
+            'email1' => 'required|email|max:255',
             'email2' => 'nullable|email|max:255',
             'tipo_endereco' => 'nullable|string|max:255',
             'endereco' => 'nullable|string|max:255',
@@ -158,6 +159,10 @@ class PacienteController extends Controller
             'telefones.*.tipo' => 'required|string|max:50',
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
+            'cpf.required' => 'O CPF é obrigatório.',
+            'data_nascimento.required' => 'A data de nascimento é obrigatória.',
+            'celular.required' => 'O celular é obrigatório.',
+            'email1.required' => 'O e-mail é obrigatório.',
         ]);
 
         // Validate CPF digits
@@ -246,15 +251,15 @@ class PacienteController extends Controller
     {
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
-            'data_nascimento' => 'nullable|date',
+            'data_nascimento' => 'required|date',
             'sexo' => 'nullable|string|max:20',
             'fototipo' => 'nullable|string|max:50',
-            'cpf' => ['nullable', 'string', 'max:14', Rule::unique('pacientes', 'cpf')->ignore($paciente->id)],
+            'cpf' => ['required', 'string', 'max:14', Rule::unique('pacientes', 'cpf')->ignore($paciente->id)],
             'rg' => 'nullable|string|max:20',
             'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
+            'celular' => 'required|string|max:20',
             'telefone3' => 'nullable|string|max:20',
-            'email1' => 'nullable|email|max:255',
+            'email1' => 'required|email|max:255',
             'email2' => 'nullable|email|max:255',
             'tipo_endereco' => 'nullable|string|max:255',
             'endereco' => 'nullable|string|max:255',
@@ -274,6 +279,10 @@ class PacienteController extends Controller
             'telefones.*.tipo' => 'required|string|max:50',
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
+            'cpf.required' => 'O CPF é obrigatório.',
+            'data_nascimento.required' => 'A data de nascimento é obrigatória.',
+            'celular.required' => 'O celular é obrigatório.',
+            'email1.required' => 'O e-mail é obrigatório.',
         ]);
 
         // Validate CPF digits
@@ -357,7 +366,7 @@ class PacienteController extends Controller
 
         $pacientes = $query->orderBy('nome')
             ->limit(20)
-            ->get(['id', 'nome', 'cpf', 'telefone1']);
+            ->get(['id', 'nome', 'cpf', 'celular']);
 
         return response()->json($pacientes);
     }
@@ -376,7 +385,7 @@ class PacienteController extends Controller
             'cpf' => 'nullable|string|max:14',
             'rg' => 'nullable|string|max:20',
             'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
+            'celular' => 'nullable|string|max:20',
             'telefone3' => 'nullable|string|max:20',
             'email1' => 'nullable|email|max:255',
             'email2' => 'nullable|email|max:255',
@@ -452,12 +461,12 @@ class PacienteController extends Controller
     {
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
-            'cpf' => 'nullable|string|max:14|unique:pacientes,cpf',
-            'data_nascimento' => 'nullable|date',
+            'cpf' => 'required|string|max:14|unique:pacientes,cpf',
+            'data_nascimento' => 'required|date',
             'sexo' => 'nullable|string|max:20',
-            'email1' => 'nullable|email|max:255',
+            'email1' => 'required|email|max:255',
             'telefone1' => 'nullable|string|max:20',
-            'telefone2' => 'nullable|string|max:20',
+            'celular' => 'required|string|max:20',
             'cep' => 'nullable|string|max:10',
             'endereco' => 'nullable|string|max:255',
             'numero' => 'nullable|string|max:20',
@@ -468,10 +477,14 @@ class PacienteController extends Controller
             'pais' => 'nullable|string|max:100',
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
+            'cpf.required' => 'O CPF é obrigatório.',
+            'data_nascimento.required' => 'A data de nascimento é obrigatória.',
+            'celular.required' => 'O celular é obrigatório.',
+            'email1.required' => 'O e-mail é obrigatório.',
         ]);
 
         // Validate CPF digits
-        if (!empty($validated['cpf']) && !$this->validateCpfDigits($validated['cpf'])) {
+        if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
             return response()->json(['error' => 'CPF inválido. Por favor, verifique os números digitados.'], 422);
         }
 

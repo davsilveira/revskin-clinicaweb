@@ -22,7 +22,7 @@ class Paciente extends Model
         'cpf',
         'rg',
         'telefone1',
-        'telefone2',
+        'celular',
         'telefone3',
         'email1',
         'email2',
@@ -110,7 +110,7 @@ class Paciente extends Model
      */
     public function getTelefonePrincipalAttribute(): ?string
     {
-        return $this->telefone1 ?? $this->telefone2 ?? $this->telefone3;
+        return $this->telefone1 ?? $this->celular ?? $this->telefone3;
     }
 
     /**

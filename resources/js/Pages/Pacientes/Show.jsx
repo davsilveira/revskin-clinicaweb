@@ -134,8 +134,8 @@ export default function PacienteShow({ paciente }) {
                                 <dd className="text-gray-900 font-medium">{paciente.telefone1 || '-'}</dd>
                             </div>
                             <div className="flex justify-between">
-                                <dt className="text-gray-500">Telefone 2</dt>
-                                <dd className="text-gray-900 font-medium">{paciente.telefone2 || '-'}</dd>
+                                <dt className="text-gray-500">Celular</dt>
+                                <dd className="text-gray-900 font-medium">{paciente.celular || '-'}</dd>
                             </div>
                             <div className="flex justify-between">
                                 <dt className="text-gray-500">Telefone 3</dt>

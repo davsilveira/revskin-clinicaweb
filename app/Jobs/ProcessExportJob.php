@@ -268,7 +268,7 @@ class ProcessExportJob implements ShouldQueue
             $query = AtendimentoCallcenter::query()
                 ->with([
                     'receita:id,numero,data_receita,valor_total',
-                    'paciente:id,nome,cpf,telefone1,telefone2,telefone3',
+                    'paciente:id,nome,cpf,telefone1,celular,telefone3',
                     'medico:id,nome,crm',
                     'usuario:id,name',
                     'usuarioAlteracao:id,name',

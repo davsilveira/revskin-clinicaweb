@@ -257,7 +257,7 @@ class ImportarDadosLegado extends Command
                             'cpf' => $legado->cpf ?? null,
                             'rg' => $legado->rg ?? null,
                             'telefone1' => $legado->fone1 ?? null,
-                            'telefone2' => $legado->fone2 ?? null,
+                            'celular' => $legado->fone2 ?? null,
                             'telefone3' => $legado->fone3 ?? null,
                             'email1' => $legado->email1 ?? null,
                             'email2' => $legado->email2 ?? null,

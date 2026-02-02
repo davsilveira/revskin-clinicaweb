@@ -275,9 +275,9 @@ class FieldCatalog
                 'label' => 'Telefone 1',
                 'resolver' => fn (Paciente $paciente) => $paciente->telefone1,
             ],
-            'telefone2' => [
-                'label' => 'Telefone 2',
-                'resolver' => fn (Paciente $paciente) => $paciente->telefone2,
+            'celular' => [
+                'label' => 'Celular',
+                'resolver' => fn (Paciente $paciente) => $paciente->celular,
             ],
             'telefone3' => [
                 'label' => 'Telefone 3',

@@ -33,6 +33,7 @@ export default function PatientDrawer({
     const [cpfError, setCpfError] = useState(null);
     const [currentPacienteId, setCurrentPacienteId] = useState(paciente?.id || null);
     const isFirstRender = useRef(true);
+    const [fieldErrors, setFieldErrors] = useState({});
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         nome: '',
@@ -40,8 +41,7 @@ export default function PatientDrawer({
         data_nascimento: '',
         sexo: '',
         email1: '',
-        telefone1: '',
-        telefone2: '',
+        celular: '',
         cep: '',
         endereco: '',
         numero: '',
@@ -75,8 +75,7 @@ export default function PatientDrawer({
                     data_nascimento: paciente.data_nascimento ? paciente.data_nascimento.split('T')[0] : '',
                     sexo: paciente.sexo || '',
                     email1: paciente.email1 || '',
-                    telefone1: paciente.telefone1 || '',
-                    telefone2: paciente.telefone2 || '',
+                    celular: paciente.celular || '',
                     cep: paciente.cep || '',
                     endereco: paciente.endereco || '',
                     numero: paciente.numero || '',
@@ -97,6 +96,7 @@ export default function PatientDrawer({
             }
             setShowDeleteConfirm(false);
             setCpfError(null);
+            setFieldErrors({});
             setSearchMedico('');
             isFirstRender.current = true;
         }
@@ -159,7 +159,15 @@ export default function PatientDrawer({
 
     // Autosave function
     const performAutoSave = useCallback(async () => {
+        // Validar campos obrigatórios antes de tentar autosave
         if (!data.nome || data.nome.trim().length < 2) return;
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return;
+        if (!data.data_nascimento) return;
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return;
+        if (!data.email1 || !data.email1.trim()) return;
+        
+        // Validar CPF se preenchido
+        if (data.cpf && !validateCPF(data.cpf)) return;
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         
@@ -180,7 +188,13 @@ export default function PatientDrawer({
             }),
         });
         
-        if (!response.ok) throw new Error('Autosave failed');
+        if (!response.ok) {
+            // Se for erro de validação, não fazer throw para não quebrar o fluxo
+            if (response.status === 422) {
+                return; // Silenciosamente falha se validação falhar
+            }
+            throw new Error('Autosave failed');
+        }
         
         const result = await response.json();
         if (result.id && !currentPacienteId) {
@@ -190,12 +204,24 @@ export default function PatientDrawer({
         return result;
     }, [data, currentPacienteId]);
 
+    // Verificar se todos os campos obrigatórios estão preenchidos para habilitar autosave
+    const canAutoSave = useCallback(() => {
+        if (!enableAutoSave || !isOpen) return false;
+        if (!data.nome || data.nome.trim().length < 2) return false;
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
+        if (!data.data_nascimento) return false;
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
+        if (!data.email1 || !data.email1.trim()) return false;
+        if (data.cpf && !validateCPF(data.cpf)) return false;
+        return true;
+    }, [enableAutoSave, isOpen, data]);
+
     const { 
         lastSavedText, 
         isSaving: isAutoSaving, 
         triggerAutoSave, 
         cancelAutoSave 
-    } = useAutoSave(performAutoSave, 2000, enableAutoSave && isOpen && data.nome.length >= 2);
+    } = useAutoSave(performAutoSave, 2000, canAutoSave());
 
     // Trigger autosave when data changes
     useEffect(() => {
@@ -203,10 +229,10 @@ export default function PatientDrawer({
             isFirstRender.current = false;
             return;
         }
-        if (enableAutoSave && isOpen && data.nome.length >= 2) {
+        if (canAutoSave()) {
             triggerAutoSave();
         }
-    }, [data, isOpen, enableAutoSave]);
+    }, [data, isOpen, enableAutoSave, canAutoSave, triggerAutoSave]);
 
     const handleClose = () => {
         cancelAutoSave();
@@ -218,14 +244,51 @@ export default function PatientDrawer({
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // Validar CPF se preenchido
-        if (data.cpf && data.cpf.replace(/\D/g, '').length > 0) {
-            if (!validateCPF(data.cpf)) {
-                setCpfError('CPF inválido. Por favor, verifique os números digitados.');
-                return;
-            }
-        }
+        // Cancelar autosave pendente antes de validar
+        cancelAutoSave();
+        
+        // Limpar erros anteriores
         setCpfError(null);
+        const newErrors = {};
+        let hasErrors = false;
+        
+        // Validar campos obrigatórios
+        if (!data.nome || data.nome.trim().length < 2) {
+            newErrors.nome = 'O nome completo é obrigatório.';
+            hasErrors = true;
+        }
+        
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
+            setCpfError('CPF é obrigatório.');
+            newErrors.cpf = 'CPF é obrigatório.';
+            hasErrors = true;
+        } else if (!validateCPF(data.cpf)) {
+            setCpfError('CPF inválido. Por favor, verifique os números digitados.');
+            newErrors.cpf = 'CPF inválido.';
+            hasErrors = true;
+        }
+        
+        if (!data.data_nascimento) {
+            newErrors.data_nascimento = 'Data de nascimento é obrigatória.';
+            hasErrors = true;
+        }
+        
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
+            newErrors.celular = 'Celular é obrigatório.';
+            hasErrors = true;
+        }
+        
+        if (!data.email1 || !data.email1.trim()) {
+            newErrors.email1 = 'E-mail é obrigatório.';
+            hasErrors = true;
+        }
+        
+        if (hasErrors) {
+            setFieldErrors(newErrors);
+            return;
+        }
+        
+        setFieldErrors({});
         setIsSaving(true);
 
         try {
@@ -250,10 +313,26 @@ export default function PatientDrawer({
             });
 
             if (response.ok) {
+                setFieldErrors({});
+                setCpfError(null);
                 onSave?.();
             } else {
                 const errorData = await response.json();
                 console.error('Error saving patient:', errorData);
+                
+                // Processar erros de validação do backend
+                if (response.status === 422 && errorData.errors) {
+                    const backendErrors = {};
+                    Object.keys(errorData.errors).forEach(key => {
+                        backendErrors[key] = errorData.errors[key][0];
+                    });
+                    setFieldErrors(backendErrors);
+                    
+                    // Tratar erro de CPF separadamente
+                    if (backendErrors.cpf) {
+                        setCpfError(backendErrors.cpf);
+                    }
+                }
             }
         } catch (error) {
             console.error('Error saving patient:', error);
@@ -311,8 +390,11 @@ export default function PatientDrawer({
                             <Input
                                 label="Nome Completo"
                                 value={data.nome}
-                                onChange={(e) => setData('nome', e.target.value)}
-                                error={errors.nome}
+                                onChange={(e) => {
+                                    setData('nome', e.target.value);
+                                    setFieldErrors(prev => ({ ...prev, nome: null }));
+                                }}
+                                error={fieldErrors.nome || errors.nome}
                                 required
                             />
                         </div>
@@ -324,15 +406,20 @@ export default function PatientDrawer({
                                 setData('cpf', e.target.value);
                                 setCpfError(null);
                             }}
-                            error={cpfError || errors.cpf}
+                            error={cpfError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
+                            required
                         />
                         <Input
                             label="Data de Nascimento"
                             type="date"
                             value={data.data_nascimento}
-                            onChange={(e) => setData('data_nascimento', e.target.value)}
-                            error={errors.data_nascimento}
+                            onChange={(e) => {
+                                setData('data_nascimento', e.target.value);
+                                setFieldErrors(prev => ({ ...prev, data_nascimento: null }));
+                            }}
+                            error={fieldErrors.data_nascimento || errors.data_nascimento}
+                            required
                         />
                         <Select
                             label="Sexo"
@@ -348,8 +435,12 @@ export default function PatientDrawer({
                             label="E-mail"
                             type="email"
                             value={data.email1}
-                            onChange={(e) => setData('email1', e.target.value)}
-                            error={errors.email1}
+                            onChange={(e) => {
+                                setData('email1', e.target.value);
+                                setFieldErrors(prev => ({ ...prev, email1: null }));
+                            }}
+                            error={fieldErrors.email1 || errors.email1}
+                            required
                         />
                         <div className="col-span-2">
                             <Select
@@ -361,34 +452,28 @@ export default function PatientDrawer({
                         </div>
                         {isBrazil ? (
                             <MaskedInput
-                                label="Telefone Principal"
-                                mask="(00) 0000-0000"
-                                value={data.telefone1}
-                                onChange={(e) => setData('telefone1', e.target.value)}
-                                placeholder="(00) 0000-0000"
-                            />
-                        ) : (
-                            <Input
-                                label="Telefone Principal"
-                                value={data.telefone1}
-                                onChange={(e) => setData('telefone1', e.target.value)}
-                                placeholder="Número com código do país"
-                            />
-                        )}
-                        {isBrazil ? (
-                            <MaskedInput
                                 label="Celular"
                                 mask="(00) 00000-0000"
-                                value={data.telefone2}
-                                onChange={(e) => setData('telefone2', e.target.value)}
+                                value={data.celular}
+                                onChange={(e) => {
+                                    setData('celular', e.target.value);
+                                    setFieldErrors(prev => ({ ...prev, celular: null }));
+                                }}
                                 placeholder="(00) 00000-0000"
+                                error={fieldErrors.celular || errors.celular}
+                                required
                             />
                         ) : (
                             <Input
                                 label="Celular"
-                                value={data.telefone2}
-                                onChange={(e) => setData('telefone2', e.target.value)}
+                                value={data.celular}
+                                onChange={(e) => {
+                                    setData('celular', e.target.value);
+                                    setFieldErrors(prev => ({ ...prev, celular: null }));
+                                }}
                                 placeholder="Número com código do país"
+                                error={fieldErrors.celular || errors.celular}
+                                required
                             />
                         )}
                     </div>
