@@ -52,7 +52,8 @@
         .paciente-header .nome {
             display: inline-block;
         }
-        .paciente-header .telefone {
+        .paciente-header .cpf,
+        .paciente-header .medico {
             display: inline-block;
             margin-left: 10px;
             font-weight: normal;
@@ -72,11 +73,6 @@
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
-        table.produtos th:nth-child(4),
-        table.produtos th:nth-child(5),
-        table.produtos th:nth-child(6) {
-            text-align: right;
-        }
         table.produtos td {
             padding: 8px 6px;
             border-bottom: 1px solid #e5e7eb;
@@ -84,36 +80,6 @@
         }
         table.produtos tr:nth-child(even) {
             background: #f9fafb;
-        }
-        table.produtos td:nth-child(4),
-        table.produtos td:nth-child(5),
-        table.produtos td:nth-child(6) {
-            text-align: right;
-        }
-        .paciente-footer {
-            background: #f0fdf4;
-            padding: 8px 6px;
-            font-size: 9px;
-            font-weight: bold;
-            color: #059669;
-            border-top: 2px solid #059669;
-            margin-bottom: 15px;
-        }
-        .paciente-footer td {
-            padding: 8px 6px;
-        }
-        .totais-gerais {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 10px;
-            color: #059669;
-        }
-        .totais-gerais td {
-            padding: 5px 0;
         }
         .footer {
             position: fixed;
@@ -143,73 +109,71 @@
     </div>
 
     @foreach($dados['pacientes'] as $pacienteData)
+        @php
+            $ultimaModPorProduto = [];
+            foreach ($pacienteData['produtos'] as $p) {
+                $nome = $p['produto_nome'];
+                if (!isset($ultimaModPorProduto[$nome])) {
+                    $ultimaModPorProduto[$nome] = $p['data_receita'];
+                } else {
+                    try {
+                        $atual = \Carbon\Carbon::createFromFormat('d/m/Y', $p['data_receita']);
+                        $max = \Carbon\Carbon::createFromFormat('d/m/Y', $ultimaModPorProduto[$nome]);
+                        if ($atual->gt($max)) {
+                            $ultimaModPorProduto[$nome] = $p['data_receita'];
+                        }
+                    } catch (\Exception $e) {
+                        if (strcmp($p['data_receita'], $ultimaModPorProduto[$nome]) > 0) {
+                            $ultimaModPorProduto[$nome] = $p['data_receita'];
+                        }
+                    }
+                }
+            }
+            $cpfFormatado = '';
+            if (!empty($pacienteData['paciente']['cpf'])) {
+                $cpf = preg_replace('/\D/', '', $pacienteData['paciente']['cpf']);
+                if (strlen($cpf) === 11) {
+                    $cpfFormatado = substr($cpf, 0, 3) . '.' . substr($cpf, 3, 3) . '.' . substr($cpf, 6, 3) . '-' . substr($cpf, 9, 2);
+                } else {
+                    $cpfFormatado = $pacienteData['paciente']['cpf'];
+                }
+            }
+        @endphp
         <div class="paciente-section">
-            <!-- Cabeçalho do Paciente -->
+            <!-- Cabeçalho do Paciente: Nome, CPF, Dra. (só admin) -->
             <div class="paciente-header">
                 <span class="nome">{{ strtoupper($pacienteData['paciente']['nome']) }}</span>
-                @if($pacienteData['paciente']['telefone'])
-                    @php
-                        $telefone = preg_replace('/\D/', '', $pacienteData['paciente']['telefone']);
-                        $telefoneFormatado = '';
-                        if (strlen($telefone) === 11) {
-                            $telefoneFormatado = '(' . substr($telefone, 0, 2) . ') ' . substr($telefone, 2, 5) . '-' . substr($telefone, 7);
-                        } elseif (strlen($telefone) === 10) {
-                            $telefoneFormatado = '(' . substr($telefone, 0, 2) . ') ' . substr($telefone, 2, 4) . '-' . substr($telefone, 6);
-                        } else {
-                            $telefoneFormatado = $pacienteData['paciente']['telefone'];
-                        }
-                    @endphp
-                    <span class="telefone">({{ $telefoneFormatado }})</span>
+                @if($cpfFormatado)
+                    <span class="cpf">CPF: {{ $cpfFormatado }}</span>
+                @endif
+                @if(!empty($isAdmin) && !empty($pacienteData['paciente']['medico_nome']))
+                    <span class="medico">Dra. {{ $pacienteData['paciente']['medico_nome'] }}</span>
                 @endif
             </div>
 
-            <!-- Tabela de Produtos -->
+            <!-- Tabela: Produto | Última Modificação | Data Aquisição | Qtd (colunas separadas) -->
             <table class="produtos">
                 <thead>
                     <tr>
-                        <th style="width: 40%;">Produto</th>
-                        <th style="width: 12%;">Data Receita</th>
-                        <th style="width: 12%;">Data Aquisição</th>
-                        <th style="width: 12%;">Valor Unit.</th>
-                        <th style="width: 8%;">Qtd</th>
-                        <th style="width: 16%;">Total</th>
+                        <th style="width: 35%;">Produto</th>
+                        <th style="width: 20%;">Última Modificação</th>
+                        <th style="width: 22%;">Aquisições no Período</th>
+                        <th style="width: 10%; text-align: center;">Qtd</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($pacienteData['produtos'] as $produto)
+                    @foreach($pacienteData['produtos'] as $p)
                         <tr>
-                            <td>{{ $produto['produto_nome'] }}</td>
-                            <td>{{ $produto['data_receita'] }}</td>
-                            <td>{{ $produto['data_aquisicao'] }}</td>
-                            <td>R$ {{ number_format($produto['valor_unitario'], 2, ',', '.') }}</td>
-                            <td>{{ $produto['quantidade'] }}</td>
-                            <td>R$ {{ number_format($produto['valor_total'], 2, ',', '.') }}</td>
+                            <td>{{ $p['produto_nome'] }}</td>
+                            <td>{{ $ultimaModPorProduto[$p['produto_nome']] ?? $p['data_receita'] }}</td>
+                            <td>{{ $p['data_aquisicao'] }}</td>
+                            <td style="text-align: center;">{{ $p['quantidade'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
-
-            <!-- Rodapé do Paciente -->
-            <table class="paciente-footer" style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="width: 40%;">Qtd. Produtos: {{ $pacienteData['totais']['qtd_produtos'] }}</td>
-                    <td style="width: 20%; text-align: right;">Vlr.Frete: R$ {{ number_format($pacienteData['totais']['vlr_frete'], 2, ',', '.') }}</td>
-                    <td style="width: 20%; text-align: right;">Vlr.Desconto: R$ {{ number_format($pacienteData['totais']['vlr_desconto'], 2, ',', '.') }}</td>
-                    <td style="width: 20%; text-align: right; font-weight: bold;">Total: R$ {{ number_format($pacienteData['totais']['total'], 2, ',', '.') }}</td>
-                </tr>
-            </table>
         </div>
     @endforeach
-
-    <!-- Totais Gerais -->
-    <div class="totais-gerais">
-        <table style="width: 100%;">
-            <tr>
-                <td style="width: 50%;">Qtd. Total Produtos: {{ $dados['totais_gerais']['qtd_total_produtos'] }}</td>
-                <td style="width: 50%; text-align: right;">Valor Total de Produtos: R$ {{ number_format($dados['totais_gerais']['valor_total_produtos'], 2, ',', '.') }}</td>
-            </tr>
-        </table>
-    </div>
 
     </div>
     <div class="footer">

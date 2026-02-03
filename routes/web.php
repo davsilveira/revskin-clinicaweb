@@ -110,7 +110,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/api/produtos/search', [ProdutoController::class, 'search'])->name('produtos.search');
     });
 
-    // Relatórios - Aquisição de Produtos (admin e médico)
+    // Relatórios - índice e Aquisição de Produtos (admin e médico)
+    Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('/relatorios/aquisicao-produtos', [RelatorioController::class, 'aquisicaoProdutos'])->name('relatorios.aquisicao-produtos');
     Route::get('/relatorios/aquisicao-produtos/export/{format}', [RelatorioController::class, 'exportAquisicaoProdutos'])->name('relatorios.aquisicao-produtos.export');
 
@@ -160,8 +161,7 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/assistente/regras/{regraCondicional}', [RegraCondicionalController::class, 'destroy'])->name('assistente.regras.destroy');
         Route::post('/assistente/regras/reordenar', [RegraCondicionalController::class, 'reordenar'])->name('assistente.regras.reordenar');
 
-        // Relatórios
-        Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
+        // Relatórios (apenas admin)
         Route::get('/relatorios/receitas-medico', [RelatorioController::class, 'receitasPorMedico'])->name('relatorios.receitas-medico');
         Route::get('/relatorios/receitas-medico/export/{format}', [RelatorioController::class, 'exportReceitasMedico'])->name('relatorios.receitas-medico.export');
 

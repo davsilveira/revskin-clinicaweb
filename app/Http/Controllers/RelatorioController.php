@@ -280,6 +280,7 @@ class RelatorioController extends Controller
                 'dados' => $dados,
                 'dataInicio' => $request->data_inicio,
                 'dataFim' => $request->data_fim,
+                'isAdmin' => $isAdmin,
             ]);
 
             return $pdf->download('relatorio-aquisicao-produtos.pdf');
@@ -287,7 +288,7 @@ class RelatorioController extends Controller
 
         if ($format === 'xlsx' || $format === 'csv') {
             return Excel::download(
-                new \App\Exports\AquisicaoProdutosExport($dados, $request->data_inicio, $request->data_fim),
+                new \App\Exports\AquisicaoProdutosExport($dados, $request->data_inicio, $request->data_fim, $isAdmin),
                 'relatorio-aquisicao-produtos.' . $format
             );
         }
@@ -417,6 +418,8 @@ class RelatorioController extends Controller
                         'id' => $paciente->id,
                         'nome' => $paciente->nome,
                         'telefone' => $paciente->telefone_principal,
+                        'cpf' => $paciente->cpf ?? '',
+                        'medico_nome' => $receita->medico->nome ?? '',
                     ],
                     'produtos' => [],
                     'receitas_unicas' => [],
@@ -471,6 +474,8 @@ class RelatorioController extends Controller
                         'id' => $paciente->id,
                         'nome' => $paciente->nome,
                         'telefone' => $paciente->telefone_principal,
+                        'cpf' => $paciente->cpf ?? '',
+                        'medico_nome' => $receita->medico->nome ?? '',
                     ],
                     'produtos' => [],
                     'receitas_unicas' => [],
