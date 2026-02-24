@@ -118,7 +118,20 @@ export default function AssistenteReceitaIndex({
 
     const openCreateForm = () => {
         setShowCreateForm(true);
-        setNovoPaciente(prev => ({ ...prev, nome: searchPaciente }));
+        const trimmed = searchPaciente.trim();
+        const digitsOnly = trimmed.replace(/\D/g, '');
+        // Se o texto digitado contém 11+ dígitos e é composto apenas por números/pontos/hífens, tratar como CPF
+        const isCpf = digitsOnly.length >= 11 && /^[\d.\-/]+$/.test(trimmed);
+        if (isCpf) {
+            // Formatar como CPF: 000.000.000-00
+            const formatted = digitsOnly.substring(0, 11).replace(
+                /(\d{3})(\d{3})(\d{3})(\d{2})/,
+                '$1.$2.$3-$4'
+            );
+            setNovoPaciente(prev => ({ ...prev, cpf: formatted }));
+        } else {
+            setNovoPaciente(prev => ({ ...prev, nome: trimmed }));
+        }
         setSearchPaciente('');
         setShowPacienteDropdown(false);
         setNoResults(false);

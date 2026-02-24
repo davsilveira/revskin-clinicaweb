@@ -5,6 +5,7 @@ import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
+import Pagination from '@/Components/Pagination';
 
 export default function ProdutosIndex({ produtos, categorias = [], filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -17,6 +18,7 @@ export default function ProdutosIndex({ produtos, categorias = [], filters }) {
         codigo: '',
         nome: '',
         descricao: '',
+        anotacoes: '',
         categoria: '',
         unidade: 'UN',
         preco_custo: '',
@@ -42,13 +44,14 @@ export default function ProdutosIndex({ produtos, categorias = [], filters }) {
             codigo: produto.codigo || '',
             nome: produto.nome || '',
             descricao: produto.descricao || '',
+            anotacoes: produto.anotacoes || '',
             categoria: produto.categoria || '',
             unidade: produto.unidade || 'UN',
             preco_custo: produto.preco_custo || '',
             preco_venda: produto.preco || produto.preco_venda || '',
             estoque_minimo: produto.estoque_minimo || '',
             local_uso: produto.local_uso || '',
-            modo_uso: produto.anotacoes || produto.modo_uso || '',
+            modo_uso: produto.modo_uso || '',
             tiny_id: produto.tiny_id || '',
             ativo: produto.ativo ?? true,
         });
@@ -169,6 +172,9 @@ export default function ProdutosIndex({ produtos, categorias = [], filters }) {
                             )) : <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-500">Nenhum produto encontrado</td></tr>}
                         </tbody>
                     </table>
+                    {produtos?.links && (
+                        <Pagination links={produtos.links} preserveScroll />
+                    )}
                 </div>
             </div>
 
@@ -196,6 +202,9 @@ export default function ProdutosIndex({ produtos, categorias = [], filters }) {
                             <Input label="Local de Uso" value={data.local_uso} onChange={(e) => setData('local_uso', e.target.value)} placeholder="Ex: Rosto, Corpo, Maos" />
                             <div className="mt-4">
                                 <Input label="Modo de Uso" value={data.modo_uso} onChange={(e) => setData('modo_uso', e.target.value)} multiline rows={2} placeholder="Ex: Aplicar a noite apos limpeza" />
+                            </div>
+                            <div className="mt-4">
+                                <Input label="Anotações dos Especialistas" value={data.anotacoes} onChange={(e) => setData('anotacoes', e.target.value)} multiline rows={3} placeholder="Dicas sobre o creme: para quem é indicado, outras formas de uso..." />
                             </div>
                         </div>
                         <div className="border-t pt-6">

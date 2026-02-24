@@ -6,7 +6,7 @@ import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 
-export default function UsersIndex({ users }) {
+export default function UsersIndex({ users, clinicas = [], medicos = [] }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -17,6 +17,8 @@ export default function UsersIndex({ users }) {
         email: '',
         password: '',
         role: 'medico',
+        clinica_id: '',
+        medico_id: '',
         is_active: true,
     });
 
@@ -35,6 +37,8 @@ export default function UsersIndex({ users }) {
             email: user.email,
             password: '',
             role: user.role,
+            clinica_id: user.clinica_id ? String(user.clinica_id) : '',
+            medico_id: user.medico_id ? String(user.medico_id) : '',
             is_active: user.is_active,
         });
         setDrawerOpen(true);
@@ -101,6 +105,8 @@ export default function UsersIndex({ users }) {
                 return 'bg-emerald-100 text-emerald-800';
             case 'callcenter':
                 return 'bg-blue-100 text-blue-800';
+            case 'secretaria':
+                return 'bg-amber-100 text-amber-800';
             default:
                 return 'bg-gray-100 text-gray-800';
         }
@@ -114,6 +120,8 @@ export default function UsersIndex({ users }) {
                 return 'Médico';
             case 'callcenter':
                 return 'Call Center';
+            case 'secretaria':
+                return 'Secretária';
             default:
                 return role;
         }
@@ -247,15 +255,55 @@ export default function UsersIndex({ users }) {
                         <Select
                             label="Perfil"
                             value={data.role}
-                            onChange={(e) => setData('role', e.target.value)}
+                            onChange={(e) => {
+                                const newRole = e.target.value;
+                                setData(prev => ({
+                                    ...prev,
+                                    role: newRole,
+                                    clinica_id: newRole === 'secretaria' ? prev.clinica_id : '',
+                                    medico_id: newRole === 'medico' ? prev.medico_id : '',
+                                }));
+                            }}
                             error={errors.role}
                             required
                             options={[
                                 { value: 'medico', label: 'Médico' },
                                 { value: 'callcenter', label: 'Call Center' },
+                                { value: 'secretaria', label: 'Secretária' },
                                 { value: 'admin', label: 'Administrador' },
                             ]}
                         />
+
+                        {data.role === 'medico' && (
+                            <Select
+                                label="Médico Vinculado"
+                                value={data.medico_id}
+                                onChange={(e) => setData('medico_id', e.target.value)}
+                                error={errors.medico_id}
+                                required
+                                options={[
+                                    { value: '', label: 'Selecione o médico' },
+                                    ...medicos.map((m) => ({ 
+                                        value: String(m.id), 
+                                        label: `${m.nome}${m.crm ? ` - CRM ${m.uf || ''}${m.crm}` : ''}` 
+                                    })),
+                                ]}
+                            />
+                        )}
+
+                        {data.role === 'secretaria' && (
+                            <Select
+                                label="Clínica"
+                                value={data.clinica_id}
+                                onChange={(e) => setData('clinica_id', e.target.value)}
+                                error={errors.clinica_id}
+                                required
+                                options={[
+                                    { value: '', label: 'Selecione a clínica' },
+                                    ...clinicas.map((c) => ({ value: String(c.id), label: c.nome })),
+                                ]}
+                            />
+                        )}
 
                         {editingUser && (
                             <Select

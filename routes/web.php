@@ -68,11 +68,27 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/api/pacientes/autosave', [PacienteController::class, 'autosave'])->name('pacientes.autosave');
     Route::post('/api/pacientes/quick-create', [PacienteController::class, 'quickCreate'])->name('pacientes.quickCreate');
 
-    // Receitas (medico and admin)
-    Route::middleware('medico')->group(function () {
-        Route::resource('receitas', ReceitaController::class);
-        Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
+    // Catalogo de produtos (read-only para medicos)
+    Route::middleware('role:medico')->group(function () {
+        Route::get('/catalogo-produtos', [ProdutoController::class, 'catalogo'])->name('produtos.catalogo');
+        Route::get('/catalogo-produtos/export', [ProdutoController::class, 'catalogoExport'])->name('produtos.catalogo.export');
+    });
+
+    // Receitas - visualizacao (medico, admin e callcenter)
+    Route::middleware('role:medico,callcenter')->group(function () {
+        Route::get('/receitas', [ReceitaController::class, 'index'])->name('receitas.index');
+        Route::get('/receitas/{receita}', [ReceitaController::class, 'show'])->name('receitas.show');
         Route::get('/receitas/{receita}/pdf', [ReceitaController::class, 'pdf'])->name('receitas.pdf');
+    });
+
+    // Receitas - edicao (medico and admin only)
+    Route::middleware('medico')->group(function () {
+        Route::get('/receitas/create', [ReceitaController::class, 'create'])->name('receitas.create');
+        Route::post('/receitas', [ReceitaController::class, 'store'])->name('receitas.store');
+        Route::get('/receitas/{receita}/edit', [ReceitaController::class, 'edit'])->name('receitas.edit');
+        Route::put('/receitas/{receita}', [ReceitaController::class, 'update'])->name('receitas.update');
+        Route::delete('/receitas/{receita}', [ReceitaController::class, 'destroy'])->name('receitas.destroy');
+        Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
         Route::post('/api/receitas/autosave', [ReceitaController::class, 'autosave'])->name('receitas.autosave');
         
         // Assistente de Receita

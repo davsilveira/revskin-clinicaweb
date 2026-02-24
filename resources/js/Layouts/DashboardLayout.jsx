@@ -10,12 +10,13 @@ export default function DashboardLayout({ children }) {
     const [showProfileDrawer, setShowProfileDrawer] = useState(false);
     const [expandedMenus, setExpandedMenus] = useState({});
     
-    // Sidebar collapsed state with localStorage persistence
+    // Sidebar collapsed state with localStorage persistence (default: collapsed)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('sidebarCollapsed') === 'true';
+            const stored = localStorage.getItem('sidebarCollapsed');
+            return stored === null ? true : stored === 'true';
         }
-        return false;
+        return true;
     });
 
     useEffect(() => {
@@ -41,6 +42,7 @@ export default function DashboardLayout({ children }) {
     const isAdmin = auth.user.role === 'admin';
     const isMedico = auth.user.role === 'medico';
     const isCallcenter = auth.user.role === 'callcenter';
+    const isSecretaria = auth.user.role === 'secretaria';
     const pendingCallCenterCount = auth.pendingCallCenterCount || 0;
 
     const getRoleLabel = (role) => {
@@ -48,6 +50,7 @@ export default function DashboardLayout({ children }) {
             admin: 'Administrador',
             medico: 'Médico',
             callcenter: 'Call Center',
+            secretaria: 'Secretária',
         };
         return labels[role] || role;
     };
@@ -71,7 +74,7 @@ export default function DashboardLayout({ children }) {
                 {/* Navigation */}
                 <nav className={`flex-1 ${sidebarCollapsed ? 'px-2' : 'px-4'} py-6 overflow-y-auto`}>
                     <div className="space-y-1">
-                        {/* Dashboard */}
+                        {/* Tela Inicial */}
                         <Link
                             href="/dashboard"
                             className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
@@ -79,12 +82,12 @@ export default function DashboardLayout({ children }) {
                                     ? 'bg-emerald-50 text-emerald-700'
                                     : 'text-gray-700 hover:bg-gray-100'
                             }`}
-                            title={sidebarCollapsed ? 'Dashboard' : undefined}
+                            title={sidebarCollapsed ? 'Tela Inicial' : undefined}
                         >
                             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                             </svg>
-                            {!sidebarCollapsed && <span className="font-medium">Dashboard</span>}
+                            {!sidebarCollapsed && <span className="font-medium">Tela Inicial</span>}
                         </Link>
 
                         {/* Pacientes */}
@@ -151,6 +154,24 @@ export default function DashboardLayout({ children }) {
                                     </svg>
                                     {!sidebarCollapsed && <span className="font-medium">Relatórios</span>}
                                 </Link>
+
+                                {/* Produtos (catalogo - medico only) */}
+                                {isMedico && (
+                                    <Link
+                                        href="/catalogo-produtos"
+                                        className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
+                                            isActive('/catalogo-produtos')
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : 'text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                        title={sidebarCollapsed ? 'Produtos' : undefined}
+                                    >
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                        </svg>
+                                        {!sidebarCollapsed && <span className="font-medium">Produtos</span>}
+                                    </Link>
+                                )}
                             </>
                         )}
 
@@ -188,8 +209,8 @@ export default function DashboardLayout({ children }) {
                             </Link>
                         )}
 
-                        {/* Produtos - Admin and Call Center */}
-                        {(isAdmin || isCallcenter) && (
+                        {/* Produtos - Admin only */}
+                        {isAdmin && (
                             <Link
                                 href="/produtos"
                                 className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
@@ -291,21 +312,6 @@ export default function DashboardLayout({ children }) {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                     </svg>
                                     {!sidebarCollapsed && <span className="font-medium">Regras Condicionais</span>}
-                                </Link>
-
-                                <Link
-                                    href="/relatorios"
-                                    className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
-                                        isActive('/relatorios')
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title={sidebarCollapsed ? 'Relatórios' : undefined}
-                                >
-                                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    {!sidebarCollapsed && <span className="font-medium">Relatórios</span>}
                                 </Link>
 
                                 <Link

@@ -180,7 +180,9 @@ export default function PatientDrawer({
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 id: currentPacienteId,
                 ...data,
@@ -295,8 +297,10 @@ export default function PatientDrawer({
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             const telefonesValidos = data.telefones.filter(t => t.numero && t.numero.trim());
             
-            const url = paciente ? `/pacientes/${paciente.id}` : '/pacientes';
-            const method = paciente ? 'PUT' : 'POST';
+            // Use currentPacienteId if autosave already created the patient
+            const existingId = paciente?.id || currentPacienteId;
+            const url = existingId ? `/pacientes/${existingId}` : '/pacientes';
+            const method = existingId ? 'PUT' : 'POST';
             
             const response = await fetch(url, {
                 method,
@@ -306,6 +310,7 @@ export default function PatientDrawer({
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify({
                     ...data,
                     telefones: telefonesValidos,
@@ -317,6 +322,12 @@ export default function PatientDrawer({
                 setCpfError(null);
                 onSave?.();
             } else {
+                // Se for erro 419 (CSRF token mismatch), recarregar a página para obter novo token
+                if (response.status === 419) {
+                    window.location.reload();
+                    return;
+                }
+
                 const errorData = await response.json();
                 console.error('Error saving patient:', errorData);
                 

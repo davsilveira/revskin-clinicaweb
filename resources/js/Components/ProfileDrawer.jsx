@@ -149,18 +149,31 @@ export default function ProfileDrawer({ isOpen, onClose }) {
         });
     };
 
+    const [uploadingAssinatura, setUploadingAssinatura] = useState(false);
     const handleAssinaturaUpload = (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const formData = new FormData();
-            formData.append('assinatura', file);
-            router.post('/profile/assinatura', formData, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setToast({ message: 'Assinatura atualizada com sucesso!', type: 'success' });
-                },
-            });
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+            setToast({ message: 'Arquivo muito grande. Máximo: 2MB.', type: 'error' });
+            return;
         }
+        const formData = new FormData();
+        formData.append('assinatura', file);
+        setUploadingAssinatura(true);
+        router.post('/profile/assinatura', formData, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setToast({ message: 'Assinatura atualizada com sucesso!', type: 'success' });
+                e.target.value = '';
+            },
+            onError: (errors) => {
+                const msg = errors?.assinatura?.[0] || errors?.message || 'Falha ao enviar assinatura. Verifique o formato (JPG, PNG, GIF) e o tamanho (máx. 2MB).';
+                setToast({ message: msg, type: 'error' });
+            },
+            onFinish: () => {
+                setUploadingAssinatura(false);
+            },
+        });
     };
 
     return (
@@ -448,10 +461,12 @@ export default function ProfileDrawer({ isOpen, onClose }) {
                                     )}
                                     <input
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/jpeg,image/png,image/gif,image/jpg"
                                         onChange={handleAssinaturaUpload}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        disabled={uploadingAssinatura}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50"
                                     />
+                                    {uploadingAssinatura && <p className="text-sm text-blue-600 mt-1">Enviando...</p>}
                                     <p className="text-xs text-gray-500 mt-1">Formatos aceitos: JPG, PNG, GIF. Tamanho máximo: 2MB</p>
                                 </div>
                             </div>

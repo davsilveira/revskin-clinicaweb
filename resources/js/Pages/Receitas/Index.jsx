@@ -1,8 +1,10 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 
 export default function ReceitasIndex({ receitas, pacientes, filters }) {
+    const { auth } = usePage().props;
+    const isMedico = auth.user.role === 'medico';
     const [search, setSearch] = useState(filters?.search || '');
     const [status, setStatus] = useState(filters?.status || '');
 
@@ -104,9 +106,11 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Data
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Valor Total
-                                </th>
+                                {!isMedico && (
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Valor Total
+                                    </th>
+                                )}
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Status
                                 </th>
@@ -135,12 +139,14 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {new Date(receita.data_receita).toLocaleDateString('pt-BR')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {new Intl.NumberFormat('pt-BR', {
-                                                style: 'currency',
-                                                currency: 'BRL',
-                                            }).format(receita.valor_total)}
-                                        </td>
+                                        {!isMedico && (
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {new Intl.NumberFormat('pt-BR', {
+                                                    style: 'currency',
+                                                    currency: 'BRL',
+                                                }).format(receita.valor_total)}
+                                            </td>
+                                        )}
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {getStatusBadge(receita.status)}
                                         </td>

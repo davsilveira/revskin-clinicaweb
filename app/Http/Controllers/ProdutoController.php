@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Produto;
+use App\Exports\CatalogoProdutosExport;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ProdutoController extends Controller
 {
@@ -22,7 +25,7 @@ class ProdutoController extends Controller
             ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')));
 
         $produtos = $query->orderBy('codigo')
-            ->paginate(15)
+            ->paginate(50)
             ->withQueryString();
 
         return Inertia::render('Produtos/Index', [
@@ -118,6 +121,64 @@ class ProdutoController extends Controller
 
         return redirect()->route('produtos.index')
             ->with('success', 'Produto desativado com sucesso!');
+    }
+
+    /**
+     * Catalogo de produtos (read-only para medicos).
+     */
+    public function catalogo(Request $request): Response
+    {
+        $query = Produto::ativo()
+            ->when($request->search, function ($q, $search) {
+                $q->where(function ($query) use ($search) {
+                    $query->where('nome', 'like', "%{$search}%")
+                        ->orWhere('codigo', 'like', "%{$search}%");
+                });
+            });
+
+        $produtos = $query->orderBy('nome')
+            ->get(['id', 'codigo', 'nome', 'descricao', 'modo_uso', 'anotacoes']);
+
+        return Inertia::render('Produtos/Catalogo', [
+            'produtos' => $produtos,
+            'filters' => $request->only(['search']),
+        ]);
+    }
+
+    /**
+     * Export catalogo de produtos (PDF ou Excel).
+     */
+    public function catalogoExport(Request $request)
+    {
+        $format = $request->get('format', 'pdf');
+
+        $produtos = Produto::ativo()
+            ->when($request->search, function ($q, $search) {
+                $q->where(function ($query) use ($search) {
+                    $query->where('nome', 'like', "%{$search}%")
+                        ->orWhere('codigo', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('nome')
+            ->get(['id', 'codigo', 'nome', 'descricao', 'modo_uso', 'anotacoes']);
+
+        if ($format === 'pdf') {
+            $pdf = Pdf::loadView('pdf.catalogo-produtos', [
+                'produtos' => $produtos,
+                'total' => $produtos->count(),
+            ])->setPaper('a4', 'landscape');
+
+            return $pdf->download('catalogo-produtos.pdf');
+        }
+
+        if ($format === 'xlsx') {
+            return Excel::download(
+                new CatalogoProdutosExport($produtos),
+                'catalogo-produtos.xlsx'
+            );
+        }
+
+        abort(400, 'Formato não suportado');
     }
 
     /**

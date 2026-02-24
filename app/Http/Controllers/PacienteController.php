@@ -94,12 +94,18 @@ class PacienteController extends Controller
         if ($user->isMedico() && $user->medico_id) {
             $query->where('medico_id', $user->medico_id);
         }
+        if ($user->isSecretaria() && $user->clinica_id) {
+            $medicoIds = $user->getMedicoIdsDaClinica();
+            $query->whereIn('medico_id', $medicoIds);
+        } elseif ($user->isSecretaria()) {
+            $query->whereRaw('1 = 0'); // sem clínica = lista vazia
+        }
 
         $pacientes = $query->orderBy('nome')
             ->paginate(15)
             ->withQueryString();
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = $this->getMedicosForPacienteForm($request->user());
 
         return Inertia::render('Pacientes/Index', [
             'pacientes' => $pacientes,
@@ -111,11 +117,23 @@ class PacienteController extends Controller
     }
 
     /**
+     * Get medicos list for paciente form (filtered by role: all for admin/callcenter, one for medico, clinic for secretária).
+     */
+    private function getMedicosForPacienteForm($user): \Illuminate\Support\Collection
+    {
+        if ($user->isSecretaria() && $user->clinica_id) {
+            $ids = $user->getMedicoIdsDaClinica();
+            return Medico::ativo()->whereIn('id', $ids)->orderBy('nome')->get(['id', 'nome']);
+        }
+        return Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = $this->getMedicosForPacienteForm($request->user());
 
         return Inertia::render('Pacientes/Form', [
             'medicos' => $medicos,
@@ -170,10 +188,23 @@ class PacienteController extends Controller
             return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
         }
 
-        // Auto-assign medico if user is medico
         $user = $request->user();
+        // Auto-assign medico if user is medico
         if ($user->isMedico() && $user->medico_id) {
             $validated['medico_id'] = $user->medico_id;
+        }
+        // Secretária: assign medico from her clinic
+        if ($user->isSecretaria()) {
+            if (!empty($validated['medico_id'])) {
+                if (!in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
+                    return back()->withErrors(['medico_id' => 'O médico selecionado não pertence à sua clínica.'])->withInput();
+                }
+            } else {
+                $medicoIds = $user->getMedicoIdsDaClinica();
+                if (!empty($medicoIds)) {
+                    $validated['medico_id'] = $medicoIds[0];
+                }
+            }
         }
 
         $telefones = $validated['telefones'] ?? [];
@@ -234,7 +265,7 @@ class PacienteController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = $this->getMedicosForPacienteForm($user);
 
         return Inertia::render('Pacientes/Form', [
             'paciente' => $paciente,
@@ -290,10 +321,17 @@ class PacienteController extends Controller
             return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
         }
 
-        // Check if user can access this paciente
         $user = $request->user();
+        // Check if user can access this paciente
         if (!$user->canAccessPaciente($paciente)) {
             abort(403, 'Acesso não autorizado.');
+        }
+
+        // Secretária: medico_id must be from her clinic
+        if ($user->isSecretaria() && isset($validated['medico_id']) && $validated['medico_id'] !== null) {
+            if (!in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
+                return back()->withErrors(['medico_id' => 'O médico selecionado não pertence à sua clínica.'])->withInput();
+            }
         }
 
         // Prevent medico from changing medico_id
@@ -412,10 +450,14 @@ class PacienteController extends Controller
             return response()->json(['error' => 'CPF inválido'], 422);
         }
 
-        // Auto-assign medico if user is medico
         $user = $request->user();
         if ($user->isMedico() && $user->medico_id) {
             $validated['medico_id'] = $user->medico_id;
+        } elseif ($user->isSecretaria() && empty($validated['medico_id'])) {
+            $medicoIds = $user->getMedicoIdsDaClinica();
+            if (!empty($medicoIds)) {
+                $validated['medico_id'] = $medicoIds[0];
+            }
         }
 
         $id = $validated['id'] ?? null;
@@ -488,10 +530,14 @@ class PacienteController extends Controller
             return response()->json(['error' => 'CPF inválido. Por favor, verifique os números digitados.'], 422);
         }
 
-        // Auto-assign medico if user is medico
         $user = $request->user();
         if ($user->isMedico() && $user->medico_id) {
             $validated['medico_id'] = $user->medico_id;
+        } elseif ($user->isSecretaria()) {
+            $medicoIds = $user->getMedicoIdsDaClinica();
+            if (!empty($medicoIds)) {
+                $validated['medico_id'] = $medicoIds[0];
+            }
         }
 
         $validated['ativo'] = true;

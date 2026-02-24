@@ -18,6 +18,7 @@ class User extends Authenticatable
     const ROLE_ADMIN = 'admin';
     const ROLE_MEDICO = 'medico';
     const ROLE_CALLCENTER = 'callcenter';
+    const ROLE_SECRETARIA = 'secretaria';
 
     /**
      * The attributes that are mass assignable.
@@ -30,6 +31,7 @@ class User extends Authenticatable
         'password',
         'role',
         'medico_id',
+        'clinica_id',
         'is_active',
     ];
 
@@ -66,6 +68,7 @@ class User extends Authenticatable
             self::ROLE_ADMIN => 'Administrador',
             self::ROLE_MEDICO => 'Médico',
             self::ROLE_CALLCENTER => 'Call Center',
+            self::ROLE_SECRETARIA => 'Secretária',
         ];
     }
 
@@ -87,6 +90,11 @@ class User extends Authenticatable
         return $this->role === self::ROLE_CALLCENTER;
     }
 
+    public function isSecretaria(): bool
+    {
+        return $this->role === self::ROLE_SECRETARIA;
+    }
+
     public function hasRole(string $role): bool
     {
         return $this->role === $role;
@@ -103,6 +111,32 @@ class User extends Authenticatable
     public function medico(): BelongsTo
     {
         return $this->belongsTo(Medico::class);
+    }
+
+    /**
+     * Get the linked clinica (for secretária).
+     */
+    public function clinica(): BelongsTo
+    {
+        return $this->belongsTo(Clinica::class);
+    }
+
+    /**
+     * Get medico IDs for the user's clinica (for secretária access).
+     */
+    public function getMedicoIdsDaClinica(): array
+    {
+        if (!$this->clinica_id) {
+            return [];
+        }
+        $clinica = $this->clinica;
+        if (!$clinica) {
+            return [];
+        }
+        // Médicos via pivot clinica_medico + médicos com clinica_id (legado)
+        $idsPivot = $clinica->medicos()->pluck('medicos.id')->toArray();
+        $idsLegado = Medico::where('clinica_id', $clinica->id)->pluck('id')->toArray();
+        return array_values(array_unique(array_merge($idsPivot, $idsLegado)));
     }
 
     /**
@@ -172,6 +206,10 @@ class User extends Authenticatable
 
         if ($this->isMedico()) {
             return $paciente->medico_id === $this->medico_id;
+        }
+
+        if ($this->isSecretaria() && $this->clinica_id && $paciente->medico_id) {
+            return in_array($paciente->medico_id, $this->getMedicoIdsDaClinica(), true);
         }
 
         return false;

@@ -106,7 +106,7 @@ class Receita extends Model
             $this->desconto_valor = $subtotal * ($this->desconto_percentual / 100);
         }
 
-        $this->valor_total = $subtotal - $this->desconto_valor + $this->valor_frete;
+        $this->valor_total = $subtotal - $this->desconto_valor + $this->valor_frete + $this->valor_caixa;
         $this->save();
     }
 

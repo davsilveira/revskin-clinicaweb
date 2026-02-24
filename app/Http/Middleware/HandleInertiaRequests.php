@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AtendimentoCallcenter;
+use App\Models\Clinica;
 use App\Models\Medico;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -55,6 +56,11 @@ class HandleInertiaRequests extends Middleware
                 ->count();
         }
 
+        $clinica = null;
+        if ($user && $user->isSecretaria() && $user->clinica_id) {
+            $clinica = Clinica::select('id', 'nome')->find($user->clinica_id);
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -65,13 +71,16 @@ class HandleInertiaRequests extends Middleware
                     'role' => $user->role,
                     'is_active' => $user->is_active,
                     'medico_id' => $user->medico_id,
+                    'clinica_id' => $user->clinica_id,
                 ] : null,
                 'medico' => $medico,
+                'clinica' => $clinica,
                 'pendingCallCenterCount' => $pendingCallCenterCount,
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                'status' => fn () => $request->session()->get('status'),
             ],
         ];
     }

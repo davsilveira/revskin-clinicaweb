@@ -136,7 +136,6 @@
             color: #333;
             line-height: 1.6;
             margin-bottom: 10px;
-            white-space: pre-line;
         }
         .formula-detalhes {
             margin-top: 10px;
@@ -150,6 +149,13 @@
         .formula-detalhe-label {
             font-weight: bold;
             color: #444;
+        }
+        .modo-uso-label {
+            display: block;
+            margin-bottom: 2px;
+        }
+        .modo-uso-conteudo {
+            margin-top: 2px;
         }
         
         /* Rodapé */
@@ -258,14 +264,6 @@
                 <div>
                     <strong>Paciente:</strong> {{ $receita->paciente->nome }}
                 </div>
-                @if($receita->paciente->data_nascimento)
-                    <div>
-                        <strong>Data de Nascimento:</strong> {{ $receita->paciente->data_nascimento->format('d/m/Y') }}
-                        @if($receita->paciente->idade)
-                            ({{ $receita->paciente->idade }} anos)
-                        @endif
-                    </div>
-                @endif
                 @if($receita->paciente->sexo)
                     <div>
                         <strong>Sexo:</strong> {{ ucfirst($receita->paciente->sexo) }}
@@ -279,6 +277,9 @@
 
         <!-- Corpo da Receita -->
         <div class="corpo-receita">
+            <div class="formula-nome" style="margin-bottom: 15px; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+                USO TÓPICO
+            </div>
             @foreach($receita->itens as $index => $item)
                 <div class="formula">
                     <div class="formula-nome">
@@ -287,33 +288,39 @@
                     
                     @if($item->produto->descricao)
                         <div class="formula-composicao">
-                            {{ $item->produto->descricao }}
+                            @php
+                                $desc = preg_replace("/\r\n|\r|\n/", "\n", $item->produto->descricao);
+                                $desc = str_replace(['\n', '/n'], "\n", $desc);
+                                $desc = preg_replace("/\n{2,}/", "\n", $desc);
+                            @endphp
+                            {!! nl2br(e($desc)) !!}
                         </div>
                     @endif
                     
                     <div class="formula-detalhes">
+                        @if($item->produto->modo_uso)
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label modo-uso-label">Modo de uso:</span>
+                                @php
+                                    $modo = preg_replace("/\r\n|\r|\n/", "\n", $item->produto->modo_uso);
+                                    $modo = str_replace(['\n', '/n'], "\n", $modo);
+                                    $modo = preg_replace("/\n{2,}/", "\n", $modo);
+                                @endphp
+                                <div class="modo-uso-conteudo">{!! nl2br(e($modo)) !!}</div>
+                            </div>
+                        @elseif($item->anotacoes)
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label modo-uso-label">Modo de uso:</span>
+                                <div class="modo-uso-conteudo">{{ $item->anotacoes }}</div>
+                            </div>
+                        @endif
+
                         @if($item->quantidade)
                             <div class="formula-detalhe-item">
                                 <span class="formula-detalhe-label">Quantidade:</span> {{ $item->quantidade }}
                                 @if($item->produto->unidade)
                                     {{ $item->produto->unidade }}
                                 @endif
-                            </div>
-                        @endif
-                        
-                        @if($item->produto->modo_uso)
-                            <div class="formula-detalhe-item">
-                                <span class="formula-detalhe-label">Posologia / Modo de usar:</span> {{ $item->produto->modo_uso }}
-                            </div>
-                        @elseif($item->anotacoes)
-                            <div class="formula-detalhe-item">
-                                <span class="formula-detalhe-label">Posologia / Modo de usar:</span> {{ $item->anotacoes }}
-                            </div>
-                        @endif
-                        
-                        @if($item->local_uso)
-                            <div class="formula-detalhe-item">
-                                <span class="formula-detalhe-label">Via de uso:</span> {{ $item->local_uso }}
                             </div>
                         @endif
                     </div>
@@ -362,9 +369,6 @@
                 </div>
             </div>
             
-            <div class="validade">
-                <span class="validade-label">Validade:</span> 30 dias
-            </div>
         </div>
     </div>
 </body>

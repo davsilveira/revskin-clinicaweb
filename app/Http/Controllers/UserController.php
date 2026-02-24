@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Clinica;
+use App\Models\Medico;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -20,10 +22,14 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $users = User::orderBy('created_at', 'desc')->get();
+        $users = User::with('clinica:id,nome')->orderBy('created_at', 'desc')->get();
+        $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome', 'crm', 'uf']);
 
         return Inertia::render('Users/Index', [
             'users' => $users,
+            'clinicas' => $clinicas,
+            'medicos' => $medicos,
         ]);
     }
 
@@ -40,7 +46,9 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
-            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter'])],
+            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter', 'secretaria'])],
+            'clinica_id' => ['nullable', 'exists:clinicas,id'],
+            'medico_id' => ['nullable', 'exists:medicos,id'],
         ], [
             'name.required' => 'O nome é obrigatório.',
             'email.required' => 'O e-mail é obrigatório.',
@@ -50,15 +58,28 @@ class UserController extends Controller
             'password.min' => 'A senha deve ter no mínimo 8 caracteres.',
             'role.required' => 'O perfil é obrigatório.',
             'role.in' => 'O perfil selecionado é inválido.',
+            'clinica_id.required' => 'A clínica é obrigatória para o perfil Secretária.',
+            'medico_id.required' => 'O médico é obrigatório para o perfil Médico.',
         ]);
 
-        User::create([
+        if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
+            return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();
+        }
+
+        if ($validated['role'] === 'medico' && empty($validated['medico_id'])) {
+            return redirect()->back()->withErrors(['medico_id' => 'O médico é obrigatório para o perfil Médico.'])->withInput();
+        }
+
+        $payload = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'clinica_id' => $validated['role'] === 'secretaria' ? $validated['clinica_id'] : null,
+            'medico_id' => $validated['role'] === 'medico' ? $validated['medico_id'] : null,
             'is_active' => true,
-        ]);
+        ];
+        User::create($payload);
 
         return redirect()->back()->with('success', 'Usuário criado com sucesso!');
     }
@@ -75,7 +96,9 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter'])],
+            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter', 'secretaria'])],
+            'clinica_id' => ['nullable', 'exists:clinicas,id'],
+            'medico_id' => ['nullable', 'exists:medicos,id'],
             'is_active' => 'required|boolean',
         ], [
             'name.required' => 'O nome é obrigatório.',
@@ -86,6 +109,16 @@ class UserController extends Controller
             'role.in' => 'O perfil selecionado é inválido.',
         ]);
 
+        if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
+            return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();
+        }
+
+        if ($validated['role'] === 'medico' && empty($validated['medico_id'])) {
+            return redirect()->back()->withErrors(['medico_id' => 'O médico é obrigatório para o perfil Médico.'])->withInput();
+        }
+
+        $validated['clinica_id'] = $validated['role'] === 'secretaria' ? ($validated['clinica_id'] ?? null) : null;
+        $validated['medico_id'] = $validated['role'] === 'medico' ? ($validated['medico_id'] ?? null) : null;
         $user->update($validated);
 
         // Update password if provided

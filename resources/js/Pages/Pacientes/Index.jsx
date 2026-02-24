@@ -27,12 +27,14 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     };
 
     const handleSave = () => {
+        const msg = editingPaciente ? 'Paciente atualizado com sucesso!' : 'Paciente cadastrado com sucesso!';
         closeDrawer();
-        setToast({ 
-            message: editingPaciente ? 'Paciente atualizado com sucesso!' : 'Paciente cadastrado com sucesso!', 
-            type: 'success' 
+        setToast({ message: msg, type: 'success' });
+        router.visit('/pacientes', { 
+            only: ['pacientes'],
+            preserveState: true,
+            preserveScroll: true,
         });
-        router.reload({ only: ['pacientes'] });
     };
 
     const handleSearch = (e) => {

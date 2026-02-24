@@ -1,7 +1,133 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
+
+function ProductCombobox({ value, onChange, produtos = [], disabled = false }) {
+    const [search, setSearch] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const wrapperRef = useRef(null);
+    const inputRef = useRef(null);
+    const listRef = useRef(null);
+
+    const selectedProduct = produtos.find(p => p.id === parseInt(value));
+    const displayValue = selectedProduct ? `${selectedProduct.codigo} - ${selectedProduct.nome}` : '';
+
+    const filtered = search.length > 0
+        ? produtos.filter(p => {
+            const term = search.toLowerCase();
+            return p.nome.toLowerCase().includes(term) || p.codigo?.toLowerCase().includes(term);
+        })
+        : produtos;
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+                setIsOpen(false);
+                setSearch('');
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        if (isOpen && highlightedIndex >= 0 && listRef.current) {
+            const items = listRef.current.children;
+            if (items[highlightedIndex]) {
+                items[highlightedIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }, [highlightedIndex, isOpen]);
+
+    const handleKeyDown = useCallback((e) => {
+        if (!isOpen) {
+            if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                setIsOpen(true);
+                e.preventDefault();
+            }
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            setHighlightedIndex(i => Math.min(i + 1, filtered.length - 1));
+            e.preventDefault();
+        } else if (e.key === 'ArrowUp') {
+            setHighlightedIndex(i => Math.max(i - 1, 0));
+            e.preventDefault();
+        } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+            onChange(String(filtered[highlightedIndex].id));
+            setIsOpen(false);
+            setSearch('');
+            e.preventDefault();
+        } else if (e.key === 'Escape') {
+            setIsOpen(false);
+            setSearch('');
+        }
+    }, [isOpen, filtered, highlightedIndex, onChange]);
+
+    const handleSelect = (productId) => {
+        onChange(String(productId));
+        setIsOpen(false);
+        setSearch('');
+    };
+
+    return (
+        <div ref={wrapperRef} className="relative flex-[2] min-w-0">
+            <input
+                ref={inputRef}
+                type="text"
+                value={isOpen ? search : displayValue}
+                placeholder="Buscar produto..."
+                disabled={disabled}
+                onChange={(e) => {
+                    setSearch(e.target.value);
+                    setHighlightedIndex(-1);
+                    if (!isOpen) setIsOpen(true);
+                }}
+                onFocus={() => {
+                    setIsOpen(true);
+                    setSearch('');
+                }}
+                onKeyDown={handleKeyDown}
+                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+            {value && !isOpen && (
+                <button
+                    type="button"
+                    onClick={() => { onChange(''); setSearch(''); }}
+                    disabled={disabled}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            )}
+            {isOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto" ref={listRef}>
+                    {filtered.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-gray-500">Nenhum produto encontrado</div>
+                    ) : (
+                        filtered.slice(0, 50).map((p, idx) => (
+                            <div
+                                key={p.id}
+                                onMouseDown={() => handleSelect(p.id)}
+                                onMouseEnter={() => setHighlightedIndex(idx)}
+                                className={`px-3 py-1.5 text-sm cursor-pointer ${
+                                    idx === highlightedIndex ? 'bg-emerald-50 text-emerald-700' : 
+                                    parseInt(value) === p.id ? 'bg-gray-100' : 'hover:bg-gray-50'
+                                }`}
+                            >
+                                <span className="font-medium text-gray-500">{p.codigo}</span> - {p.nome}
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -223,7 +349,8 @@ export default function ProductItemsEditor({
         const subtotal = calcularSubtotal();
         const desconto = calcularDesconto();
         const frete = parseFloat(valorFrete) || 0;
-        return subtotal - desconto + frete;
+        const caixa = parseFloat(valorCaixa) || 0;
+        return subtotal - desconto + frete + caixa;
     };
 
     // Renderizar linha de item
@@ -253,25 +380,13 @@ export default function ProductItemsEditor({
                     className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
                 />
                 
-                {/* Local de Uso */}
-                <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                    <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                        {formatLocalUso(item.local_uso)}
-                    </span>
-                </div>
-                
-                {/* Produto Select */}
-                <select
+                {/* Produto Combobox */}
+                <ProductCombobox
                     value={item.produto_id}
-                    onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                    onChange={(val) => updateItem(index, 'produto_id', val)}
+                    produtos={produtos}
                     disabled={readOnly}
-                    className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                >
-                    <option value="">Produto...</option>
-                    {produtos?.map((p) => (
-                        <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                    ))}
-                </select>
+                />
                 
                 {/* Anotações */}
                 <input
@@ -280,7 +395,7 @@ export default function ProductItemsEditor({
                     value={item.anotacoes || ''}
                     onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
                     disabled={readOnly}
-                    className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                    className="flex-[1.5] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                 />
                 
                 {/* Data de Aquisição */}
@@ -431,13 +546,12 @@ export default function ProductItemsEditor({
                             {/* Cabeçalhos da tabela */}
                             <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                                 <div className="w-4 flex-shrink-0"></div>
-                                <div className="w-36 flex-shrink-0">
-                                    <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                                </div>
                                 <div className="flex-[2] min-w-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                 </div>
-                                <div className="flex-[0.8] min-w-0"></div>
+                                <div className="flex-[1.5] min-w-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                                </div>
                                 <div className="w-36 flex-shrink-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                                 </div>
@@ -486,13 +600,12 @@ export default function ProductItemsEditor({
                             {/* Cabeçalhos da tabela */}
                             <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                                 <div className="w-4 flex-shrink-0"></div>
-                                <div className="w-36 flex-shrink-0">
-                                    <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                                </div>
                                 <div className="flex-[2] min-w-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                 </div>
-                                <div className="flex-[0.8] min-w-0"></div>
+                                <div className="flex-[1.5] min-w-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                                </div>
                                 <div className="w-36 flex-shrink-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                                 </div>
@@ -519,13 +632,12 @@ export default function ProductItemsEditor({
                         {/* Cabeçalhos da tabela */}
                         <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                             <div className="w-4 flex-shrink-0"></div>
-                            <div className="w-36 flex-shrink-0">
-                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                            </div>
                             <div className="flex-[2] min-w-0">
                                 <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                             </div>
-                            <div className="flex-[0.8] min-w-0"></div>
+                            <div className="flex-[1.5] min-w-0">
+                                <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                            </div>
                             <div className="w-36 flex-shrink-0">
                                 <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                             </div>
@@ -567,7 +679,7 @@ export default function ProductItemsEditor({
                         {/* Caixa e Frete */}
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2">
-                                <label className="text-sm font-medium text-gray-700">Caixa:</label>
+                                <label className="text-sm font-medium text-gray-700">Embalagem:</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -603,6 +715,12 @@ export default function ProductItemsEditor({
                                     <div className="flex justify-between text-sm text-red-600">
                                         <span>Valor Descontos ({descontoPercentual}%):</span>
                                         <span>- {formatCurrency(calcularDesconto())}</span>
+                                    </div>
+                                )}
+                                {valorCaixa > 0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Embalagem:</span>
+                                        <span>+ {formatCurrency(valorCaixa)}</span>
                                     </div>
                                 )}
                                 {valorFrete > 0 && (
