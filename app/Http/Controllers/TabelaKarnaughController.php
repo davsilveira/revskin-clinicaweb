@@ -8,6 +8,7 @@ use App\Services\KarnaughCsvParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class TabelaKarnaughController extends Controller
 {
@@ -78,17 +79,17 @@ class TabelaKarnaughController extends Controller
     }
 
     /**
-     * Validar CSV antes de importar.
+     * Validar arquivo (CSV ou XLSX) antes de importar.
      */
     public function validar(Request $request)
     {
         $request->validate([
-            'arquivo' => 'required|file|mimes:csv,txt|max:5120',
+            'arquivo' => 'required|file|mimes:csv,txt,xlsx|max:10240',
         ]);
 
-        $content = file_get_contents($request->file('arquivo')->getRealPath());
+        $lines = $this->fileToRows($request->file('arquivo'));
         $parser = new KarnaughCsvParser();
-        $errors = $parser->validate($content);
+        $errors = $parser->validateRows($lines);
 
         return response()->json([
             'valid' => empty($errors),
@@ -97,39 +98,40 @@ class TabelaKarnaughController extends Controller
     }
 
     /**
-     * Importar tabela Karnaugh a partir de CSV.
+     * Importar tabela Karnaugh a partir de CSV ou XLSX.
      */
     public function importar(Request $request)
     {
         $request->validate([
-            'arquivo' => 'required|file|mimes:csv,txt|max:5120',
+            'arquivo' => 'required|file|mimes:csv,txt,xlsx|max:10240',
             'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string|max:1000',
             'padrao' => 'boolean',
         ]);
 
-        $content = file_get_contents($request->file('arquivo')->getRealPath());
-        $arquivoOriginal = $request->file('arquivo')->getClientOriginalName();
+        $file = $request->file('arquivo');
+        $arquivoOriginal = $file->getClientOriginalName();
+        $lines = $this->fileToRows($file);
 
         $parser = new KarnaughCsvParser();
-        
-        // Validar primeiro
-        $errors = $parser->validate($content);
+
+        $errors = $parser->validateRows($lines);
         if (!empty($errors)) {
             return back()->withErrors(['arquivo' => implode('. ', $errors)]);
         }
 
         try {
-            $tabela = $parser->parse(
-                $content,
+            $tabela = $parser->parseFromRows(
+                $lines,
                 $request->nome,
                 $request->descricao,
                 $arquivoOriginal,
                 $request->boolean('padrao')
             );
 
-            // Salvar o arquivo original no storage para download
-            Storage::disk('local')->put('karnaugh/' . $tabela->id . '.csv', $content);
+            $ext = pathinfo($arquivoOriginal, PATHINFO_EXTENSION) ?: 'csv';
+            $filePath = 'karnaugh/' . $tabela->id . '.' . $ext;
+            Storage::disk('local')->put($filePath, file_get_contents($file->getRealPath()));
 
             return redirect()
                 ->route('assistente.tabelas-karnaugh.index')
@@ -137,6 +139,33 @@ class TabelaKarnaughController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['arquivo' => 'Erro ao importar: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * Converter arquivo enviado (CSV/TXT ou XLSX) em array de linhas.
+     *
+     * @return array<int, array<int, string>>
+     */
+    private function fileToRows(\Illuminate\Http\UploadedFile $file): array
+    {
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?? '');
+
+        if (in_array($ext, ['xlsx', 'xls'])) {
+            $spreadsheet = IOFactory::load($file->getRealPath());
+            $sheet = $spreadsheet->getActiveSheet();
+            $rows = $sheet->toArray();
+
+            return array_map(function ($row) {
+                return array_map(function ($cell) {
+                    return $cell === null ? '' : (string) $cell;
+                }, $row);
+            }, $rows);
+        }
+
+        $content = file_get_contents($file->getRealPath());
+        $parser = new KarnaughCsvParser();
+
+        return $parser->parseCsvLines($content);
     }
 
     /**
@@ -195,7 +224,7 @@ class TabelaKarnaughController extends Controller
     }
 
     /**
-     * Download do arquivo CSV original.
+     * Download do arquivo original (CSV ou XLSX).
      */
     public function download(TabelaKarnaugh $tabelaKarnaugh)
     {
@@ -203,14 +232,17 @@ class TabelaKarnaughController extends Controller
             abort(404, 'Arquivo original não encontrado.');
         }
 
-        // Verificar se o arquivo existe no storage
-        $filePath = 'karnaugh/' . $tabelaKarnaugh->id . '.csv';
-        
+        $ext = pathinfo($tabelaKarnaugh->arquivo_original, PATHINFO_EXTENSION) ?: 'csv';
+        $filePath = 'karnaugh/' . $tabelaKarnaugh->id . '.' . $ext;
+
+        if (!Storage::disk('local')->exists($filePath) && $ext !== 'csv') {
+            $filePath = 'karnaugh/' . $tabelaKarnaugh->id . '.csv';
+        }
+
         if (Storage::disk('local')->exists($filePath)) {
             return Storage::disk('local')->download($filePath, $tabelaKarnaugh->arquivo_original);
         }
 
-        // Se o arquivo não foi salvo, retornar erro
         abort(404, 'Arquivo original não disponível para download.');
     }
 }

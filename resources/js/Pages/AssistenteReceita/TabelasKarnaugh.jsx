@@ -88,7 +88,7 @@ export default function TabelasKarnaugh({ tabelas = [] }) {
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
-                        Importar CSV
+                        Importar
                     </button>
                 </div>
 
@@ -99,7 +99,7 @@ export default function TabelasKarnaugh({ tabelas = [] }) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
                         </svg>
                         <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tabela cadastrada</h3>
-                        <p className="text-gray-500 mb-6">Importe um arquivo CSV para começar</p>
+                        <p className="text-gray-500 mb-6">Importe um arquivo CSV ou XLSX para começar</p>
                         <button
                             onClick={() => setShowDrawer(true)}
                             className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
@@ -249,12 +249,12 @@ export default function TabelasKarnaugh({ tabelas = [] }) {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Arquivo CSV *
+                                Arquivo (CSV ou XLSX) *
                             </label>
                             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-emerald-400 transition-colors">
                                 <input
                                     type="file"
-                                    accept=".csv,.txt"
+                                    accept=".csv,.txt,.xlsx"
                                     onChange={handleFileChange}
                                     className="hidden"
                                     id="csv-file"
