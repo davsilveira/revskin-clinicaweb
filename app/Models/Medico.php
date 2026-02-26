@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Medico extends Model
 {
@@ -15,7 +16,6 @@ class Medico extends Model
     protected $table = 'medicos';
 
     protected $fillable = [
-        'nome',
         'apelido',
         'crm',
         'uf_crm',
@@ -91,6 +91,14 @@ class Medico extends Model
     }
 
     /**
+     * Get the primary user (via medico_id).
+     */
+    public function linkedUser(): HasOne
+    {
+        return $this->hasOne(User::class, 'medico_id');
+    }
+
+    /**
      * Get the enderecos for this medico.
      */
     public function enderecos(): HasMany
@@ -115,13 +123,21 @@ class Medico extends Model
     }
 
     /**
+     * Get nome from linked User (fonte unica).
+     */
+    public function getNomeAttribute(): ?string
+    {
+        return $this->linkedUser?->name;
+    }
+
+    /**
      * Get full name with CRM.
      */
     public function getNomeCompletoAttribute(): string
     {
-        $nome = $this->nome;
+        $nome = $this->nome ?? '';
         if ($this->crm) {
-            $nome .= " - CRM: {$this->crm}";
+            $nome .= ($nome ? ' - ' : '') . "CRM: {$this->crm}";
         }
         return $nome;
     }

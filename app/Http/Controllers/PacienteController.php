@@ -67,7 +67,7 @@ class PacienteController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Paciente::with(['medico:id,nome', 'telefones'])
+        $query = Paciente::with(['medico:id', 'medico.linkedUser:id,name,medico_id', 'telefones'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -123,9 +123,19 @@ class PacienteController extends Controller
     {
         if ($user->isSecretaria() && $user->clinica_id) {
             $ids = $user->getMedicoIdsDaClinica();
-            return Medico::ativo()->whereIn('id', $ids)->orderBy('nome')->get(['id', 'nome']);
+            return Medico::ativo()->whereIn('id', $ids)
+                ->join('users', 'users.medico_id', '=', 'medicos.id')
+                ->orderBy('users.name')
+                ->select('medicos.id')
+                ->get()
+                ->load('linkedUser:id,name,medico_id');
         }
-        return Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        return Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
     }
 
     /**
@@ -244,8 +254,8 @@ class PacienteController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $paciente->load(['medico:id,nome', 'receitas' => function ($q) {
-            $q->with('medico:id,nome')->orderByDesc('data_receita')->limit(10);
+        $paciente->load(['medico:id', 'medico.linkedUser:id,name,medico_id', 'receitas' => function ($q) {
+            $q->with('medico:id', 'medico.linkedUser:id,name,medico_id')->orderByDesc('data_receita')->limit(10);
         }]);
 
         return Inertia::render('Pacientes/Show', [

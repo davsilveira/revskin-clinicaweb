@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Clinica;
-use App\Models\Medico;
 use App\Models\User;
+use App\Services\MedicoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -12,24 +12,28 @@ use Inertia\Inertia;
 
 class UserController extends Controller
 {
+    public function __construct(
+        private MedicoService $medicoService
+    ) {}
+
     /**
      * Display a listing of users
      */
     public function index()
     {
-        // Only admins can access this
         if (auth()->user()->role !== 'admin') {
             abort(403, 'Acesso não autorizado.');
         }
 
-        $users = User::with('clinica:id,nome')->orderBy('created_at', 'desc')->get();
+        $users = User::with(['clinica:id,nome', 'medico.linkedUser:id,name,medico_id', 'medico.enderecos', 'medico.clinicas'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome', 'crm', 'uf']);
 
         return Inertia::render('Users/Index', [
             'users' => $users,
             'clinicas' => $clinicas,
-            'medicos' => $medicos,
         ]);
     }
 
@@ -42,14 +46,22 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $validated = $request->validate([
+        $userRules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
             'role' => ['required', Rule::in(['admin', 'medico', 'callcenter', 'secretaria'])],
             'clinica_id' => ['nullable', 'exists:clinicas,id'],
-            'medico_id' => ['nullable', 'exists:medicos,id'],
-        ], [
+        ];
+
+        $isMedico = $request->input('role') === 'medico';
+
+        if ($isMedico) {
+            $userRules = array_merge($userRules, MedicoService::validationRules());
+            unset($userRules['medico_id']);
+        }
+
+        $messages = [
             'name.required' => 'O nome é obrigatório.',
             'email.required' => 'O e-mail é obrigatório.',
             'email.email' => 'Digite um e-mail válido.',
@@ -58,30 +70,43 @@ class UserController extends Controller
             'password.min' => 'A senha deve ter no mínimo 8 caracteres.',
             'role.required' => 'O perfil é obrigatório.',
             'role.in' => 'O perfil selecionado é inválido.',
-            'clinica_id.required' => 'A clínica é obrigatória para o perfil Secretária.',
-            'medico_id.required' => 'O médico é obrigatório para o perfil Médico.',
-        ]);
+            'crm.required' => 'O CRM é obrigatório.',
+            'uf_crm.required' => 'A UF do CRM é obrigatória.',
+            'celular.required' => 'O celular é obrigatório.',
+        ];
+
+        $validated = $request->validate($userRules, $messages);
 
         if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
             return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();
         }
 
-        if ($validated['role'] === 'medico' && empty($validated['medico_id'])) {
-            return redirect()->back()->withErrors(['medico_id' => 'O médico é obrigatório para o perfil Médico.'])->withInput();
+        if ($isMedico) {
+            $medico = $this->medicoService->create($validated, $request);
+
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => User::ROLE_MEDICO,
+                'medico_id' => $medico->id,
+                'is_active' => true,
+            ]);
+
+            $message = 'Usuário médico criado com sucesso!';
+        } else {
+            User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => $validated['role'],
+                'clinica_id' => $validated['role'] === 'secretaria' ? $validated['clinica_id'] : null,
+                'is_active' => true,
+            ]);
+            $message = 'Usuário criado com sucesso!';
         }
 
-        $payload = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
-            'clinica_id' => $validated['role'] === 'secretaria' ? $validated['clinica_id'] : null,
-            'medico_id' => $validated['role'] === 'medico' ? $validated['medico_id'] : null,
-            'is_active' => true,
-        ];
-        User::create($payload);
-
-        return redirect()->back()->with('success', 'Usuário criado com sucesso!');
+        return redirect()->back()->with('success', $message);
     }
 
     /**
@@ -93,45 +118,74 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $validated = $request->validate([
+        $userRules = [
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'role' => ['required', Rule::in(['admin', 'medico', 'callcenter', 'secretaria'])],
             'clinica_id' => ['nullable', 'exists:clinicas,id'],
-            'medico_id' => ['nullable', 'exists:medicos,id'],
             'is_active' => 'required|boolean',
-        ], [
+        ];
+
+        $isMedico = $request->input('role') === 'medico';
+
+        if ($isMedico) {
+            $userRules = array_merge($userRules, MedicoService::validationRules());
+            unset($userRules['medico_id']);
+        }
+
+        $messages = [
             'name.required' => 'O nome é obrigatório.',
             'email.required' => 'O e-mail é obrigatório.',
             'email.email' => 'Digite um e-mail válido.',
             'email.unique' => 'Este e-mail já está cadastrado.',
             'role.required' => 'O perfil é obrigatório.',
             'role.in' => 'O perfil selecionado é inválido.',
-        ]);
+            'crm.required' => 'O CRM é obrigatório.',
+            'uf_crm.required' => 'A UF do CRM é obrigatória.',
+            'celular.required' => 'O celular é obrigatório.',
+        ];
+
+        $validated = $request->validate($userRules, $messages);
 
         if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
             return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();
         }
 
-        if ($validated['role'] === 'medico' && empty($validated['medico_id'])) {
-            return redirect()->back()->withErrors(['medico_id' => 'O médico é obrigatório para o perfil Médico.'])->withInput();
+        if ($isMedico) {
+            if ($user->medico_id) {
+                $medico = $user->medico;
+                $this->medicoService->update($medico, $validated, $request);
+            } else {
+                $medico = $this->medicoService->create($validated, $request);
+                $validated['medico_id'] = $medico->id;
+            }
+
+            $user->update([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => User::ROLE_MEDICO,
+                'medico_id' => $user->medico_id ?? $medico->id,
+                'clinica_id' => null,
+                'is_active' => $validated['is_active'],
+            ]);
+        } else {
+            $user->update([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => $validated['role'],
+                'medico_id' => null,
+                'clinica_id' => $validated['role'] === 'secretaria' ? ($validated['clinica_id'] ?? null) : null,
+                'is_active' => $validated['is_active'],
+            ]);
         }
 
-        $validated['clinica_id'] = $validated['role'] === 'secretaria' ? ($validated['clinica_id'] ?? null) : null;
-        $validated['medico_id'] = $validated['role'] === 'medico' ? ($validated['medico_id'] ?? null) : null;
-        $user->update($validated);
-
-        // Update password if provided
         if ($request->filled('password')) {
             $request->validate([
                 'password' => 'string|min:8',
             ], [
                 'password.min' => 'A senha deve ter no mínimo 8 caracteres.',
             ]);
-
-            $user->update([
-                'password' => Hash::make($request->password),
-            ]);
+            $user->update(['password' => Hash::make($request->password)]);
         }
 
         return redirect()->back()->with('success', 'Usuário atualizado com sucesso!');
@@ -146,7 +200,6 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        // Prevent deleting yourself
         if ($user->id === auth()->id()) {
             return redirect()->back()->withErrors(['error' => 'Você não pode excluir sua própria conta.']);
         }
@@ -156,4 +209,3 @@ class UserController extends Controller
         return redirect()->back()->with('success', 'Usuário excluído com sucesso!');
     }
 }
-

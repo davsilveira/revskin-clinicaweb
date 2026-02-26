@@ -56,7 +56,7 @@ class ClinicaController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
-        $query = Clinica::with(['medicos:id,nome,crm'])
+        $query = Clinica::with(['medicos:id,crm', 'medicos.linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -137,7 +137,8 @@ class ClinicaController extends Controller
     {
         abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
-        $clinica->load(['medicos' => fn($q) => $q->ativo()->orderBy('nome')]);
+        $clinica->load(['medicos' => fn($q) => $q->ativo()->with('linkedUser:id,name,medico_id')]);
+        $clinica->setRelation('medicos', $clinica->medicos->sortBy('nome'));
 
         return Inertia::render('Clinicas/Show', [
             'clinica' => $clinica,

@@ -44,10 +44,10 @@ class HandleInertiaRequests extends Middleware
 
         if ($user && $user->isMedico() && $user->medico_id) {
             $medico = Medico::select([
-                'id', 'nome', 'crm', 'especialidade', 'telefone1', 'telefone2',
+                'id', 'crm', 'especialidade', 'telefone1', 'telefone2',
                 'email1', 'cep', 'endereco', 'numero', 'complemento', 'bairro',
                 'cidade', 'uf', 'rodape_receita', 'assinatura_path'
-            ])->with('enderecos')->find($user->medico_id);
+            ])->with(['enderecos', 'linkedUser:id,name,medico_id'])->find($user->medico_id);
         }
 
         if ($user && $user->isCallcenter()) {

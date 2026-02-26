@@ -19,7 +19,7 @@ class ReceitaController extends Controller
     {
         $user = $request->user();
 
-        $query = Receita::with(['paciente:id,nome', 'medico:id,nome'])
+        $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
                 $q->whereHas('paciente', fn($pq) => $pq->where('nome', 'like', "%{$search}%"));
             })
@@ -37,7 +37,12 @@ class ReceitaController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
 
         return Inertia::render('Receitas/Index', [
             'receitas' => $receitas,
@@ -61,8 +66,8 @@ class ReceitaController extends Controller
         }
 
         $medicos = $user->isMedico() && $user->medico_id
-            ? Medico::where('id', $user->medico_id)->get(['id', 'nome'])
-            : Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+            ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
+            : Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id');
 
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
         
@@ -158,7 +163,7 @@ class ReceitaController extends Controller
 
     public function show(Receita $receita): Response
     {
-        $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
 
         // Add acquisition dates to each item
         // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
@@ -187,7 +192,7 @@ class ReceitaController extends Controller
         $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
-            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
+            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->orderByDesc('id')
             ->take(10)
             ->get();
@@ -200,7 +205,7 @@ class ReceitaController extends Controller
 
     public function edit(Request $request, Receita $receita): Response
     {
-        $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
 
         // Format acquisition dates for current receita items
         // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
@@ -225,7 +230,12 @@ class ReceitaController extends Controller
             $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
         });
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
         
         // Map preco to preco_venda for frontend compatibility
@@ -238,7 +248,7 @@ class ReceitaController extends Controller
         $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
-            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
+            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->orderByDesc('id')
             ->take(10)
             ->get();
@@ -494,7 +504,7 @@ class ReceitaController extends Controller
      */
     public function pdf(Receita $receita)
     {
-        $receita->load(['paciente', 'medico', 'itens' => fn($q) => $q->where('imprimir', true)->with('produto')]);
+        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens' => fn($q) => $q->where('imprimir', true)->with('produto')]);
 
         $pdf = Pdf::loadView('pdf.receita', [
             'receita' => $receita,

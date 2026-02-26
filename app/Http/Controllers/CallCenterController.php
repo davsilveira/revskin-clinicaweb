@@ -18,7 +18,7 @@ class CallCenterController extends Controller
     {
         $query = AtendimentoCallcenter::with([
                 'paciente:id,nome',
-                'medico:id,nome',
+                'medico:id', 'medico.linkedUser:id,name,medico_id',
                 'receita:id,numero',
                 'usuario:id,name',
             ])
@@ -38,7 +38,12 @@ class CallCenterController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
         $statusOptions = AtendimentoCallcenter::getStatusOptions();
 
         return Inertia::render('CallCenter/Index', [
@@ -53,8 +58,8 @@ class CallCenterController extends Controller
     {
         $atendimento->load([
             'paciente.telefones',
-            'paciente.medico',
-            'medico',
+            'paciente.medico.linkedUser:id,name,medico_id',
+            'medico.linkedUser:id,name,medico_id',
             'receita.itens.produto',
             'receita.itens.aquisicoes',
             'usuario',

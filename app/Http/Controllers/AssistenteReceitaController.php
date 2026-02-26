@@ -78,9 +78,12 @@ class AssistenteReceitaController extends Controller
         
         if ($user->isAdmin()) {
             $medicos = Medico::where('ativo', true)
-                ->orderBy('nome')
-                ->get(['id', 'nome', 'crm'])
-                ->map(fn($m) => [
+                ->join('users', 'users.medico_id', '=', 'medicos.id')
+                ->orderBy('users.name')
+                ->select('medicos.id', 'medicos.crm')
+                ->get()
+                ->load('linkedUser:id,name,medico_id')
+                ->map(fn ($m) => [
                     'id' => $m->id,
                     'label' => "{$m->nome} (CRM: {$m->crm})"
                 ]);

@@ -25,18 +25,20 @@ class MedicoController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
-        $query = Medico::with(['clinica:id,nome', 'clinicas:id,nome', 'enderecos'])
+        $query = Medico::query()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->select('medicos.*')
+            ->with(['clinica:id,nome', 'clinicas:id,nome', 'enderecos', 'linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
-                    $query->where('nome', 'like', "%{$search}%")
-                        ->orWhere('crm', 'like', "%{$search}%")
-                        ->orWhere('cpf', 'like', "%{$search}%");
+                    $query->where('users.name', 'like', "%{$search}%")
+                        ->orWhere('medicos.crm', 'like', "%{$search}%")
+                        ->orWhere('medicos.cpf', 'like', "%{$search}%");
                 });
             })
-            ->when($request->clinica_id, fn($q, $clinicaId) => $q->where('clinica_id', $clinicaId))
-            ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')));
-
-        $medicosQuery = $query->orderBy('nome')
+            ->when($request->clinica_id, fn($q, $clinicaId) => $q->where('medicos.clinica_id', $clinicaId))
+            ->when($request->has('ativo'), fn($q) => $q->where('medicos.ativo', $request->boolean('ativo')))
+            ->orderBy('users.name', 'asc')
             ->paginate(15)
             ->withQueryString();
 
@@ -129,9 +131,8 @@ class MedicoController extends Controller
         $clinicaIds = $validated['clinica_ids'] ?? [];
         unset($validated['enderecos'], $validated['clinica_ids'], $validated['criar_usuario']);
 
-        // Map frontend field names to database field names
+        // Map frontend field names to database field names (nome vem do User)
         $medicoData = [
-            'nome' => $validated['nome'],
             'apelido' => $validated['apelido'] ?? null,
             'crm' => $validated['crm'] ?? null,
             'uf_crm' => $validated['uf_crm'] ?? null,
@@ -167,10 +168,10 @@ class MedicoController extends Controller
             ]);
         }
 
-        // Create user if requested
+        // Create user if requested (obrigatório para medico ter nome)
         if ($criarUsuario && !empty($validated['email'])) {
             $user = User::create([
-                'name' => $validated['nome'],
+                'name' => $validated['nome'] ?? 'Médico',
                 'email' => $validated['email'],
                 'password' => Hash::make(Str::random(32)), // Random password, user will set via email
                 'role' => User::ROLE_MEDICO,
@@ -199,7 +200,7 @@ class MedicoController extends Controller
     {
         abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
-        $medico->load(['clinica:id,nome', 'pacientes' => function ($q) {
+        $medico->load(['clinica:id,nome', 'linkedUser:id,name,medico_id', 'pacientes' => function ($q) {
             $q->ativo()->orderBy('nome')->limit(10);
         }]);
 
@@ -215,6 +216,7 @@ class MedicoController extends Controller
     {
         abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
+        $medico->load('linkedUser:id,name,medico_id');
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Medicos/Form', [
@@ -263,9 +265,8 @@ class MedicoController extends Controller
         $clinicaIds = $validated['clinica_ids'] ?? [];
         unset($validated['enderecos'], $validated['clinica_ids']);
 
-        // Map frontend field names to database field names
+        // Map frontend field names to database field names (nome vem do User)
         $medicoData = [
-            'nome' => $validated['nome'],
             'apelido' => $validated['apelido'] ?? null,
             'crm' => $validated['crm'] ?? null,
             'uf_crm' => $validated['uf_crm'] ?? null,
@@ -281,6 +282,11 @@ class MedicoController extends Controller
         ];
 
         $medico->update($medicoData);
+
+        // Atualizar nome no User vinculado
+        if ($medico->linkedUser) {
+            $medico->linkedUser->update(['name' => $validated['nome']]);
+        }
 
         // Sync clinicas
         $medico->clinicas()->sync($clinicaIds);
@@ -361,13 +367,16 @@ class MedicoController extends Controller
         $search = $request->get('q', '');
 
         $medicos = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
             ->where(function ($q) use ($search) {
-                $q->where('nome', 'like', "%{$search}%")
-                    ->orWhere('crm', 'like', "%{$search}%");
+                $q->where('users.name', 'like', "%{$search}%")
+                    ->orWhere('medicos.crm', 'like', "%{$search}%");
             })
-            ->orderBy('nome')
+            ->orderBy('users.name')
+            ->select('medicos.id', 'medicos.crm', 'medicos.especialidade')
             ->limit(20)
-            ->get(['id', 'nome', 'crm', 'especialidade']);
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
 
         return response()->json($medicos);
     }

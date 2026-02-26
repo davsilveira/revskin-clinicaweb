@@ -20,7 +20,7 @@ class ProfileController extends Controller
         $medico = null;
 
         if ($user->isMedico() && $user->medico_id) {
-            $medico = Medico::with('clinica:id,nome')->find($user->medico_id);
+            $medico = Medico::with(['clinica:id,nome', 'linkedUser:id,name,medico_id'])->find($user->medico_id);
         }
 
         return Inertia::render('Profile/Show', [

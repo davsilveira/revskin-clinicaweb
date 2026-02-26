@@ -65,12 +65,17 @@ class RelatorioController extends Controller
             'per_page' => 'nullable|integer|in:15,30,50,100',
         ]);
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
 
         $dados = null;
         // Executar query se houver filtros ou se houver paginação (page parameter)
         if ($request->has('medico_id') || $request->has('data_inicio') || $request->has('page')) {
-            $query = Receita::with(['paciente:id,nome', 'medico:id,nome'])
+            $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
                 ->whereIn('status', ['finalizada', 'rascunho'])
                 ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
                 ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
@@ -112,7 +117,7 @@ class RelatorioController extends Controller
             'data_fim' => 'nullable|date',
         ]);
 
-        $query = Receita::with(['paciente:id,nome', 'medico:id,nome'])
+        $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->whereIn('status', ['finalizada', 'rascunho'])
             ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
             ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
@@ -120,7 +125,7 @@ class RelatorioController extends Controller
             ->orderBy('data_receita', 'desc');
 
         $receitas = $query->get();
-        $medico = $request->medico_id ? Medico::find($request->medico_id) : null;
+        $medico = $request->medico_id ? Medico::with('linkedUser:id,name,medico_id')->find($request->medico_id) : null;
 
         if ($format === 'pdf') {
             $pdf = Pdf::loadView('pdf.relatorio-receitas-medico', [
@@ -184,7 +189,9 @@ class RelatorioController extends Controller
             $medicoIdsFiltro = [$request->medico_id];
         }
 
-        $medicos = $isAdmin ? Medico::ativo()->orderBy('nome')->get(['id', 'nome']) : collect([]);
+        $medicos = $isAdmin
+            ? Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id')
+            : collect([]);
         $pacientes = Paciente::ativo()->orderBy('nome')->get(['id', 'nome']);
         $produtos = Produto::ativo()->orderBy('nome')->get(['id', 'nome']);
 
@@ -353,7 +360,7 @@ class RelatorioController extends Controller
 
         // Também buscar itens com data_aquisicao legacy (sem registro em receita_item_aquisicoes)
         $queryLegacy = ReceitaItem::query()
-            ->with(['receita.paciente', 'receita.medico', 'produto'])
+            ->with(['receita.paciente', 'receita.medico.linkedUser:id,name,medico_id', 'produto'])
             ->whereNotNull('data_aquisicao')
             ->whereHas('receita', function($q) use ($request, $medicoIdsFiltro) {
                 $q->whereIn('status', ['finalizada', 'rascunho']);
