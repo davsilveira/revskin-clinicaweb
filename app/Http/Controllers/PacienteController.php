@@ -113,6 +113,7 @@ class PacienteController extends Controller
             'filters' => $request->only(['search', 'medico_id', 'ativo']),
             'tiposTelefone' => PacienteTelefone::getTipos(),
             'isAdmin' => $user->isAdmin(),
+            'canAccessAssistente' => $user->isAdmin() || $user->isMedico(),
         ]);
     }
 

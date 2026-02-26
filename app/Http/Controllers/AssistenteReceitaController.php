@@ -88,7 +88,19 @@ class AssistenteReceitaController extends Controller
                     'label' => "{$m->nome} (CRM: {$m->crm})"
                 ]);
         }
-        
+
+        $initialPaciente = null;
+        if ($pacienteId = $request->query('paciente_id')) {
+            $paciente = Paciente::find($pacienteId);
+            if ($paciente && $user->canAccessPaciente($paciente)) {
+                $initialPaciente = [
+                    'id' => $paciente->id,
+                    'nome' => $paciente->nome,
+                    'cpf' => $paciente->cpf,
+                ];
+            }
+        }
+
         return Inertia::render('AssistenteReceita/Index', [
             'tipoPeleOptions' => $this->getTipoPeleOptions(),
             'intensidadeOptions' => $this->getIntensidadeOptions(),
@@ -96,6 +108,7 @@ class AssistenteReceitaController extends Controller
             'medicos' => $medicos,
             'currentMedicoId' => $currentMedicoId,
             'isAdmin' => $user->isAdmin(),
+            'initialPaciente' => $initialPaciente,
         ]);
     }
 

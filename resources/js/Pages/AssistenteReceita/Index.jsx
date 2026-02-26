@@ -12,6 +12,7 @@ export default function AssistenteReceitaIndex({
     medicos = [],
     currentMedicoId = null,
     isAdmin = false,
+    initialPaciente = null,
 }) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -107,6 +108,12 @@ export default function AssistenteReceitaIndex({
     useEffect(() => {
         searchPacientes(searchPaciente);
     }, [searchPaciente, searchPacientes]);
+
+    useEffect(() => {
+        if (initialPaciente) {
+            setSelectedPaciente(initialPaciente);
+        }
+    }, [initialPaciente]);
 
     const selectPaciente = (paciente) => {
         setSelectedPaciente(paciente);
