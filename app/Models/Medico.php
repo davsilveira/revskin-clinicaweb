@@ -154,9 +154,9 @@ class Medico extends Model
     }
 
     /**
-     * Append accessor to JSON.
+     * Append accessors to JSON (nome vem de linkedUser->name).
      */
-    protected $appends = ['assinatura_url'];
+    protected $appends = ['assinatura_url', 'nome'];
 }
 
 
