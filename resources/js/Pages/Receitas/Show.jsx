@@ -16,36 +16,14 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
 };
 
-const formatRelativeTime = (dateString) => {
-    if (!dateString) return null;
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return null;
-        const now = new Date();
-        const diffTime = Math.abs(now - date);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) return 'hoje';
-        if (diffDays === 1) return 'há 1 dia';
-        if (diffDays < 30) return `há ${diffDays} dias`;
-        if (diffDays < 60) return 'há 1 mês';
-        const diffMonths = Math.floor(diffDays / 30);
-        if (diffMonths < 12) return `há ${diffMonths} meses`;
-        const diffYears = Math.floor(diffDays / 365);
-        return `há ${diffYears} ${diffYears === 1 ? 'ano' : 'anos'}`;
-    } catch (e) {
-        return null;
-    }
-};
-
     const getStatusBadge = (status) => {
         const badges = {
-            rascunho: 'bg-gray-100 text-gray-800',
+            aberta: 'bg-gray-100 text-gray-800',
             finalizada: 'bg-green-100 text-green-800',
             cancelada: 'bg-red-100 text-red-800',
         };
         const labels = {
-            rascunho: 'Rascunho',
+            aberta: 'Aberta',
             finalizada: 'Finalizada',
             cancelada: 'Cancelada',
         };
@@ -148,7 +126,7 @@ const formatRelativeTime = (dateString) => {
                                                             theme="light-border"
                                                         >
                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                <span>{formatRelativeTime(item.ultima_aquisicao) || formatDate(item.ultima_aquisicao)}</span>
+                                                                <span>{formatDate(item.ultima_aquisicao)}</span>
                                                                 <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
                                                                     +{item.datas_aquisicao.length - 1}
                                                                 </span>
@@ -165,7 +143,7 @@ const formatRelativeTime = (dateString) => {
                                                             theme="light-border"
                                                         >
                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
-                                                                <span>{formatRelativeTime(item.ultima_aquisicao) || formatDate(item.ultima_aquisicao)}</span>
+                                                                <span>{formatDate(item.ultima_aquisicao)}</span>
                                                             </span>
                                                         </Tippy>
                                                     )}
@@ -351,7 +329,7 @@ const formatRelativeTime = (dateString) => {
                                     </a>
                                 )}
 
-                                {receita.status === 'rascunho' && (
+                                {receita.status === 'aberta' && (
                                     <Link
                                         href={`/receitas/${receita.id}/edit`}
                                         className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
@@ -409,7 +387,7 @@ const formatRelativeTime = (dateString) => {
                                                         'bg-gray-100 text-gray-600'
                                                     }`}>
                                                         {r.status === 'finalizada' ? 'Finalizada' : 
-                                                         r.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
+                                                         r.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                                     </span>
                                                 </div>
                                                 <span className="text-xs text-gray-500">
@@ -444,7 +422,7 @@ const formatRelativeTime = (dateString) => {
                                 </div>
                                 <h3 className="text-lg font-semibold text-gray-900">Copiar Receita</h3>
                             </div>
-                            <p className="text-gray-600 mb-6">Deseja criar uma cópia desta receita? Será criado um novo rascunho com os mesmos produtos.</p>
+                            <p className="text-gray-600 mb-6">Deseja duplicar esta receita? Será criada uma nova receita com os mesmos produtos.</p>
                             <div className="flex justify-end gap-3">
                                 <button onClick={() => setShowCopiarModal(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
                                     Cancelar

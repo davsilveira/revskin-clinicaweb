@@ -41,28 +41,6 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
 };
 
-const formatRelativeTime = (dateString) => {
-    if (!dateString) return null;
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return null;
-        const now = new Date();
-        const diffTime = Math.abs(now - date);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) return 'hoje';
-        if (diffDays === 1) return 'há 1 dia';
-        if (diffDays < 30) return `há ${diffDays} dias`;
-        if (diffDays < 60) return 'há 1 mês';
-        const diffMonths = Math.floor(diffDays / 30);
-        if (diffMonths < 12) return `há ${diffMonths} meses`;
-        const diffYears = Math.floor(diffDays / 365);
-        return `há ${diffYears} ${diffYears === 1 ? 'ano' : 'anos'}`;
-    } catch (e) {
-        return null;
-    }
-};
-
 export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false }) {
     const { auth, flash } = usePage().props;
     const isMedico = auth.user.role === 'medico';
@@ -873,7 +851,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             theme="light-border"
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                <span>{formatDate(ultimaAquisicao)}</span>
                                                                                 <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
                                                                                     +{datasAquisicao.length - 1}
                                                                                 </span>
@@ -890,7 +868,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             theme="light-border"
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                <span>{formatDate(ultimaAquisicao)}</span>
                                                                             </span>
                                                                         </Tippy>
                                                                     )}
@@ -1037,7 +1015,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             theme="light-border"
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                <span>{formatDate(ultimaAquisicao)}</span>
                                                                                 <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
                                                                                     +{datasAquisicao.length - 1}
                                                                                 </span>
@@ -1054,7 +1032,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             theme="light-border"
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                <span>{formatDate(ultimaAquisicao)}</span>
                                                                             </span>
                                                                         </Tippy>
                                                                     )}
@@ -1357,7 +1335,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                                             theme="light-border"
                                                                                         >
                                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                                <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                                <span>{formatDate(ultimaAquisicao)}</span>
                                                                                                 <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
                                                                                                     +{datasAquisicao.length - 1}
                                                                                                 </span>
@@ -1377,7 +1355,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                                         theme="light-border"
                                                                                     >
                                                                                         <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors inline-flex">
-                                                                                            <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                                                                            <span>{formatDate(ultimaAquisicao)}</span>
                                                                                         </span>
                                                                                     </Tippy>
                                                                                 );
