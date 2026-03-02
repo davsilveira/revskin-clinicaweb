@@ -1,6 +1,7 @@
 import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
 import Tippy from '@tippyjs/react';
@@ -61,15 +62,21 @@ const formatRelativeTime = (dateString) => {
     }
 };
 
-export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false }) {
-    const { auth } = usePage().props;
+export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false }) {
+    const { auth, flash } = usePage().props;
     const isMedico = auth.user.role === 'medico';
+    const [toast, setToast] = useState(null);
     const isEditing = !!receita;
-    const isReadOnly = bloqueadaParaEdicao;
+    const [viewMode, setViewMode] = useState(initialViewMode && isEditing);
+    const isReadOnly = bloqueadaParaEdicao || viewMode;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
+    const [showDuplicarModal, setShowDuplicarModal] = useState(false);
+    const [showCancelarModal, setShowCancelarModal] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [expandedReceitas, setExpandedReceitas] = useState({});
+    const moreMenuRef = useRef(null);
     
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
@@ -81,7 +88,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         desconto_motivo: receita?.desconto_motivo || '',
         valor_caixa: receita?.valor_caixa || 0,
         valor_frete: receita?.valor_frete || 0,
-        status: receita?.status || 'rascunho',
+        status: receita?.status || 'aberta',
         itens: receita?.itens?.map(item => ({
             id: item.id,
             produto_id: item.produto_id,
@@ -133,7 +140,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         return result;
     }, [data, currentReceitaId]);
 
-    const canAutoSave = data.paciente_id && data.medico_id;
+    const canAutoSave = data.paciente_id && data.medico_id && !isReadOnly;
     const { 
         lastSavedText, 
         isSaving: isAutoSaving, 
@@ -238,6 +245,25 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             triggerAutoSave();
         }
     }, [data, canAutoSave, triggerAutoSave]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+                setShowMoreMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        if (flash?.success) {
+            setToast({ message: flash.success, type: 'success' });
+        }
+        if (flash?.error) {
+            setToast({ message: flash.error, type: 'error' });
+        }
+    }, [flash]);
 
     // Debounced search for patients
     const searchPacientes = useCallback(
@@ -370,9 +396,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     };
 
     const handleSubmit = (e) => {
-        e.preventDefault();
+        e?.preventDefault();
         if (isEditing) {
-            put(`/receitas/${receita.id}`);
+            put(`/receitas/${receita.id}`, {
+                onSuccess: () => setViewMode(true),
+            });
         } else {
             post('/receitas');
         }
@@ -385,6 +413,12 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         router.put(`/receitas/${receitaId}`, {
             ...data,
             status: 'finalizada',
+        }, {
+            onSuccess: () => {
+                setData('status', 'finalizada');
+                setViewMode(true);
+                setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
+            },
         });
         setShowFinalizarModal(false);
     };
@@ -395,6 +429,33 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             [id]: !prev[id]
         }));
     };
+
+    const handleDuplicar = () => {
+        const doCopy = () => {
+            setShowDuplicarModal(false);
+            router.post(`/receitas/${receita.id}/copiar`);
+        };
+        if (!viewMode && isEditing) {
+            put(`/receitas/${receita.id}`, { onSuccess: doCopy });
+        } else {
+            doCopy();
+        }
+    };
+
+    const handleCancelar = () => {
+        const doCancel = () => {
+            setShowCancelarModal(false);
+            router.delete(`/receitas/${receita.id}`);
+        };
+        if (!viewMode && isEditing) {
+            put(`/receitas/${receita.id}`, { onSuccess: doCancel });
+        } else {
+            doCancel();
+        }
+    };
+
+    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao;
+    const canCancel = isEditing && receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada');
 
     return (
         <DashboardLayout>
@@ -409,9 +470,136 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         </svg>
                         Voltar para Receitas
                     </Link>
-                    <h1 className="text-2xl font-bold text-gray-900 mt-2">
-                        {isEditing ? `Editar Receita #${receita.numero}` : 'Nova Receita'}
-                    </h1>
+                    <div className="flex justify-between items-start mt-2">
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            {!isEditing ? 'Nova Receita' : viewMode ? `Receita #${receita.numero}` : `Editar Receita #${receita.numero}`}
+                        </h1>
+                        <div className="flex items-center gap-2">
+                            {!isReadOnly && (isAutoSaving || lastSavedText) && (
+                                <div className="text-xs text-gray-500 flex items-center gap-1 mr-1">
+                                    {isAutoSaving ? (
+                                        <>
+                                            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            <span>Salvando...</span>
+                                        </>
+                                    ) : lastSavedText ? (
+                                        <>
+                                            <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            <span>Salvo às {lastSavedText}</span>
+                                        </>
+                                    ) : null}
+                                </div>
+                            )}
+
+                            {isEditing && viewMode && receita.status === 'finalizada' && (
+                                <a
+                                    href={`/receitas/${receita.id}/pdf`}
+                                    target="_blank"
+                                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    Download PDF
+                                </a>
+                            )}
+
+                            {isEditing && viewMode && canEdit && (
+                                <button
+                                    onClick={() => setViewMode(false)}
+                                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Editar Receita
+                                </button>
+                            )}
+
+                            {!isReadOnly && (
+                                <button
+                                    type="button"
+                                    onClick={handleSubmit}
+                                    disabled={processing || data.itens.length === 0}
+                                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
+                                >
+                                    {processing ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            Salvando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Salvar
+                                        </>
+                                    )}
+                                </button>
+                            )}
+
+                            {(isEditing || currentReceitaId) && data.status === 'aberta' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFinalizarModal(true)}
+                                    disabled={processing || data.itens.length === 0}
+                                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Finalizar
+                                </button>
+                            )}
+
+                            {isEditing && (
+                                <div className="relative" ref={moreMenuRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                                        className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                    >
+                                        + Ações
+                                    </button>
+                                    {showMoreMenu && (
+                                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowDuplicarModal(true); setShowMoreMenu(false); }}
+                                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                                Duplicar Receita
+                                            </button>
+                                            {canCancel && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setShowCancelarModal(true); setShowMoreMenu(false); }}
+                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                    Cancelar Receita
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -467,7 +655,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     'bg-gray-100 text-gray-600'
                                 }`}>
                                     {data.status === 'finalizada' ? 'Finalizada' :
-                                     data.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
+                                     data.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                 </div>
                             </div>
                         </div>
@@ -569,7 +757,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                             <h2 className="text-base font-semibold text-gray-900">Produtos</h2>
                         </div>
 
-                        {isReadOnly && (
+                        {bloqueadaParaEdicao && (
                             <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
                                 <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -1036,73 +1224,6 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         </div>
                     </div>
 
-                    {/* Actions */}
-                    {(isAutoSaving || lastSavedText || !isReadOnly) && (
-                        <div className="flex justify-end items-center bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-                            <div className="flex items-center gap-4">
-                                {/* Autosave indicator */}
-                                {(isAutoSaving || lastSavedText) && (
-                                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                                        {isAutoSaving ? (
-                                            <>
-                                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                </svg>
-                                                <span>Salvando...</span>
-                                            </>
-                                        ) : lastSavedText ? (
-                                            <>
-                                                <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                <span>Salvo às {lastSavedText}</span>
-                                            </>
-                                        ) : null}
-                                    </div>
-                                )}
-                                {!isReadOnly && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="submit"
-                                            disabled={processing || data.itens.length === 0}
-                                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-                                        >
-                                            {processing ? (
-                                                <>
-                                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                    </svg>
-                                                    Salvando...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    Salvar
-                                                </>
-                                            )}
-                                        </button>
-                                        {(isEditing || currentReceitaId) && data.status === 'rascunho' && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowFinalizarModal(true)}
-                                                disabled={processing || data.itens.length === 0}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                Finalizar
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
                 </form>
 
                 {/* Receitas Anteriores - Accordion */}
@@ -1124,29 +1245,29 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             >
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
-                                            <span className="text-sm font-medium text-gray-900">
-                                                #{r.numero}
+                                            <span className="text-base font-medium text-gray-900">
+                                                {r.numero}
                                             </span>
-                                            <span className="text-xs text-gray-500">
+                                            <span className="text-sm text-gray-500">
                                                 {new Date(r.data_receita).toLocaleDateString('pt-BR')}
                                             </span>
                                             {r.medico && (
-                                                <span className="text-xs text-gray-500">• {r.medico.nome}</span>
+                                                <span className="text-sm text-gray-500">• {r.medico.nome}</span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {!isMedico && r.valor_total > 0 && (
-                                                <span className="text-xs font-medium text-gray-700">
+                                                <span className="text-sm font-medium text-gray-700">
                                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(r.valor_total)}
                                                 </span>
                                             )}
-                                            <span className={`px-2 py-0.5 text-xs rounded ${
+                                            <span className={`px-2 py-0.5 text-sm rounded ${
                                                 r.status === 'finalizada' ? 'bg-green-100 text-green-700' :
                                                 r.status === 'cancelada' ? 'bg-red-100 text-red-700' :
                                                 'bg-gray-100 text-gray-600'
                                             }`}>
                                                 {r.status === 'finalizada' ? 'Finalizada' : 
-                                                 r.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
+                                                 r.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                             </span>
                                             <Link
                                                 href={`/receitas/${r.id}`}
@@ -1177,7 +1298,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         <div className="p-3 border-t border-gray-200 bg-white">
                                             {/* Anotações */}
                                             {(r.anotacoes || r.anotacoes_paciente) && (
-                                                <div className="mb-3 text-xs">
+                                                <div className="mb-3 text-sm">
                                                     {r.anotacoes && (
                                                         <div className="mb-1">
                                                             <span className="font-medium text-gray-700">Anotações Internas:</span>
@@ -1196,9 +1317,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             {/* Produtos */}
                                             {r.itens && r.itens.filter(item => item.imprimir).length > 0 ? (
                                                 <div className="space-y-1">
-                                                    <div className="text-xs font-medium text-gray-700 mb-2">Produtos ({r.itens.filter(item => item.imprimir).length})</div>
+                                                    <div className="text-sm font-medium text-gray-700 mb-2">Produtos ({r.itens.filter(item => item.imprimir).length})</div>
                                                     <div className="overflow-x-auto">
-                                                        <table className="w-full text-xs">
+                                                        <table className="w-full text-sm">
                                                             <thead className="bg-gray-50">
                                                                 <tr>
                                                                     <th className="text-left px-2 py-1 font-medium text-gray-600">Tipo</th>
@@ -1286,11 +1407,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <p className="text-xs text-gray-500">Nenhum produto nesta receita.</p>
+                                                <p className="text-sm text-gray-500">Nenhum produto nesta receita.</p>
                                             )}
                                             
                                             {/* Data de criação */}
-                                            <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                                            <div className="mt-3 pt-2 border-t border-gray-100 text-sm text-gray-500">
                                                 Criado em: {new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                             </div>
                                         </div>
@@ -1349,7 +1470,75 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         </div>
                     </div>
                 )}
+                {/* Modal Duplicar */}
+                {showDuplicarModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <div className="fixed inset-0 bg-black/50" onClick={() => setShowDuplicarModal(false)} />
+                            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Duplicar Receita</h3>
+                                </div>
+                                <p className="text-gray-600 mb-6">Deseja duplicar esta receita? Será criada uma nova receita com os mesmos produtos.</p>
+                                <div className="flex justify-end gap-3">
+                                    <button onClick={() => setShowDuplicarModal(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                        Cancelar
+                                    </button>
+                                    <button onClick={handleDuplicar} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal Cancelar */}
+                {showCancelarModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <div className="fixed inset-0 bg-black/50" onClick={() => setShowCancelarModal(false)} />
+                            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Cancelar Receita</h3>
+                                </div>
+                                <p className="text-gray-600 mb-6">Deseja cancelar esta receita? Esta ação não pode ser desfeita.</p>
+                                <div className="flex justify-end gap-3">
+                                    <button onClick={() => setShowCancelarModal(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                        Voltar
+                                    </button>
+                                    <button onClick={handleCancelar} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                        Cancelar Receita
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </DashboardLayout>
     );
 }
