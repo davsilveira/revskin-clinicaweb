@@ -4,6 +4,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
+import ProductCombobox from '@/Components/Receita/ProductCombobox';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
@@ -785,33 +786,32 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                 Recomendados para o Tratamento
                                             </span>
                                             <span className="text-xs text-gray-500">
-                                                ({data.itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
-                                            </span>
+                                            ({data.itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
+                                        </span>
+                                    </div>
+                                    {/* Cabeçalhos da tabela */}
+                                    <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                        <div className="w-4 flex-shrink-0"></div>
+                                        <div className="flex-[3] min-w-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                         </div>
-                                        {/* Cabeçalhos da tabela */}
-                                        <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
-                                            <div className="w-4 flex-shrink-0"></div>
-                                            <div className="w-36 flex-shrink-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                                            </div>
-                                            <div className="flex-[2] min-w-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
-                                            </div>
-                                            <div className="flex-[0.8] min-w-0"></div>
-                                            <div className="w-36 flex-shrink-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
-                                            </div>
-                                            <div className="w-14 flex-shrink-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
-                                            </div>
-                                            {!isMedico && (
-                                                <div className="w-20 flex-shrink-0 text-right">
-                                                    <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
-                                                </div>
-                                            )}
-                                            {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
+                                        <div className="flex-[2] min-w-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
                                         </div>
-                                        <div className="space-y-1 mb-2">
+                                        <div className="w-36 flex-shrink-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                                        </div>
+                                        <div className="w-14 flex-shrink-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                        </div>
+                                        {!isMedico && (
+                                            <div className="w-20 flex-shrink-0 text-right">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                            </div>
+                                        )}
+                                        {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
+                                    </div>
+                                    <div className="space-y-1 mb-2">
                                             {data.itens.map((item, index) => {
                                                 if (item.grupo !== 'recomendado') return null;
                                                 
@@ -834,29 +834,21 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             disabled={isReadOnly}
                                                             className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
                                                         />
-                                                        <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                                                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                                                                {formatLocalUso(item.local_uso)}
-                                                            </span>
-                                                        </div>
-                                                        <select
+                                                        <ProductCombobox
                                                             value={item.produto_id}
-                                                            onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                                            onChange={(val) => updateItem(index, 'produto_id', val)}
+                                                            produtos={produtos}
                                                             disabled={isReadOnly}
-                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                                                        >
-                                                            <option value="">Produto...</option>
-                                                            {produtos?.map((p) => (
-                                                                <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                                                            ))}
-                                                        </select>
+                                                            minChars={3}
+                                                            className="flex-[3]"
+                                                        />
                                                         <input
                                                             type="text"
                                                             placeholder="Anotações..."
                                                             value={item.anotacoes || ''}
                                                             onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
                                                             disabled={isReadOnly}
-                                                            className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                                                         />
                                                         {/* Data de Aquisição */}
                                                         <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
@@ -958,35 +950,34 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                 Complementares
                                             </span>
                                             <span className="text-xs text-gray-500">
-                                                ({data.itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
-                                            </span>
+                                            ({data.itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
+                                        </span>
+                                    </div>
+                                    {/* Cabeçalhos da tabela */}
+                                    <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                        <div className="w-4 flex-shrink-0"></div>
+                                        <div className="flex-[3] min-w-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                         </div>
-                                        {/* Cabeçalhos da tabela */}
-                                        <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
-                                            <div className="w-4 flex-shrink-0"></div>
-                                            <div className="w-36 flex-shrink-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                                            </div>
-                                            <div className="flex-[2] min-w-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
-                                            </div>
-                                            <div className="flex-[0.8] min-w-0"></div>
-                                            <div className="w-36 flex-shrink-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
-                                            </div>
-                                            <div className="w-14 flex-shrink-0">
-                                                <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
-                                            </div>
-                                            {!isMedico && (
-                                                <div className="w-20 flex-shrink-0 text-right">
-                                                    <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
-                                                </div>
-                                            )}
-                                            {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
+                                        <div className="flex-[2] min-w-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
                                         </div>
-                                        <div className="space-y-1">
-                                            {data.itens.map((item, index) => {
-                                                if (item.grupo !== 'opcional') return null;
+                                        <div className="w-36 flex-shrink-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
+                                        </div>
+                                        <div className="w-14 flex-shrink-0">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                        </div>
+                                        {!isMedico && (
+                                            <div className="w-20 flex-shrink-0 text-right">
+                                                <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
+                                            </div>
+                                        )}
+                                        {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
+                                    </div>
+                                    <div className="space-y-1">
+                                        {data.itens.map((item, index) => {
+                                            if (item.grupo !== 'opcional') return null;
                                                 
                                                 // Buscar dados de aquisição do item original se disponível
                                                 const itemOriginal = receita?.itens?.find(i => i.id === item.id);
@@ -1007,29 +998,21 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                             disabled={isReadOnly}
                                                             className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
                                                         />
-                                                        <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                                                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                                                                {formatLocalUso(item.local_uso)}
-                                                            </span>
-                                                        </div>
-                                                        <select
+                                                        <ProductCombobox
                                                             value={item.produto_id}
-                                                            onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                                                            onChange={(val) => updateItem(index, 'produto_id', val)}
+                                                            produtos={produtos}
                                                             disabled={isReadOnly}
-                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                                                        >
-                                                            <option value="">Produto...</option>
-                                                            {produtos?.map((p) => (
-                                                                <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                                                            ))}
-                                                        </select>
+                                                            minChars={3}
+                                                            className="flex-[3]"
+                                                        />
                                                         <input
                                                             type="text"
                                                             placeholder="Anotações..."
                                                             value={item.anotacoes || ''}
                                                             onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
                                                             disabled={isReadOnly}
-                                                            className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                                                         />
                                                         {/* Data de Aquisição */}
                                                         <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
