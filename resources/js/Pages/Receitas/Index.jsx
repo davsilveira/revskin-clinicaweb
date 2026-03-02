@@ -7,10 +7,13 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
     const isMedico = auth.user.role === 'medico';
     const [search, setSearch] = useState(filters?.search || '');
     const [status, setStatus] = useState(filters?.status || '');
+    const pacienteId = filters?.paciente_id;
 
     const handleSearch = (e) => {
         e.preventDefault();
-        router.get('/receitas', { search, status }, { preserveState: true });
+        const params = { search, status };
+        if (pacienteId) params.paciente_id = pacienteId;
+        router.get('/receitas', params, { preserveState: true });
     };
 
     const getStatusBadge = (status) => {

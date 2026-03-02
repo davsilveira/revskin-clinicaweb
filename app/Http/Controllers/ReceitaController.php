@@ -23,6 +23,7 @@ class ReceitaController extends Controller
             ->when($request->search, function ($q, $search) {
                 $q->whereHas('paciente', fn($pq) => $pq->where('nome', 'like', "%{$search}%"));
             })
+            ->when($request->paciente_id, fn($q, $id) => $q->where('paciente_id', $id))
             ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId))
             ->when($request->status, fn($q, $status) => $q->where('status', $status))
             ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
@@ -47,7 +48,7 @@ class ReceitaController extends Controller
         return Inertia::render('Receitas/Index', [
             'receitas' => $receitas,
             'medicos' => $medicos,
-            'filters' => $request->only(['search', 'medico_id', 'status', 'data_inicio', 'data_fim']),
+            'filters' => $request->only(['search', 'medico_id', 'paciente_id', 'status', 'data_inicio', 'data_fim']),
         ]);
     }
 

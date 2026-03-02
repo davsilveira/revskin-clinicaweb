@@ -113,14 +113,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                 pacientesList.map((paciente) => (
                                     <tr key={paciente.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
-                                                    <span className="text-sm font-medium text-emerald-700">
-                                                        {paciente.nome?.charAt(0).toUpperCase()}
-                                                    </span>
-                                                </div>
-                                                <div className="text-sm font-medium text-gray-900">{paciente.nome}</div>
-                                            </div>
+                                            <div className="text-sm font-medium text-gray-900">{paciente.nome}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cpf || '-'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.celular || paciente.telefone1 || '-'}</td>
@@ -132,6 +125,18 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex items-center justify-end gap-1">
+                                                <Link
+                                                    href={`/receitas?paciente_id=${paciente.id}`}
+                                                    className="group relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                    aria-label="Ver receitas"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none whitespace-nowrap z-10">
+                                                        Ver receitas
+                                                    </span>
+                                                </Link>
                                                 {canAccessAssistente && (
                                                     <Link
                                                         href={`/assistente-receita?paciente_id=${paciente.id}`}
