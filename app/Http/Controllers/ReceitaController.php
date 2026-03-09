@@ -11,6 +11,7 @@ use App\Models\Receita;
 use App\Models\ReceitaItem;
 use App\Models\Setting;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -169,8 +170,13 @@ class ReceitaController extends Controller
         return $this->renderReceitaForm($receita, request(), viewMode: true);
     }
 
-    public function edit(Request $request, Receita $receita): Response
+    public function edit(Request $request, Receita $receita): Response|RedirectResponse
     {
+        // Redirect finalized prescriptions to view – they are not editable
+        if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita);
+        }
+
         return $this->renderReceitaForm($receita, $request, viewMode: false);
     }
 
@@ -258,17 +264,18 @@ class ReceitaController extends Controller
     public function update(Request $request, Receita $receita)
     {
         $user = $request->user();
-        
+
         // Check if receita is blocked for editing (atendimento in production or finalized)
         $receita->load('atendimentoCallcenter');
-        if ($receita->atendimentoCallcenter && 
+        if ($receita->atendimentoCallcenter &&
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
             return back()->with('error', 'Esta receita não pode ser editada pois o atendimento já está em produção ou finalizado.');
         }
-        
-        // Check if médico is trying to edit finalized receita
-        if ($user->isMedico() && $receita->status === 'finalizada') {
-            return back()->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
+
+        // Bloquear edição de receitas finalizadas para todos os usuários
+        if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita)
+                ->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
         }
 
         $validated = $request->validate([
