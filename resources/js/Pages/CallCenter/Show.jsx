@@ -358,7 +358,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                             </div>
                             
                             <p className="text-gray-600 mb-4">
-                                Deseja enviar este pedido para produção? Após confirmado, o status será alterado para "Em Produção".
+                                Deseja enviar esta proposta comercial para produção? Após confirmado, o status será alterado para "Em Produção".
                             </p>
 
                             <div className="mb-6">

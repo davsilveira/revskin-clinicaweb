@@ -615,6 +615,24 @@ class TinyErpClient
 
         $pedido['nome_vendedor'] = 'ClinicaWeb';
 
+        if (!empty($data['obs_internas'])) {
+            $pedido['obs_internas'] = mb_substr($data['obs_internas'], 0, 100);
+        }
+
+        if (!empty($data['numero_pedido_ecommerce'])) {
+            $pedido['numero_pedido_ecommerce'] = mb_substr($data['numero_pedido_ecommerce'], 0, 50);
+        }
+        if (!empty($data['ecommerce']) && empty($data['id_ecommerce'])) {
+            $pedido['ecommerce'] = mb_substr($data['ecommerce'], 0, 50);
+        }
+
+        if (!empty($data['marcadores'])) {
+            $pedido['marcadores'] = array_map(
+                fn (string $descricao) => ['marcador' => ['descricao' => mb_substr($descricao, 0, 50)]],
+                $data['marcadores']
+            );
+        }
+
         if (!empty($data['cliente'])) {
             $pedido['cliente'] = $data['cliente'];
             $pedido['cliente']['atualizar_cliente'] = 'S';

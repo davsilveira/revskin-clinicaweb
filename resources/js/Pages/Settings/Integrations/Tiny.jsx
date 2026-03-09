@@ -476,7 +476,7 @@ export default function TinySettings({ settings, onToast, isAuthenticated }) {
                                 <div>
                                     <p className="font-medium text-blue-800">URL do Webhook</p>
                                     <p className="text-sm text-blue-700 mt-1">
-                                        Configure esta URL no painel do Tiny ERP para receber notificacoes de pedidos:
+                                        Configure esta URL no painel do Tiny ERP para receber notificacoes de propostas comerciais e pedidos:
                                     </p>
                                     <code className="mt-2 block text-xs bg-white p-2 rounded border border-blue-300 break-all">
                                         {window.location.origin}/api/webhooks/tiny/pedido-finalizado
@@ -527,13 +527,13 @@ export default function TinySettings({ settings, onToast, isAuthenticated }) {
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Cadastro/atualizacao de clientes no Tiny ao criar pedidos
+                                Cadastro/atualizacao de clientes no Tiny ao criar propostas comerciais
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Criar orcamento no Tiny quando medico finaliza receita
+                                Criar proposta comercial no Tiny quando medico finaliza receita
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

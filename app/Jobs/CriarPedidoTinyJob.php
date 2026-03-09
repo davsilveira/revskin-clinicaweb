@@ -63,8 +63,17 @@ class CriarPedidoTinyJob implements ShouldQueue
 
         $cpf = preg_replace('/\D/', '', $paciente->cpf ?? '');
 
+        $marcadores = ['ClinicaWeb'];
+        if ($this->isPrimeiraVendaPaciente($receita)) {
+            $marcadores[] = '1ª venda';
+        }
+
         $dados = [
             'observacoes' => $this->buildObservacoes($receita),
+            'obs_internas' => $this->buildObsInternas($receita),
+            'marcadores' => $marcadores,
+            'numero_pedido_ecommerce' => $receita->numero ?? 'REC-' . $receita->id,
+            'ecommerce' => 'ClinicaWeb',
             'data' => $receita->data_receita?->format('Y-m-d') ?? now()->format('Y-m-d'),
             'itens' => $itens,
             'cliente' => [
@@ -157,15 +166,34 @@ class CriarPedidoTinyJob implements ShouldQueue
         $itens = [];
         foreach ($receita->itens as $item) {
             $produto = $item->produto;
+            $preco = $produto
+                ? (float) ($produto->preco_venda ?? $produto->preco ?? 0)
+                : (float) $item->valor_unitario;
             $itens[] = [
                 'produto' => ['id' => $produto?->tiny_id ? (int) $produto->tiny_id : null],
-                'descricao' => $produto?->nome ?? $item->descricao ?? 'Produto',
+                'descricao' => $produto?->nome ?? 'Produto',
                 'unidade' => $produto?->unidade ?? 'UN',
                 'quantidade' => $item->quantidade,
-                'valorUnitario' => (float) $item->valor_unitario,
+                'valorUnitario' => $preco,
             ];
         }
         return $itens;
+    }
+
+    protected function isPrimeiraVendaPaciente(Receita $receita): bool
+    {
+        return Receita::where('paciente_id', $receita->paciente_id)
+            ->whereNotNull('tiny_pedido_id')
+            ->where('id', '!=', $receita->id)
+            ->doesntExist();
+    }
+
+    protected function buildObsInternas(Receita $receita): string
+    {
+        if ($receita->medico) {
+            return 'Médico: ' . $receita->medico->nome;
+        }
+        return 'Médico não informado';
     }
 
     protected function prepararDadosPedidoV3(Receita $receita, \App\Models\Paciente $paciente): array
@@ -180,10 +208,11 @@ class CriarPedidoTinyJob implements ShouldQueue
                 ]);
                 continue;
             }
+            $preco = (float) ($produto->preco_venda ?? $produto->preco ?? $item->valor_unitario ?? 0);
             $itens[] = [
                 'produto' => ['id' => (int) $produto->tiny_id],
                 'quantidade' => $item->quantidade,
-                'valorUnitario' => (float) $item->valor_unitario,
+                'valorUnitario' => $preco,
             ];
         }
 
@@ -191,11 +220,20 @@ class CriarPedidoTinyJob implements ShouldQueue
             throw new \Exception('Pedido não possui itens válidos para sincronização');
         }
 
+        $marcadores = ['ClinicaWeb'];
+        if ($this->isPrimeiraVendaPaciente($receita)) {
+            $marcadores[] = '1ª venda';
+        }
+
         $dados = [
             'idContato' => (int) $paciente->tiny_id,
             'situacao' => 0,
             'data' => $receita->data_receita->format('Y-m-d'),
             'observacoes' => $this->buildObservacoes($receita),
+            'obs_internas' => $this->buildObsInternas($receita),
+            'marcadores' => $marcadores,
+            'numero_pedido_ecommerce' => $receita->numero ?? 'REC-' . $receita->id,
+            'ecommerce' => 'ClinicaWeb',
             'itens' => $itens,
         ];
 
@@ -214,16 +252,8 @@ class CriarPedidoTinyJob implements ShouldQueue
         $obs = [];
         $obs[] = 'Vendedor: ClinicaWeb';
 
-        if ($receita->medico) {
-            $obs[] = "Médico: {$receita->medico->nome}";
-        }
-
-        $isFirstReceita = Receita::where('paciente_id', $receita->paciente_id)
-            ->where('status', 'finalizada')
-            ->where('id', '!=', $receita->id)
-            ->doesntExist();
-
-        $obs[] = $isFirstReceita ? 'Primeira receita do paciente' : 'Receita recorrente';
+        $isFirst = $this->isPrimeiraVendaPaciente($receita);
+        $obs[] = $isFirst ? 'Primeira receita do paciente' : 'Receita recorrente';
 
         if ($receita->numero) {
             $obs[] = "Receita #{$receita->numero}";

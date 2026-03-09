@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\AtendimentoCallcenter;
 use App\Models\Receita;
 use App\Models\ReceitaItemAquisicao;
 use App\Services\TinyErpClient;
@@ -46,14 +47,23 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
         $situacoesFinalizadasInt = [1, 5, 6, 7];
         $situacoesFinalizadasStr = ['faturado', 'enviado', 'entregue', 'pronto_envio', 'atendido'];
+        $situacoesCanceladasInt = [2, 3, 4];
+        $situacoesCanceladasStr = ['cancelado', 'cancelada', 'devolvido', 'devolvida'];
 
         $situacaoNorm = is_numeric($this->situacao) ? (int) $this->situacao : strtolower(trim($this->situacao ?? ''));
         $isFinalizada = is_int($situacaoNorm)
             ? in_array($situacaoNorm, $situacoesFinalizadasInt)
             : in_array($situacaoNorm, $situacoesFinalizadasStr);
+        $isCancelada = is_int($situacaoNorm)
+            ? in_array($situacaoNorm, $situacoesCanceladasInt)
+            : in_array($situacaoNorm, $situacoesCanceladasStr);
 
         if ($isFinalizada) {
             $this->marcarItensVendidos($receita);
+        }
+
+        if ($isCancelada) {
+            $this->processarCancelamento($receita);
         }
 
         Log::info('Tiny ERP: Webhook processado', [
@@ -109,6 +119,22 @@ class ProcessWebhookTinyJob implements ShouldQueue
             'receita_id' => $receita->id,
             'tiny_product_ids' => $tinyProductIds,
             'total_itens_receita' => $receita->itens->count(),
+        ]);
+    }
+
+    protected function processarCancelamento(Receita $receita): void
+    {
+        // Sempre atualiza a Receita - fluxo principal quando Tiny está ativo
+        $receita->update(['status' => 'cancelada', 'ativo' => false]);
+
+        // Se houver atendimento de call center, marca como cancelado
+        $atendimento = $receita->atendimentoCallcenter;
+        if ($atendimento) {
+            $atendimento->update(['status' => AtendimentoCallcenter::STATUS_CANCELADO]);
+        }
+
+        Log::info('Tiny ERP: Receita e atendimento marcados como cancelados', [
+            'receita_id' => $receita->id,
         ]);
     }
 
