@@ -219,7 +219,7 @@ export default function PacienteShow({ paciente }) {
                                                     'bg-yellow-100 text-yellow-800'
                                                 }`}>
                                                     {receita.status === 'finalizada' ? 'Finalizada' :
-                                                     receita.status === 'cancelada' ? 'Cancelada' : 'Rascunho'}
+                                                     receita.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-right">

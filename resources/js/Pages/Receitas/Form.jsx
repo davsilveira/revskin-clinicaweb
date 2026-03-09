@@ -41,7 +41,7 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
 };
 
-export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false }) {
+export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false, casoClinico = null }) {
     const { auth, flash } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [toast, setToast] = useState(null);
@@ -76,6 +76,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             quantidade: item.quantidade,
             valor_unitario: parseFloat(item.valor_unitario) || 0,
             imprimir: item.imprimir ?? true,
+            vendido: item.vendido || false,
             grupo: item.grupo || 'recomendado',
             ultima_aquisicao: item.ultima_aquisicao || null,
             datas_aquisicao: item.datas_aquisicao || [],
@@ -439,6 +440,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     return (
         <DashboardLayout>
             <div className="p-6">
+                {casoClinico && (
+                    <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                        Caso clínico (debug): <strong>{casoClinico}</strong>
+                    </div>
+                )}
                 <div className="mb-6">
                     <Link
                         href="/receitas"
@@ -803,8 +809,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     <div 
                                                         key={index} 
                                                         ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
                                                     >
+                                                        {item.vendido && (
+                                                            <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                        )}
                                                         <input
                                                             type="checkbox"
                                                             checked={item.imprimir}
@@ -967,8 +976,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     <div 
                                                         key={index} 
                                                         ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
                                                     >
+                                                        {item.vendido && (
+                                                            <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                        )}
                                                         <input
                                                             type="checkbox"
                                                             checked={item.imprimir}

@@ -1,0 +1,27 @@
+export const countries = [
+    { value: 'Brasil', label: 'Brasil' },
+    { value: 'Portugal', label: 'Portugal' },
+    { value: 'Estados Unidos', label: 'Estados Unidos' },
+    { value: 'Argentina', label: 'Argentina' },
+    { value: 'Uruguai', label: 'Uruguai' },
+    { value: 'Paraguai', label: 'Paraguai' },
+    { value: 'Chile', label: 'Chile' },
+    { value: 'Colombia', label: 'Colômbia' },
+    { value: 'Peru', label: 'Peru' },
+    { value: 'Bolivia', label: 'Bolívia' },
+    { value: 'Venezuela', label: 'Venezuela' },
+    { value: 'Equador', label: 'Equador' },
+    { value: 'Mexico', label: 'México' },
+    { value: 'Espanha', label: 'Espanha' },
+    { value: 'Franca', label: 'França' },
+    { value: 'Italia', label: 'Itália' },
+    { value: 'Alemanha', label: 'Alemanha' },
+    { value: 'Reino Unido', label: 'Reino Unido' },
+    { value: 'Canada', label: 'Canadá' },
+    { value: 'Japao', label: 'Japão' },
+    { value: 'China', label: 'China' },
+    { value: 'Australia', label: 'Austrália' },
+    { value: 'Outro', label: 'Outro' },
+];
+
+export default countries;

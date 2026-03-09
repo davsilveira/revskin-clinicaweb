@@ -1,0 +1,2628 @@
+[
+  {
+    "id": 1,
+    "caso_clinico": "PSM1R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 2,
+    "caso_clinico": "PSM1R1A2",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 3,
+    "caso_clinico": "PSM1R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 4,
+    "caso_clinico": "PSM1R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 5,
+    "caso_clinico": "PSM1R2A2",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 6,
+    "caso_clinico": "PSM1R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 7,
+    "caso_clinico": "PSM1R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H3-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 8,
+    "caso_clinico": "PSM1R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 9,
+    "caso_clinico": "PSM1R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 10,
+    "caso_clinico": "PSM2R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 11,
+    "caso_clinico": "PSM2R1A2",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 12,
+    "caso_clinico": "PSM2R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 13,
+    "caso_clinico": "PSM2R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 14,
+    "caso_clinico": "PSM2R2A2",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 15,
+    "caso_clinico": "PSM2R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 16,
+    "caso_clinico": "PSM2R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H8-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 17,
+    "caso_clinico": "PSM2R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 18,
+    "caso_clinico": "PSM2R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 19,
+    "caso_clinico": "PSM3R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 20,
+    "caso_clinico": "PSM3R1A2",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 21,
+    "caso_clinico": "PSM3R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 22,
+    "caso_clinico": "PSM3R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 23,
+    "caso_clinico": "PSM3R2A2",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 24,
+    "caso_clinico": "PSM3R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 25,
+    "caso_clinico": "PSM3R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H12-DYN3",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 3",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 26,
+    "caso_clinico": "PSM3R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 27,
+    "caso_clinico": "PSM3R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 28,
+    "caso_clinico": "PNM1R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 29,
+    "caso_clinico": "PNM1R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 30,
+    "caso_clinico": "PNM1R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 31,
+    "caso_clinico": "PNM1R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 32,
+    "caso_clinico": "PNM1R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 33,
+    "caso_clinico": "PNM1R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 34,
+    "caso_clinico": "PNM1R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 35,
+    "caso_clinico": "PNM1R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 36,
+    "caso_clinico": "PNM1R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 37,
+    "caso_clinico": "PNM2R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 38,
+    "caso_clinico": "PNM2R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 39,
+    "caso_clinico": "PNM2R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 40,
+    "caso_clinico": "PNM2R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 41,
+    "caso_clinico": "PNM2R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 42,
+    "caso_clinico": "PNM2R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 43,
+    "caso_clinico": "PNM2R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 44,
+    "caso_clinico": "PNM2R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 45,
+    "caso_clinico": "PNM2R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 2",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "protetor_solar": "HYDRAMINCE DYNAMISEE 1",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 46,
+    "caso_clinico": "PNM3R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 47,
+    "caso_clinico": "PNM3R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 48,
+    "caso_clinico": "PNM3R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 49,
+    "caso_clinico": "PNM3R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 50,
+    "caso_clinico": "PNM3R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 51,
+    "caso_clinico": "PNM3R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 52,
+    "caso_clinico": "PNM3R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 53,
+    "caso_clinico": "PNM3R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 54,
+    "caso_clinico": "PNM3R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 55,
+    "caso_clinico": "PRM1R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 56,
+    "caso_clinico": "PRM1R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H6-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 57,
+    "caso_clinico": "PRM1R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H6-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 58,
+    "caso_clinico": "PRM1R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 59,
+    "caso_clinico": "PRM1R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H6-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 60,
+    "caso_clinico": "PRM1R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H6-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 61,
+    "caso_clinico": "PRM1R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 62,
+    "caso_clinico": "PRM1R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 63,
+    "caso_clinico": "PRM1R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 64,
+    "caso_clinico": "PRM2R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 65,
+    "caso_clinico": "PRM2R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 66,
+    "caso_clinico": "PRM2R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 67,
+    "caso_clinico": "PRM2R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 68,
+    "caso_clinico": "PRM2R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 69,
+    "caso_clinico": "PRM2R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 70,
+    "caso_clinico": "PRM2R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 71,
+    "caso_clinico": "PRM2R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 72,
+    "caso_clinico": "PRM2R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 73,
+    "caso_clinico": "PRM3R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 74,
+    "caso_clinico": "PRM3R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 75,
+    "caso_clinico": "PRM3R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 76,
+    "caso_clinico": "PRM3R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 77,
+    "caso_clinico": "PRM3R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 78,
+    "caso_clinico": "PRM3R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 79,
+    "caso_clinico": "PRM3R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 80,
+    "caso_clinico": "PRM3R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 81,
+    "caso_clinico": "PRM3R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia_verao": "HYDRAMINCE SYNCHRON",
+      "creme_dia_inverno": "HYDRAMINCE DYNAMISEE 1",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-CREAM",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 82,
+    "caso_clinico": "PMM1R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 83,
+    "caso_clinico": "PMM1R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 84,
+    "caso_clinico": "PMM1R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 85,
+    "caso_clinico": "PMM1R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 86,
+    "caso_clinico": "PMM1R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 87,
+    "caso_clinico": "PMM1R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 88,
+    "caso_clinico": "PMM1R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 89,
+    "caso_clinico": "PMM1R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 90,
+    "caso_clinico": "PMM1R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 91,
+    "caso_clinico": "PMM2R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 92,
+    "caso_clinico": "PMM2R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 93,
+    "caso_clinico": "PMM2R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 94,
+    "caso_clinico": "PMM2R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 95,
+    "caso_clinico": "PMM2R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 96,
+    "caso_clinico": "PMM2R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 97,
+    "caso_clinico": "PMM2R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 98,
+    "caso_clinico": "PMM2R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 99,
+    "caso_clinico": "PMM2R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 100,
+    "caso_clinico": "PMM3R1A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 101,
+    "caso_clinico": "PMM3R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 102,
+    "caso_clinico": "PMM3R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 103,
+    "caso_clinico": "PMM3R2A1",
+    "produtos": {
+      "creme_noite": "R0,0015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 104,
+    "caso_clinico": "PMM3R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 105,
+    "caso_clinico": "PMM3R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 106,
+    "caso_clinico": "PMM3R3A1",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 107,
+    "caso_clinico": "PMM3R3A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 108,
+    "caso_clinico": "PMM3R3A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 109,
+    "caso_clinico": "POM1R1A1",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 110,
+    "caso_clinico": "POM1R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 111,
+    "caso_clinico": "POM1R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 112,
+    "caso_clinico": "POM1R2A1",
+    "produtos": {
+      "creme_noite": "R0,0025H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 113,
+    "caso_clinico": "POM1R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 114,
+    "caso_clinico": "POM1R2A3",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 115,
+    "caso_clinico": "POM1R3A1",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 116,
+    "caso_clinico": "POM1R3A2",
+    "produtos": {
+      "creme_noite": "R0,01H3-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 117,
+    "caso_clinico": "POM1R3A3",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 118,
+    "caso_clinico": "POM2R1A1",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 119,
+    "caso_clinico": "POM2R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 120,
+    "caso_clinico": "POM2R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 121,
+    "caso_clinico": "POM2R2A1",
+    "produtos": {
+      "creme_noite": "R0,0025H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 122,
+    "caso_clinico": "POM2R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 123,
+    "caso_clinico": "POM2R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H8-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 124,
+    "caso_clinico": "POM2R3A1",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 125,
+    "caso_clinico": "POM2R3A2",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 126,
+    "caso_clinico": "POM2R3A3",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "serum_vitamina_c": "REVELUMIE-G15",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 127,
+    "caso_clinico": "POM3R1A1",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 128,
+    "caso_clinico": "POM3R1A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 129,
+    "caso_clinico": "POM3R1A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 130,
+    "caso_clinico": "POM3R2A1",
+    "produtos": {
+      "creme_noite": "R0,0025H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 131,
+    "caso_clinico": "POM3R2A2",
+    "produtos": {
+      "creme_noite": "R0,005H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 132,
+    "caso_clinico": "POM3R2A3",
+    "produtos": {
+      "creme_noite": "R0,01H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 133,
+    "caso_clinico": "POM3R3A1",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 134,
+    "caso_clinico": "POM3R3A2",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  },
+  {
+    "id": 135,
+    "caso_clinico": "POM3R3A3",
+    "produtos": {
+      "creme_noite": "R0,015H12-NEODELINE",
+      "creme_dia": "HYDRAMINCE SYNCHRON",
+      "limpeza_syndet": "BIONAISSANCE-SENSITIVE",
+      "creme_olhos": "HYALU-GEL",
+      "base_tonalite": "TONALITE-__-G30",
+      "locao_clareadora": "AQUELANE-8-G30",
+      "gel_secativo": "DESINFLAM-G15",
+      "creme_firmador": "DEMERANE-ULTRA-30G",
+      "serum_anti_queda": "CAPILVELT",
+      "duo_mask": "DUO-MASK",
+      "serum_vitamina_c_2": "REVELUMIE-G15",
+      "creme_noite_maos": "MAOS-NOITE-R0,035H12-DYN3",
+      "creme_dia_maos": "MAOS-DIA-DYNAMISEE-3",
+      "creme_corpo": "CORPO-CREME"
+    }
+  }
+]

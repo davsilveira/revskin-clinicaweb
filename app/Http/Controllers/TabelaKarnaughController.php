@@ -243,6 +243,6 @@ class TabelaKarnaughController extends Controller
             return Storage::disk('local')->download($filePath, $tabelaKarnaugh->arquivo_original);
         }
 
-        abort(404, 'Arquivo original não disponível para download.');
+        abort(404, 'Arquivo não encontrado. Pode ter sido removido em um redeploy recente. Reimporte a tabela se necessário.');
     }
 }

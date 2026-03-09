@@ -1,0 +1,23 @@
+<?php
+
+/**
+ * Copie este arquivo para deploy.local.php e preencha conforme necessário.
+ * O deploy.local.php não é versionado (.gitignore).
+ *
+ * php artisan deploy:package usa estes valores sem alterar seu .env local.
+ */
+
+return [
+    'app_url' => 'https://clinicaweb.revskin.com.br',
+
+    // Opcional: se preenchido, o comando gera schema.sql (MySQL) para importar na Hostinger.
+    // Pode ser um MySQL local ou de staging; as migrations rodam nesse banco e o dump é gerado.
+    'database' => null,
+    // 'database' => [
+    //     'host' => '127.0.0.1',
+    //     'port' => 3306,
+    //     'database' => 'revskin_dump',
+    //     'username' => 'root',
+    //     'password' => '',
+    // ],
+];

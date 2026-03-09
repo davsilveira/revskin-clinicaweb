@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\AtendimentoCallcenter;
 use App\Models\Clinica;
 use App\Models\Medico;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -76,6 +77,7 @@ class HandleInertiaRequests extends Middleware
                 'medico' => $medico,
                 'clinica' => $clinica,
                 'pendingCallCenterCount' => $pendingCallCenterCount,
+                'tinyEnabled' => (bool) Setting::get('tiny_enabled', false),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

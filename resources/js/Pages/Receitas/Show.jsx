@@ -89,7 +89,7 @@ const formatDate = (dateString) => {
                             
                             <div className="space-y-3">
                                 {receita.itens?.filter(item => item.imprimir).map((item, index) => (
-                                    <div key={index} className="flex items-start justify-between p-4 rounded-lg bg-gray-50">
+                                    <div key={index} className={`flex items-start justify-between p-4 rounded-lg ${item.vendido ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-medium text-gray-900">
@@ -98,7 +98,14 @@ const formatDate = (dateString) => {
                                                     )}
                                                     {' '}{item.produto?.nome || 'Produto'}
                                                 </span>
-                                                <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">Incluído</span>
+                                                {item.vendido ? (
+                                                    <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded flex items-center gap-1">
+                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                        Comercializado
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">Incluído</span>
+                                                )}
                                             </div>
                                             {item.local_uso && (
                                                 <div className="text-sm text-gray-500 mt-1">

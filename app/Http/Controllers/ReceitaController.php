@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CriarPedidoTinyJob;
 use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\ReceitaItem;
+use App\Models\Setting;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -213,7 +215,7 @@ class ReceitaController extends Controller
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
         $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
-        return Inertia::render('Receitas/Form', [
+        $props = [
             'receita' => $receita,
             'paciente' => $receita->paciente,
             'medicos' => $medicos,
@@ -221,7 +223,13 @@ class ReceitaController extends Controller
             'receitasAnteriores' => $receitasAnteriores,
             'bloqueadaParaEdicao' => $bloqueadaParaEdicao,
             'viewMode' => $viewMode,
-        ]);
+        ];
+
+        if (config('app.enable_debug_receitas')) {
+            $props['casoClinico'] = session('caso_clinico_debug');
+        }
+
+        return Inertia::render('Receitas/Form', $props);
     }
 
     private function loadAcquisitionDates(Receita $receita): void
@@ -321,7 +329,6 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        // Create callcenter atendimento if status changed to finalizada
         if ($receita->status === 'finalizada' && !$receita->atendimentoCallcenter) {
             AtendimentoCallcenter::create([
                 'receita_id' => $receita->id,
@@ -331,6 +338,10 @@ class ReceitaController extends Controller
                 'data_abertura' => now(),
                 'usuario_id' => $request->user()->id,
             ]);
+
+            if (Setting::get('tiny_enabled', false)) {
+                CriarPedidoTinyJob::dispatch($receita)->delay(now()->addMinute());
+            }
         }
 
         return redirect()->route('receitas.show', $receita)

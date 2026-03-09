@@ -44,6 +44,7 @@ export default function DashboardLayout({ children }) {
     const isCallcenter = auth.user.role === 'callcenter';
     const isSecretaria = auth.user.role === 'secretaria';
     const pendingCallCenterCount = auth.pendingCallCenterCount || 0;
+    const tinyEnabled = auth.tinyEnabled || false;
 
     const getRoleLabel = (role) => {
         const labels = {
@@ -175,8 +176,8 @@ export default function DashboardLayout({ children }) {
                             </>
                         )}
 
-                        {/* Call Center (callcenter and admin) */}
-                        {(isAdmin || isCallcenter) && (
+                        {/* Call Center (callcenter and admin) - hidden when Tiny ERP is enabled */}
+                        {!tinyEnabled && (isAdmin || isCallcenter) && (
                             <Link
                                 href="/callcenter"
                                 className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2 relative' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
@@ -238,21 +239,6 @@ export default function DashboardLayout({ children }) {
                                     </div>
                                 )}
                                 {sidebarCollapsed && <div className="pt-4 border-t border-gray-200 mt-2" />}
-
-                                <Link
-                                    href="/medicos"
-                                    className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
-                                        isActive('/medicos')
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title={sidebarCollapsed ? 'Médicos' : undefined}
-                                >
-                                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    {!sidebarCollapsed && <span className="font-medium">Médicos</span>}
-                                </Link>
 
                                 <Link
                                     href="/clinicas"

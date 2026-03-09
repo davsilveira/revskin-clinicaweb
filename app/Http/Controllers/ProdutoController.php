@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Produto;
+use App\Models\Setting;
 use App\Exports\CatalogoProdutosExport;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,6 +32,7 @@ class ProdutoController extends Controller
         return Inertia::render('Produtos/Index', [
             'produtos' => $produtos,
             'filters' => $request->only(['search', 'ativo']),
+            'lastSync' => Setting::get('tiny_produtos_last_sync'),
         ]);
     }
 
@@ -87,27 +89,12 @@ class ProdutoController extends Controller
     public function update(Request $request, Produto $produto)
     {
         $validated = $request->validate([
-            'codigo' => 'required|string|max:255|unique:produtos,codigo,' . $produto->id,
-            'codigo_cq' => 'nullable|string|max:255',
-            'nome' => 'required|string|max:255',
+            'nome' => 'nullable|string|max:255',
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
-            'local_uso' => 'nullable|string|max:255',
-            'categoria' => 'nullable|string|max:255',
-            'modo_uso' => 'nullable|string|max:255',
-            'unidade' => 'nullable|string|max:20',
-            'preco_venda' => 'nullable|numeric|min:0',
-            'preco_custo' => 'nullable|numeric|min:0',
-            'estoque_minimo' => 'nullable|integer|min:0',
-            'tiny_id' => 'nullable|string|max:255',
+            'modo_uso' => 'nullable|string',
             'ativo' => 'boolean',
         ]);
-
-        // Map preco_venda to preco
-        if (isset($validated['preco_venda'])) {
-            $validated['preco'] = $validated['preco_venda'];
-            unset($validated['preco_venda']);
-        }
 
         $produto->update($validated);
 

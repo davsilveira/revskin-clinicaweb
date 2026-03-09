@@ -305,7 +305,7 @@ class ExportController extends Controller
             'receitas' => [
                 'status' => [
                     ['value' => 'all', 'label' => 'Todos'],
-                    ['value' => 'rascunho', 'label' => 'Rascunho'],
+                    ['value' => 'aberta', 'label' => 'Aberta'],
                     ['value' => 'finalizada', 'label' => 'Finalizada'],
                     ['value' => 'cancelada', 'label' => 'Cancelada'],
                 ],

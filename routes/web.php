@@ -74,14 +74,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/catalogo-produtos/export', [ProdutoController::class, 'catalogoExport'])->name('produtos.catalogo.export');
     });
 
-    // Receitas - visualizacao (medico, admin e callcenter)
-    Route::middleware('role:medico,callcenter')->group(function () {
-        Route::get('/receitas', [ReceitaController::class, 'index'])->name('receitas.index');
-        Route::get('/receitas/{receita}', [ReceitaController::class, 'show'])->name('receitas.show');
-        Route::get('/receitas/{receita}/pdf', [ReceitaController::class, 'pdf'])->name('receitas.pdf');
-    });
-
-    // Receitas - edicao (medico and admin only)
+    // Receitas - edicao (medico and admin only) - create must come before {receita} wildcard
     Route::middleware('medico')->group(function () {
         Route::get('/receitas/create', [ReceitaController::class, 'create'])->name('receitas.create');
         Route::post('/receitas', [ReceitaController::class, 'store'])->name('receitas.store');
@@ -90,12 +83,19 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/receitas/{receita}', [ReceitaController::class, 'destroy'])->name('receitas.destroy');
         Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
         Route::post('/api/receitas/autosave', [ReceitaController::class, 'autosave'])->name('receitas.autosave');
-        
+
         // Assistente de Receita
         Route::get('/assistente-receita', [AssistenteReceitaController::class, 'index'])->name('assistente.index');
         Route::post('/assistente-receita/iniciar', [AssistenteReceitaController::class, 'iniciar'])->name('assistente.iniciar');
         Route::post('/assistente-receita/processar', [AssistenteReceitaController::class, 'processar'])->name('assistente.processar');
         Route::post('/assistente-receita/gerar-receita', [AssistenteReceitaController::class, 'gerarReceita'])->name('assistente.gerar');
+    });
+
+    // Receitas - visualizacao (medico, admin e callcenter)
+    Route::middleware('role:medico,callcenter')->group(function () {
+        Route::get('/receitas', [ReceitaController::class, 'index'])->name('receitas.index');
+        Route::get('/receitas/{receita}', [ReceitaController::class, 'show'])->name('receitas.show');
+        Route::get('/receitas/{receita}/pdf', [ReceitaController::class, 'pdf'])->name('receitas.pdf');
     });
 
     // Call Center (callcenter and admin)
@@ -190,13 +190,12 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/callback', [TinyIntegrationController::class, 'callback'])->name('callback');
             Route::post('/sync-produtos', [TinyIntegrationController::class, 'syncProdutos'])->name('sync-produtos');
             Route::post('/sync-cliente/{paciente}', [TinyIntegrationController::class, 'syncCliente'])->name('sync-cliente');
-            Route::post('/criar-proposta/{receita}', [TinyIntegrationController::class, 'criarProposta'])->name('criar-proposta');
+            Route::post('/disconnect', [TinyIntegrationController::class, 'disconnect'])->name('disconnect');
             Route::get('/pedidos', [TinyIntegrationController::class, 'listarPedidos'])->name('pedidos');
         });
-
-        // Webhook Tiny ERP (sem autenticação CSRF)
-        Route::post('/api/webhooks/tiny/pedido-finalizado', [\App\Http\Controllers\WebhookTinyController::class, 'pedidoFinalizado'])
-            ->withoutMiddleware(['csrf', 'auth'])
-            ->name('webhooks.tiny.pedido-finalizado');
     });
 });
+
+// Webhook Tiny ERP (outside auth - receives external requests)
+Route::post('/api/webhooks/tiny/pedido-finalizado', [\App\Http\Controllers\WebhookTinyController::class, 'pedidoFinalizado'])
+    ->name('webhooks.tiny.pedido-finalizado');

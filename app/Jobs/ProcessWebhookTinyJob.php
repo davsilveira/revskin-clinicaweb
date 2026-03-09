@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
-use App\Models\AtendimentoCallcenter;
+use App\Models\Receita;
+use App\Models\ReceitaItemAquisicao;
+use App\Services\TinyErpClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,54 +30,86 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
     public function handle(): void
     {
-        Log::info('Tiny ERP: Processando webhook de pedido finalizado', [
+        Log::info('Tiny ERP: Processando webhook de pedido', [
             'pedido_id' => $this->pedidoId,
             'situacao' => $this->situacao,
         ]);
 
-        // Buscar atendimento pelo tiny_pedido_id
-        $atendimento = AtendimentoCallcenter::where('tiny_pedido_id', $this->pedidoId)->first();
+        $receita = Receita::where('tiny_pedido_id', $this->pedidoId)->first();
 
-        if (!$atendimento) {
-            Log::warning('Tiny ERP: Atendimento não encontrado para pedido', [
+        if (!$receita) {
+            Log::warning('Tiny ERP: Receita não encontrada para pedido', [
                 'tiny_pedido_id' => $this->pedidoId,
             ]);
             return;
         }
 
-        // Verificar se situação indica pedido finalizado
-        // Situações possíveis no Tiny: "finalizado", "faturado", "enviado", etc.
-        $situacoesFinalizadas = ['finalizado', 'faturado', 'enviado', 'concluido'];
+        $situacoesFinalizadasInt = [1, 5, 6, 7];
+        $situacoesFinalizadasStr = ['faturado', 'enviado', 'entregue', 'pronto_envio', 'atendido'];
 
-        if ($this->situacao && in_array(strtolower($this->situacao), $situacoesFinalizadas)) {
-            // Atualizar atendimento para finalizado
-            if ($atendimento->status !== AtendimentoCallcenter::STATUS_FINALIZADO) {
-                $atendimento->update([
-                    'status' => AtendimentoCallcenter::STATUS_FINALIZADO,
-                    'tiny_situacao' => $this->situacao,
-                    'tiny_sync_at' => now(),
-                    'data_alteracao' => now(),
-                ]);
+        $situacaoNorm = is_numeric($this->situacao) ? (int) $this->situacao : strtolower(trim($this->situacao ?? ''));
+        $isFinalizada = is_int($situacaoNorm)
+            ? in_array($situacaoNorm, $situacoesFinalizadasInt)
+            : in_array($situacaoNorm, $situacoesFinalizadasStr);
 
-                Log::info('Tiny ERP: Atendimento atualizado para finalizado via webhook', [
-                    'atendimento_id' => $atendimento->id,
-                    'tiny_pedido_id' => $this->pedidoId,
-                    'situacao' => $this->situacao,
+        if ($isFinalizada) {
+            $this->marcarItensVendidos($receita);
+        }
+
+        Log::info('Tiny ERP: Webhook processado', [
+            'receita_id' => $receita->id,
+            'tiny_pedido_id' => $this->pedidoId,
+            'situacao' => $this->situacao,
+        ]);
+    }
+
+    protected function marcarItensVendidos(Receita $receita): void
+    {
+        $client = new TinyErpClient();
+        $result = $client->obterPedido((int) $this->pedidoId);
+
+        if ($result['status'] !== 'success') {
+            Log::error('Tiny ERP: Erro ao obter pedido para marcar itens vendidos', [
+                'tiny_pedido_id' => $this->pedidoId,
+                'error' => $result['message'] ?? 'Erro desconhecido',
+            ]);
+            return;
+        }
+
+        $pedidoData = $result['data'] ?? [];
+        $itensTiny = $pedidoData['itens'] ?? [];
+
+        $tinyProductIds = [];
+        foreach ($itensTiny as $itemTiny) {
+            $produtoId = $itemTiny['produto']['id'] ?? null;
+            if ($produtoId) {
+                $tinyProductIds[] = (int) $produtoId;
+            }
+        }
+
+        $receita->load('itens.produto');
+        $dataAquisicao = now();
+
+        foreach ($receita->itens as $item) {
+            if (!$item->produto || !$item->produto->tiny_id) {
+                continue;
+            }
+
+            if (in_array((int) $item->produto->tiny_id, $tinyProductIds)) {
+                $item->update(['vendido' => true]);
+
+                ReceitaItemAquisicao::create([
+                    'receita_item_id' => $item->id,
+                    'data_aquisicao' => $dataAquisicao,
                 ]);
             }
-        } else {
-            // Atualizar apenas a situação do Tiny
-            $atendimento->update([
-                'tiny_situacao' => $this->situacao,
-                'tiny_sync_at' => now(),
-            ]);
-
-            Log::info('Tiny ERP: Situação do atendimento atualizada via webhook', [
-                'atendimento_id' => $atendimento->id,
-                'tiny_pedido_id' => $this->pedidoId,
-                'situacao' => $this->situacao,
-            ]);
         }
+
+        Log::info('Tiny ERP: Itens vendidos marcados', [
+            'receita_id' => $receita->id,
+            'tiny_product_ids' => $tinyProductIds,
+            'total_itens_receita' => $receita->itens->count(),
+        ]);
     }
 
     public function failed(?Throwable $exception): void

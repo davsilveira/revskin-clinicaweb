@@ -111,7 +111,11 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                         <tbody className="bg-white divide-y divide-gray-200">
                             {pacientesList.length > 0 ? (
                                 pacientesList.map((paciente) => (
-                                    <tr key={paciente.id} className="hover:bg-gray-50">
+                                    <tr
+                                        key={paciente.id}
+                                        className="hover:bg-gray-50 cursor-pointer"
+                                        onClick={() => router.visit(`/receitas?paciente_id=${paciente.id}`)}
+                                    >
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-gray-900">{paciente.nome}</div>
                                         </td>
@@ -123,7 +127,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                 {paciente.ativo ? 'Ativo' : 'Inativo'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                        <td className="px-6 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-1">
                                                 <Link
                                                     href={`/receitas?paciente_id=${paciente.id}`}

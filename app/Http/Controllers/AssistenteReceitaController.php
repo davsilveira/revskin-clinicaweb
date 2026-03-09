@@ -194,7 +194,7 @@ class AssistenteReceitaController extends Controller
         $engine->processar($validated);
 
         // Obter produtos sugeridos através do engine
-        $produtosSugeridos = $engine->obterProdutosSugeridos($codigoKarnaugh);
+        $produtosSugeridos = $engine->obterProdutosSugeridos($codigoKarnaugh, $validated);
 
         // Se o engine não retornou produtos (nenhuma tabela cadastrada), usar método legado
         if (empty($produtosSugeridos) && !$engine->getTabelaSelecionada()) {
@@ -217,11 +217,11 @@ class AssistenteReceitaController extends Controller
 
         // Criar receita diretamente com todos os produtos (recomendados e opcionais)
         $receita = Receita::create([
-            'numero' => Receita::gerarNumero(),
+            'numero' => Receita::gerarNumero($validated['paciente_id']),
             'paciente_id' => $validated['paciente_id'],
             'medico_id' => $medicoId,
             'data_receita' => now(),
-            'status' => 'rascunho',
+            'status' => 'aberta',
         ]);
 
         // Adicionar todos os produtos na receita
@@ -255,6 +255,10 @@ class AssistenteReceitaController extends Controller
 
         $receita->calcularTotais();
 
+        if (config('app.enable_debug_receitas')) {
+            session()->flash('caso_clinico_debug', $codigoKarnaugh);
+        }
+
         // Retornar redirect Inertia para permitir uso correto do router.post no frontend
         return redirect()->route('receitas.edit', $receita);
     }
@@ -275,8 +279,15 @@ class AssistenteReceitaController extends Controller
                     continue;
                 }
 
+                // Resolver TONALITE-__- pelo fototipo selecionado
+                $codigoBusca = $nomeProduto;
+                if (str_contains($nomeProduto, 'TONALITE-__-') && !empty($validated['fototipo'] ?? null)) {
+                    $fototipoFormatado = str_replace('.', ',', $validated['fototipo']);
+                    $codigoBusca = str_replace('TONALITE-__-', 'TONALITE-' . $fototipoFormatado . '-', $nomeProduto);
+                }
+
                 // Buscar produto por nome ou código
-                $produto = $this->buscarProdutoPorNome($nomeProduto);
+                $produto = $this->buscarProdutoPorNome($codigoBusca);
                 
                 if ($produto) {
                     $produtosSugeridos[] = [
@@ -292,7 +303,7 @@ class AssistenteReceitaController extends Controller
                 } else {
                     $produtosSugeridos[] = [
                         'produto_id' => null,
-                        'produto' => ['nome' => $nomeProduto, 'id' => null],
+                        'produto' => ['nome' => $codigoBusca, 'id' => null],
                         'categoria' => self::LOCAL_USO_MAP[$categoria] ?? $categoria,
                         'selecionado' => false,
                         'quantidade' => 1,
@@ -435,11 +446,11 @@ class AssistenteReceitaController extends Controller
         }
 
         $receita = Receita::create([
-            'numero' => Receita::gerarNumero(),
+            'numero' => Receita::gerarNumero($validated['paciente_id']),
             'paciente_id' => $validated['paciente_id'],
             'medico_id' => $medicoId,
             'data_receita' => now(),
-            'status' => 'rascunho',
+            'status' => 'aberta',
         ]);
 
         foreach ($validated['itens'] as $index => $item) {

@@ -30,6 +30,7 @@ class Receita extends Model
         'valor_total',
         'status',
         'ativo',
+        'tiny_pedido_id',
     ];
 
     protected function casts(): array
@@ -125,6 +126,7 @@ class Receita extends Model
                 'valor_total' => $item->valor_total,
                 'imprimir' => $item->imprimir,
                 'ordem' => $item->ordem,
+                'grupo' => $item->grupo,
             ]);
         }
     }
@@ -135,7 +137,7 @@ class Receita extends Model
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'rascunho' => 'Rascunho',
+            'aberta' => 'Aberta',
             'finalizada' => 'Finalizada',
             'cancelada' => 'Cancelada',
             default => ucfirst($this->status),
@@ -145,15 +147,11 @@ class Receita extends Model
     /**
      * Generate next number.
      */
-    public static function gerarNumero(): string
+    public static function gerarNumero(int $pacienteId): string
     {
-        $ultimo = static::whereYear('created_at', now()->year)
-            ->orderByDesc('id')
-            ->first();
+        $count = static::where('paciente_id', $pacienteId)->count();
 
-        $sequencia = $ultimo ? ((int) substr($ultimo->numero, -6)) + 1 : 1;
-
-        return now()->format('Y') . str_pad($sequencia, 6, '0', STR_PAD_LEFT);
+        return $pacienteId . '-' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
     }
 }
 

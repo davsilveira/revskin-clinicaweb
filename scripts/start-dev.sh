@@ -2,6 +2,7 @@
 
 # Script para iniciar todos os serviços de desenvolvimento
 # Garante que o Node.js correto está sendo usado
+# Usa PHP 8.4 quando disponível via Homebrew
 
 set -e
 
@@ -11,7 +12,16 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Preferir PHP 8.4 quando instalado (Homebrew)
+if [ -d "/opt/homebrew/opt/php@8.4/bin" ]; then
+    export PATH="/opt/homebrew/opt/php@8.4/bin:$PATH"
+elif [ -d "/usr/local/opt/php@8.4/bin" ]; then
+    export PATH="/usr/local/opt/php@8.4/bin:$PATH"
+fi
+
 echo -e "${BLUE}🚀 Iniciando Laravel Boilerplate...${NC}"
+echo ""
+echo -e "${GREEN}✅ PHP $(php -r 'echo PHP_VERSION;')${NC}"
 echo ""
 
 # Carregar NVM se disponível

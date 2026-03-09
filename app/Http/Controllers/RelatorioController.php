@@ -76,7 +76,7 @@ class RelatorioController extends Controller
         // Executar query se houver filtros ou se houver paginação (page parameter)
         if ($request->has('medico_id') || $request->has('data_inicio') || $request->has('page')) {
             $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
-                ->whereIn('status', ['finalizada', 'rascunho'])
+                ->whereIn('status', ['finalizada', 'aberta'])
                 ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
                 ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
                 ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_receita', '<=', $data))
@@ -118,7 +118,7 @@ class RelatorioController extends Controller
         ]);
 
         $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
-            ->whereIn('status', ['finalizada', 'rascunho'])
+            ->whereIn('status', ['finalizada', 'aberta'])
             ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
             ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
             ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_receita', '<=', $data))
@@ -319,7 +319,7 @@ class RelatorioController extends Controller
                 }
             ])
             ->whereHas('receitaItem.receita', function($q) use ($request, $medicoIdsFiltro) {
-                $q->whereIn('status', ['finalizada', 'rascunho']);
+                $q->whereIn('status', ['finalizada', 'aberta']);
                 
                 if ($medicoIdsFiltro && count($medicoIdsFiltro) > 0) {
                     $q->whereIn('medico_id', $medicoIdsFiltro);
@@ -363,7 +363,7 @@ class RelatorioController extends Controller
             ->with(['receita.paciente', 'receita.medico.linkedUser:id,name,medico_id', 'produto'])
             ->whereNotNull('data_aquisicao')
             ->whereHas('receita', function($q) use ($request, $medicoIdsFiltro) {
-                $q->whereIn('status', ['finalizada', 'rascunho']);
+                $q->whereIn('status', ['finalizada', 'aberta']);
                 
                 if ($medicoIdsFiltro && count($medicoIdsFiltro) > 0) {
                     $q->whereIn('medico_id', $medicoIdsFiltro);
