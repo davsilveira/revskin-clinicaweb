@@ -19,7 +19,9 @@ class SettingsController extends Controller
         $hasRefreshToken = !empty($settings['tiny_refresh_token'] ?? null);
         $apiVersion = $settings['tiny_api_version'] ?? 'v3';
         $isV2 = $apiVersion === 'v2';
-        
+
+        $rdHasRefreshToken = !empty($settings['rd_refresh_token'] ?? null);
+
         return Inertia::render('Settings/Index', [
             'tiny' => [
                 'settings' => [
@@ -33,6 +35,19 @@ class SettingsController extends Controller
                     'last_sync' => $settings['tiny_produtos_last_sync'] ?? null,
                 ],
                 'isAuthenticated' => $isV2 ? !empty($settings['tiny_token'] ?? null) : $hasRefreshToken,
+            ],
+            'rdstation' => [
+                'settings' => [
+                    'enabled' => (bool) ($settings['rd_enabled'] ?? false),
+                    'has_client_id' => !empty($settings['rd_client_id'] ?? null),
+                    'has_client_secret' => !empty($settings['rd_client_secret'] ?? null),
+                    'has_refresh_token' => $rdHasRefreshToken,
+                    'stage_id' => $settings['rd_stage_id'] ?? '6929f60257dcba001d9b375b',
+                    'produto_padrao_id' => $settings['rd_produto_padrao_id'] ?? '69a956705a1a6a00133167dc',
+                    'medico_field_id' => $settings['rd_medico_field_id'] ?? '69a955ea78fde3001f6f61dc',
+                    'receita_field_id' => $settings['rd_receita_field_id'] ?? '699efc3a13a467001cb81ea1',
+                ],
+                'isAuthenticated' => $rdHasRefreshToken,
             ],
         ]);
     }
@@ -137,6 +152,88 @@ class SettingsController extends Controller
                 'message' => $e->getMessage(),
             ]);
 
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao conectar: ' . $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    public function updateRdStation(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $validated = $request->validate([
+            'enabled' => 'boolean',
+            'client_id' => 'nullable|string',
+            'client_secret' => 'nullable|string',
+            'remove_client_secret' => 'nullable|boolean',
+            'stage_id' => 'nullable|string',
+            'produto_padrao_id' => 'nullable|string',
+            'medico_field_id' => 'nullable|string',
+            'receita_field_id' => 'nullable|string',
+        ]);
+
+        Setting::set('rd_enabled', $validated['enabled'] ?? false);
+
+        if (!empty($validated['client_id'])) {
+            Setting::set('rd_client_id', $validated['client_id']);
+        }
+
+        if (!empty($validated['remove_client_secret'])) {
+            Setting::set('rd_client_secret', null);
+        } elseif (!empty($validated['client_secret'])) {
+            Setting::set('rd_client_secret', encrypt($validated['client_secret']));
+        }
+
+        if (array_key_exists('stage_id', $validated)) {
+            Setting::set('rd_stage_id', $validated['stage_id']);
+        }
+        if (array_key_exists('produto_padrao_id', $validated)) {
+            Setting::set('rd_produto_padrao_id', $validated['produto_padrao_id']);
+        }
+        if (array_key_exists('medico_field_id', $validated)) {
+            Setting::set('rd_medico_field_id', $validated['medico_field_id']);
+        }
+        if (array_key_exists('receita_field_id', $validated)) {
+            Setting::set('rd_receita_field_id', $validated['receita_field_id']);
+        }
+
+        return back()->with('success', 'Configurações do RD Station salvas com sucesso!');
+    }
+
+    public function testRdStation()
+    {
+        $this->ensureAdmin();
+
+        $clientId = Setting::get('rd_client_id');
+        $clientSecret = Setting::get('rd_client_secret');
+
+        if (!$clientId || !$clientSecret) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client ID ou Client Secret não configurados.',
+            ], 400);
+        }
+
+        try {
+            $client = new \App\Services\RdStationCrmClient();
+            $result = $client->obterInfo();
+
+            if ($result['status'] === 'success') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conexão com RD Station CRM estabelecida com sucesso!',
+                    'data' => $result['data'] ?? null,
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Erro ao conectar com RD Station CRM',
+                'requires_auth' => $result['requires_auth'] ?? false,
+            ], 400);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao conectar: ' . $e->getMessage(),

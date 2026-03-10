@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CriarNegociacaoRdStationJob;
 use App\Jobs\CriarPedidoTinyJob;
 use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
@@ -348,6 +349,10 @@ class ReceitaController extends Controller
 
             if (Setting::get('tiny_enabled', false)) {
                 CriarPedidoTinyJob::dispatch($receita)->delay(now()->addMinute());
+            }
+
+            if (Setting::get('rd_enabled', false)) {
+                CriarNegociacaoRdStationJob::dispatch($receita)->delay(now()->addMinute());
             }
         }
 

@@ -2,14 +2,16 @@ import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import TinySettings from '@/Pages/Settings/Integrations/Tiny';
+import RdStationSettings from '@/Pages/Settings/Integrations/RdStation';
 import Toast from '@/Components/Toast';
 
-export default function SettingsIndex({ tiny }) {
+export default function SettingsIndex({ tiny, rdstation }) {
     const [activeTab, setActiveTab] = useState('tiny');
     const [toast, setToast] = useState(null);
 
     const tabs = [
         { key: 'tiny', label: 'Tiny ERP', enabled: true },
+        { key: 'rdstation', label: 'RD Station CRM', enabled: true },
     ];
 
     const enabledTabs = tabs.filter(tab => tab.enabled);
@@ -54,6 +56,13 @@ export default function SettingsIndex({ tiny }) {
                                 <TinySettings
                                     settings={tiny?.settings || {}}
                                     isAuthenticated={tiny?.isAuthenticated || false}
+                                    onToast={setToast}
+                                />
+                            )}
+                            {activeTab === 'rdstation' && (
+                                <RdStationSettings
+                                    settings={rdstation?.settings || {}}
+                                    isAuthenticated={rdstation?.isAuthenticated || false}
                                     onToast={setToast}
                                 />
                             )}

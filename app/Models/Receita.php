@@ -31,6 +31,7 @@ class Receita extends Model
         'status',
         'ativo',
         'tiny_pedido_id',
+        'rd_deal_id',
     ];
 
     protected function casts(): array

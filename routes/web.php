@@ -16,6 +16,7 @@ use App\Http\Controllers\CallCenterController;
 use App\Http\Controllers\AssistenteReceitaController;
 use App\Http\Controllers\RelatorioController;
 use App\Http\Controllers\TinyIntegrationController;
+use App\Http\Controllers\RdStationIntegrationController;
 use App\Http\Controllers\TabelaKarnaughController;
 use App\Http\Controllers\RegraCondicionalController;
 use Illuminate\Support\Facades\Route;
@@ -192,6 +193,18 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/sync-cliente/{paciente}', [TinyIntegrationController::class, 'syncCliente'])->name('sync-cliente');
             Route::post('/disconnect', [TinyIntegrationController::class, 'disconnect'])->name('disconnect');
             Route::get('/pedidos', [TinyIntegrationController::class, 'listarPedidos'])->name('pedidos');
+        });
+
+        // Integração RD Station CRM
+        Route::put('/settings/integrations/rd-station', [SettingsController::class, 'updateRdStation'])
+            ->name('settings.rdstation.update');
+        Route::post('/settings/integrations/rd-station/test', [SettingsController::class, 'testRdStation'])
+            ->name('settings.rdstation.test');
+
+        Route::prefix('integracoes/rd-station')->name('rdstation.')->group(function () {
+            Route::get('/auth-url', [RdStationIntegrationController::class, 'getAuthorizationUrl'])->name('auth-url');
+            Route::get('/callback', [RdStationIntegrationController::class, 'callback'])->name('callback');
+            Route::post('/disconnect', [RdStationIntegrationController::class, 'disconnect'])->name('disconnect');
         });
     });
 });
