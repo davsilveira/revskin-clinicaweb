@@ -123,6 +123,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Cadastros - Produtos (Call Center and Admin)
     Route::middleware('callcenter')->group(function () {
+        Route::get('/produtos/export', [ProdutoController::class, 'export'])->name('produtos.export');
+        Route::get('/produtos/template', [ProdutoController::class, 'template'])->name('produtos.template');
+        Route::post('/produtos/importar-edicoes/preview', [ProdutoController::class, 'importarEdicoesPreview'])->name('produtos.importar-edicoes.preview');
+        Route::post('/produtos/importar-edicoes/executar', [ProdutoController::class, 'importarEdicoesExecutar'])->name('produtos.importar-edicoes.executar');
         Route::resource('produtos', ProdutoController::class);
         Route::get('/api/produtos/search', [ProdutoController::class, 'search'])->name('produtos.search');
     });
