@@ -1,19 +1,51 @@
-import { Head, router } from '@inertiajs/react';
-import { useState, useRef } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { useState, useRef, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import Toast from '@/Components/Toast';
+import ExportConfirmModal from '@/Components/ExportConfirmModal';
 
 export default function ProdutosCatalogo({ produtos = [], filters }) {
     const [search, setSearch] = useState(filters?.search || '');
+    const [toast, setToast] = useState(null);
+    const [exportModal, setExportModal] = useState({ open: false, format: null });
     const tableRef = useRef(null);
+    const { flash, auth } = usePage().props || {};
+
+    useEffect(() => {
+        if (flash?.success) setToast({ message: flash.success, type: 'success' });
+        if (flash?.error) setToast({ message: flash.error, type: 'error' });
+    }, [flash?.success, flash?.error]);
 
     const handleSearch = (e) => {
         e.preventDefault();
         router.get('/catalogo-produtos', { search }, { preserveState: true });
     };
 
-    const handleExport = (format) => {
-        const params = new URLSearchParams({ search, format });
-        window.open(`/catalogo-produtos/export?${params.toString()}`, '_blank');
+    const openExportModal = (format) => {
+        setExportModal({ open: true, format });
+    };
+
+    const handleExportConfirm = (extraEmails) => {
+        router.post('/catalogo-produtos/export', {
+            search: search ?? '',
+            format: exportModal.format,
+            extra_emails: extraEmails,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setExportModal({ open: false, format: null });
+                setToast({
+                    message: 'A exportação será processada em segundo plano. Você receberá um e-mail quando estiver pronto para download.',
+                    type: 'success'
+                });
+            },
+            onError: (errors) => {
+                setToast({
+                    message: errors.search?.[0] || errors.format?.[0] || errors.extra_emails?.[0] || 'Erro ao solicitar exportação.',
+                    type: 'error'
+                });
+            }
+        });
     };
 
     const formatDescription = (text) => {
@@ -45,15 +77,15 @@ export default function ProdutosCatalogo({ produtos = [], filters }) {
                         />
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium cursor-pointer"
                         >
                             Buscar
                         </button>
                     </form>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => handleExport('pdf')}
-                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                            onClick={() => openExportModal('pdf')}
+                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -61,8 +93,8 @@ export default function ProdutosCatalogo({ produtos = [], filters }) {
                             PDF
                         </button>
                         <button
-                            onClick={() => handleExport('xlsx')}
-                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                            onClick={() => openExportModal('xlsx')}
+                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -132,6 +164,26 @@ export default function ProdutosCatalogo({ produtos = [], filters }) {
                     {produtos.length} produto(s) encontrado(s)
                 </div>
             </div>
+
+            <ExportConfirmModal
+                open={exportModal.open}
+                onClose={() => setExportModal({ open: false, format: null })}
+                onConfirm={handleExportConfirm}
+                itemCount={produtos.length}
+                itemLabel="produtos"
+                formatLabel={exportModal.format === 'xlsx' ? 'Excel' : 'PDF'}
+                defaultEmail={auth?.user?.email}
+                title="Confirmar exportação"
+            />
+
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    duration={toast.type === 'error' ? 8000 : 3000}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </DashboardLayout>
     );
 }

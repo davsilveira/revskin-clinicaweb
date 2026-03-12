@@ -305,8 +305,9 @@ class RelatorioController extends Controller
 
     /**
      * Buscar aquisições agrupadas por paciente.
+     * Public for use by ProcessRelatorioExportJob.
      */
-    private function buscarAquisicoes(Request $request, ?array $medicoIdsFiltro, bool $paginate = true): array
+    public function buscarAquisicoes(Request $request, ?array $medicoIdsFiltro, bool $paginate = true): array
     {
         // Buscar aquisições da tabela receita_item_aquisicoes
         $queryAquisicoes = ReceitaItemAquisicao::query()

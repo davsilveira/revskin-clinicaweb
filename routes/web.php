@@ -11,10 +11,12 @@ use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\MedicoController;
 use App\Http\Controllers\ClinicaController;
 use App\Http\Controllers\ProdutoController;
+use App\Http\Controllers\CatalogoExportController;
 use App\Http\Controllers\ReceitaController;
 use App\Http\Controllers\CallCenterController;
 use App\Http\Controllers\AssistenteReceitaController;
 use App\Http\Controllers\RelatorioController;
+use App\Http\Controllers\RelatorioExportController;
 use App\Http\Controllers\TinyIntegrationController;
 use App\Http\Controllers\RdStationIntegrationController;
 use App\Http\Controllers\TabelaKarnaughController;
@@ -72,7 +74,8 @@ Route::middleware(['auth'])->group(function () {
     // Catalogo de produtos (read-only para medicos)
     Route::middleware('role:medico')->group(function () {
         Route::get('/catalogo-produtos', [ProdutoController::class, 'catalogo'])->name('produtos.catalogo');
-        Route::get('/catalogo-produtos/export', [ProdutoController::class, 'catalogoExport'])->name('produtos.catalogo.export');
+        Route::post('/catalogo-produtos/export', [CatalogoExportController::class, 'store'])->name('catalogo.export.store');
+        Route::get('/catalogo-produtos/export/{catalogoExportRequest}/download', [CatalogoExportController::class, 'download'])->name('catalogo.export.download');
     });
 
     // Receitas - edicao (medico and admin only) - create must come before {receita} wildcard
@@ -134,7 +137,8 @@ Route::middleware(['auth'])->group(function () {
     // Relatórios - índice e Aquisição de Produtos (admin e médico)
     Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('/relatorios/aquisicao-produtos', [RelatorioController::class, 'aquisicaoProdutos'])->name('relatorios.aquisicao-produtos');
-    Route::get('/relatorios/aquisicao-produtos/export/{format}', [RelatorioController::class, 'exportAquisicaoProdutos'])->name('relatorios.aquisicao-produtos.export');
+    Route::post('/relatorios/aquisicao-produtos/export', [RelatorioExportController::class, 'storeAquisicao'])->name('relatorios.aquisicao-produtos.export.store');
+    Route::get('/relatorios/export/{relatorioExportRequest}/download', [RelatorioExportController::class, 'download'])->name('relatorios.export.download');
 
     // Admin only routes
     Route::middleware('admin')->group(function () {
@@ -184,7 +188,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Relatórios (apenas admin)
         Route::get('/relatorios/receitas-medico', [RelatorioController::class, 'receitasPorMedico'])->name('relatorios.receitas-medico');
-        Route::get('/relatorios/receitas-medico/export/{format}', [RelatorioController::class, 'exportReceitasMedico'])->name('relatorios.receitas-medico.export');
+        Route::post('/relatorios/receitas-medico/export', [RelatorioExportController::class, 'storeReceitasMedico'])->name('relatorios.receitas-medico.export.store');
 
         // Integração Tiny ERP
         Route::prefix('integracoes/tiny')->name('tiny.')->group(function () {

@@ -5,7 +5,7 @@
     <title>Catálogo de Produtos</title>
     <style>
         @page {
-            margin: 20mm 15mm;
+            margin: 20mm 20mm;
             size: landscape;
         }
         * {
@@ -18,6 +18,11 @@
             font-size: 9px;
             line-height: 1.4;
             color: #333;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0 5mm;
         }
         .header {
             text-align: center;
@@ -65,8 +70,8 @@
         .footer {
             position: fixed;
             bottom: 5mm;
-            left: 15mm;
-            right: 15mm;
+            left: 20mm;
+            right: 20mm;
             text-align: center;
             font-size: 7px;
             color: #999;
@@ -74,6 +79,7 @@
     </style>
 </head>
 <body>
+    <div class="container">
     <div class="header">
         <h1>CATÁLOGO DE PRODUTOS</h1>
         <div class="subtitle">{{ $total }} produtos disponíveis ativos</div>
@@ -107,6 +113,7 @@
             @endforelse
         </tbody>
     </table>
+    </div>
 
     <div class="footer">
         Gerado em {{ now()->format('d/m/Y H:i') }} | RevSkin - Catálogo de Produtos
