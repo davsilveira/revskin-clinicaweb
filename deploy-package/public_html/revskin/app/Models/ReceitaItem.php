@@ -22,6 +22,7 @@ class ReceitaItem extends Model
         'valor_unitario',
         'valor_total',
         'data_aquisicao',
+        'vendido',
         'imprimir',
         'grupo',
         'ordem',
@@ -34,6 +35,7 @@ class ReceitaItem extends Model
             'valor_unitario' => 'decimal:2',
             'valor_total' => 'decimal:2',
             'data_aquisicao' => 'date',
+            'vendido' => 'boolean',
             'imprimir' => 'boolean',
             'ordem' => 'integer',
         ];

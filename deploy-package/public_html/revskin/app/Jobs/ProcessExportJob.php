@@ -126,7 +126,7 @@ class ProcessExportJob implements ShouldQueue
 
         try {
             $query = Paciente::query()
-                ->with(['medico:id,nome,crm', 'receitas:id,paciente_id,data_receita'])
+                ->with(['medico:id,crm', 'medico.linkedUser:id,name,medico_id', 'receitas:id,paciente_id,data_receita'])
                 ->orderBy('id');
 
             $this->applyPacienteFilters($query, $exportRequest->filters ?? []);
@@ -196,7 +196,7 @@ class ProcessExportJob implements ShouldQueue
             $query = Receita::query()
                 ->with([
                     'paciente:id,nome,cpf,codigo',
-                    'medico:id,nome,crm,especialidade',
+                    'medico:id,crm,especialidade', 'medico.linkedUser:id,name,medico_id',
                     'itens.produto:id,nome',
                 ])
                 ->orderBy('id');
@@ -269,7 +269,7 @@ class ProcessExportJob implements ShouldQueue
                 ->with([
                     'receita:id,numero,data_receita,valor_total',
                     'paciente:id,nome,cpf,telefone1,celular,telefone3',
-                    'medico:id,nome,crm',
+                    'medico:id,crm', 'medico.linkedUser:id,name,medico_id',
                     'usuario:id,name',
                     'usuarioAlteracao:id,name',
                     'acompanhamentos:id,atendimento_id,data_registro',

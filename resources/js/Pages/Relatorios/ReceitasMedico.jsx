@@ -221,7 +221,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => openExportModal('pdf')}
-                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
+                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -230,7 +230,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                     </button>
                                     <button
                                         onClick={() => openExportModal('xlsx')}
-                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
+                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

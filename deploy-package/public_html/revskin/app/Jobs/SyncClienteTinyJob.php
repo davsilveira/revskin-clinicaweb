@@ -47,15 +47,13 @@ class SyncClienteTinyJob implements ShouldQueue
         $client = new TinyErpClient();
         $paciente = $this->paciente->fresh();
 
-        // Se já tem tiny_id, verificar se precisa atualizar
         if ($paciente->tiny_id) {
             $result = $client->obterContato((int) $paciente->tiny_id);
 
             if ($result['status'] === 'success') {
                 $contatoTiny = $result['data'] ?? [];
-                $dataAtualizacaoTiny = $contatoTiny['data_alteracao'] ?? null;
+                $dataAtualizacaoTiny = $contatoTiny['dataAtualizacao'] ?? $contatoTiny['data_criacao'] ?? null;
 
-                // Comparar datas: só atualizar se dados do RevSkin forem mais recentes
                 if ($dataAtualizacaoTiny && $paciente->updated_at) {
                     $dataTiny = \Carbon\Carbon::parse($dataAtualizacaoTiny);
                     if ($paciente->updated_at->lte($dataTiny)) {
@@ -67,14 +65,11 @@ class SyncClienteTinyJob implements ShouldQueue
                     }
                 }
 
-                // Atualizar contato existente
                 $result = $client->atualizarContato((int) $paciente->tiny_id, $this->prepararDadosContato());
             } else {
-                // Se não encontrou, criar novo
                 $result = $client->criarContato($this->prepararDadosContato());
             }
         } else {
-            // Criar novo contato
             $result = $client->criarContato($this->prepararDadosContato());
         }
 
@@ -122,12 +117,13 @@ class SyncClienteTinyJob implements ShouldQueue
     {
         $cpf = preg_replace('/\D/', '', $this->paciente->cpf ?? '');
         $telefone = preg_replace('/\D/', '', $this->paciente->telefone1 ?? '');
+        $celular = preg_replace('/\D/', '', $this->paciente->celular ?? '');
         $cep = preg_replace('/\D/', '', $this->paciente->cep ?? '');
 
         $dados = [
             'nome' => $this->paciente->nome,
-            'tipo_pessoa' => 'F', // Pessoa Física
-            'cpf_cnpj' => $cpf,
+            'tipoPessoa' => 'F',
+            'cpfCnpj' => $cpf,
         ];
 
         if ($this->paciente->email1) {
@@ -135,10 +131,13 @@ class SyncClienteTinyJob implements ShouldQueue
         }
 
         if ($telefone) {
-            $dados['fone'] = $telefone;
+            $dados['telefone'] = $telefone;
         }
 
-        // Endereço
+        if ($celular) {
+            $dados['celular'] = $celular;
+        }
+
         if ($this->paciente->endereco) {
             $dados['endereco'] = [
                 'endereco' => $this->paciente->endereco,

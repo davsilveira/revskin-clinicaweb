@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Clinica;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\MedicoService;
 use Illuminate\Http\Request;
@@ -27,7 +28,8 @@ class UserController extends Controller
 
         $users = User::with(['clinica:id,nome', 'medico.linkedUser:id,name,medico_id', 'medico.enderecos', 'medico.clinicas'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(15)
+            ->withQueryString();
 
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 
@@ -46,15 +48,24 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
+        $allowedRoles = ['admin', 'medico', 'secretaria'];
+        if (! Setting::get('tiny_enabled', false)) {
+            $allowedRoles[] = 'callcenter';
+        }
+
         $userRules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
-            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter', 'secretaria'])],
+            'role' => ['required', Rule::in($allowedRoles)],
             'clinica_id' => ['nullable', 'exists:clinicas,id'],
         ];
 
         $isMedico = $request->input('role') === 'medico';
+
+        if (Setting::get('tiny_enabled', false) && $request->input('role') === 'callcenter') {
+            return redirect()->back()->withErrors(['role' => 'Não é possível cadastrar usuários Call Center quando a integração Tiny está ativa.'])->withInput();
+        }
 
         if ($isMedico) {
             $userRules = array_merge($userRules, MedicoService::validationRules());
@@ -118,15 +129,29 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
+        $tinyEnabled = Setting::get('tiny_enabled', false);
+        $allowedRoles = ['admin', 'medico', 'secretaria'];
+        if (! $tinyEnabled) {
+            $allowedRoles[] = 'callcenter';
+        } elseif ($user->role === 'callcenter') {
+            // Permitir manter callcenter ao editar usuário existente (ex: alterar nome), mas não atribuir a novos
+            $allowedRoles[] = 'callcenter';
+        }
+
         $userRules = [
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'role' => ['required', Rule::in(['admin', 'medico', 'callcenter', 'secretaria'])],
+            'role' => ['required', Rule::in($allowedRoles)],
             'clinica_id' => ['nullable', 'exists:clinicas,id'],
             'is_active' => 'required|boolean',
         ];
 
         $isMedico = $request->input('role') === 'medico';
+
+        // Bloquear atribuição de callcenter quando Tiny ativo (exceto manter em edição de usuário já callcenter)
+        if ($tinyEnabled && $request->input('role') === 'callcenter' && $user->role !== 'callcenter') {
+            return redirect()->back()->withErrors(['role' => 'Não é possível cadastrar usuários Call Center quando a integração Tiny está ativa.'])->withInput();
+        }
 
         if ($isMedico) {
             $userRules = array_merge($userRules, MedicoService::validationRules());

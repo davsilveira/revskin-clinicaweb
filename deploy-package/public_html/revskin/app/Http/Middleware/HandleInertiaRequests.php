@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\AtendimentoCallcenter;
 use App\Models\Clinica;
 use App\Models\Medico;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -44,10 +45,10 @@ class HandleInertiaRequests extends Middleware
 
         if ($user && $user->isMedico() && $user->medico_id) {
             $medico = Medico::select([
-                'id', 'nome', 'crm', 'especialidade', 'telefone1', 'telefone2',
+                'id', 'crm', 'especialidade', 'telefone1', 'telefone2',
                 'email1', 'cep', 'endereco', 'numero', 'complemento', 'bairro',
                 'cidade', 'uf', 'rodape_receita', 'assinatura_path'
-            ])->with('enderecos')->find($user->medico_id);
+            ])->with(['enderecos', 'linkedUser:id,name,medico_id'])->find($user->medico_id);
         }
 
         if ($user && $user->isCallcenter()) {
@@ -76,10 +77,14 @@ class HandleInertiaRequests extends Middleware
                 'medico' => $medico,
                 'clinica' => $clinica,
                 'pendingCallCenterCount' => $pendingCallCenterCount,
+                'tinyEnabled' => (bool) Setting::get('tiny_enabled', false),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                'status' => fn () => $request->session()->get('status'),
+                'import_result' => fn () => $request->session()->get('import_result'),
+                'import_preview' => fn () => $request->session()->get('import_preview'),
             ],
         ];
     }

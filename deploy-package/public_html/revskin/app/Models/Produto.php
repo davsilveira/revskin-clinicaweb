@@ -58,6 +58,33 @@ class Produto extends Model
     }
 
     /**
+     * Normalize literal \n and /n to real newlines in text fields.
+     */
+    private function normalizeNewlines(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return str_replace(['\\n', '/n'], "\n", $value);
+    }
+
+    public function getDescricaoAttribute(?string $value): ?string
+    {
+        return $this->normalizeNewlines($value);
+    }
+
+    public function getModoUsoAttribute(?string $value): ?string
+    {
+        return $this->normalizeNewlines($value);
+    }
+
+    public function getAnotacoesAttribute(?string $value): ?string
+    {
+        return $this->normalizeNewlines($value);
+    }
+
+    /**
      * Get display name with code.
      */
     public function getNomeCompletoAttribute(): string

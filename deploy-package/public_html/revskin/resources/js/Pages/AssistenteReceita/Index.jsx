@@ -12,6 +12,7 @@ export default function AssistenteReceitaIndex({
     medicos = [],
     currentMedicoId = null,
     isAdmin = false,
+    initialPaciente = null,
 }) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -108,6 +109,12 @@ export default function AssistenteReceitaIndex({
         searchPacientes(searchPaciente);
     }, [searchPaciente, searchPacientes]);
 
+    useEffect(() => {
+        if (initialPaciente) {
+            setSelectedPaciente(initialPaciente);
+        }
+    }, [initialPaciente]);
+
     const selectPaciente = (paciente) => {
         setSelectedPaciente(paciente);
         setSearchPaciente('');
@@ -118,7 +125,20 @@ export default function AssistenteReceitaIndex({
 
     const openCreateForm = () => {
         setShowCreateForm(true);
-        setNovoPaciente(prev => ({ ...prev, nome: searchPaciente }));
+        const trimmed = searchPaciente.trim();
+        const digitsOnly = trimmed.replace(/\D/g, '');
+        // Se o texto digitado contém 11+ dígitos e é composto apenas por números/pontos/hífens, tratar como CPF
+        const isCpf = digitsOnly.length >= 11 && /^[\d.\-/]+$/.test(trimmed);
+        if (isCpf) {
+            // Formatar como CPF: 000.000.000-00
+            const formatted = digitsOnly.substring(0, 11).replace(
+                /(\d{3})(\d{3})(\d{3})(\d{2})/,
+                '$1.$2.$3-$4'
+            );
+            setNovoPaciente(prev => ({ ...prev, cpf: formatted }));
+        } else {
+            setNovoPaciente(prev => ({ ...prev, nome: trimmed }));
+        }
         setSearchPaciente('');
         setShowPacienteDropdown(false);
         setNoResults(false);
@@ -629,13 +649,13 @@ export default function AssistenteReceitaIndex({
                                     )}
                                 </div>
                                 {showPacienteDropdown && pacienteResults.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
                                         {pacienteResults.map((paciente) => (
                                             <button
                                                 key={paciente.id}
                                                 type="button"
                                                 onClick={() => selectPaciente(paciente)}
-                                                className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b last:border-0"
+                                                className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                             >
                                                 <div className="font-medium text-gray-900">{paciente.nome}</div>
                                                 <div className="text-sm text-gray-500">{paciente.cpf}</div>

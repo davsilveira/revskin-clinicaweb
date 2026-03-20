@@ -27,29 +27,47 @@ class SyncProdutosTinyJob implements ShouldQueue
 
     public function handle(): void
     {
-        // Verificar se integração está habilitada
         if (!Setting::get('tiny_enabled', false)) {
             Log::info('Tiny ERP: Sincronização de produtos desabilitada');
             return;
         }
 
         $client = new TinyErpClient();
+        $isV2 = $client->isV2();
         $synced = 0;
         $errors = 0;
-        $page = 1;
-        $perPage = 100;
+        $pagina = 1;
+        $offset = 0;
+        $limit = 100;
 
-        Log::info('Tiny ERP: Iniciando sincronização de produtos');
+        $apenasClinicaweb = Setting::get('tiny_sync_apenas_clinicaweb', true);
+        $idTag = $apenasClinicaweb && $isV2 ? $this->obterIdTagClinicaweb($client) : null;
+
+        if ($apenasClinicaweb && $isV2 && !$idTag) {
+            Log::error('Tiny ERP: Sincronização filtrada por tag "clinicaweb" ativa, mas tag não encontrada. Configure a tag ou desative tiny_sync_apenas_clinicaweb.');
+            return;
+        }
+
+        Log::info('Tiny ERP: Iniciando sincronização de produtos', [
+            'api_version' => $isV2 ? 'v2' : 'v3',
+            'filtro_tag_clinicaweb' => (bool) $idTag,
+        ]);
 
         do {
-            $result = $client->listarProdutos([
-                'pagina' => $page,
-                'registrosPorPagina' => $perPage,
-            ]);
+            $params = $isV2
+                ? ['pesquisa' => '', 'pagina' => $pagina]
+                : ['limit' => $limit, 'offset' => $offset];
+
+            if ($idTag) {
+                $params['idTag'] = $idTag;
+            }
+
+            $result = $client->listarProdutos($params);
 
             if ($result['status'] !== 'success') {
                 Log::error('Tiny ERP: Erro ao listar produtos', [
-                    'page' => $page,
+                    'pagina' => $pagina,
+                    'offset' => $offset,
                     'error' => $result['message'] ?? 'Erro desconhecido',
                 ]);
                 $errors++;
@@ -57,13 +75,13 @@ class SyncProdutosTinyJob implements ShouldQueue
             }
 
             $data = $result['data'] ?? [];
-            $produtos = $data['produtos'] ?? [];
+            $itens = $data['itens'] ?? [];
 
-            if (empty($produtos)) {
+            if (empty($itens)) {
                 break;
             }
 
-            foreach ($produtos as $produtoData) {
+            foreach ($itens as $produtoData) {
                 try {
                     $this->sincronizarProduto($produtoData);
                     $synced++;
@@ -76,16 +94,50 @@ class SyncProdutosTinyJob implements ShouldQueue
                 }
             }
 
-            $page++;
-        } while (count($produtos) === $perPage);
+            if ($isV2) {
+                $totalPages = $data['paginacao']['numero_paginas'] ?? 1;
+                $pagina++;
+                $hasMore = $pagina <= $totalPages;
+            } else {
+                $offset += $limit;
+                $hasMore = count($itens) === $limit;
+            }
+        } while ($hasMore);
 
-        // Atualizar data da última sincronização
         Setting::set('tiny_produtos_last_sync', now()->toDateTimeString());
 
         Log::info('Tiny ERP: Sincronização de produtos concluída', [
             'synced' => $synced,
             'errors' => $errors,
         ]);
+    }
+
+    protected function obterIdTagClinicaweb(TinyErpClient $client): ?int
+    {
+        $cached = Setting::get('tiny_clinicaweb_tag_id');
+        if ($cached) {
+            return (int) $cached;
+        }
+
+        $result = $client->pesquisarTags('clinicaweb');
+        if ($result['status'] !== 'success') {
+            Log::warning('Tiny ERP: Erro ao pesquisar tag clinicaweb', ['message' => $result['message'] ?? '']);
+            return null;
+        }
+
+        $tags = $result['data']['tags'] ?? [];
+        foreach ($tags as $tag) {
+            $nome = $tag['nome'] ?? '';
+            if (strcasecmp(trim($nome), 'clinicaweb') === 0) {
+                $id = (int) ($tag['id'] ?? 0);
+                if ($id > 0) {
+                    Setting::set('tiny_clinicaweb_tag_id', $id, 'tiny');
+                    return $id;
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function sincronizarProduto(array $produtoData): void
@@ -95,38 +147,32 @@ class SyncProdutosTinyJob implements ShouldQueue
             return;
         }
 
-        $codigo = $produtoData['codigo'] ?? null;
-        $nome = $produtoData['nome'] ?? 'Sem nome';
+        $sku = $produtoData['sku'] ?? null;
+        $descricao = $produtoData['descricao'] ?? 'Sem nome';
+        $precos = $produtoData['precos'] ?? [];
 
-        // Buscar produto existente por tiny_id ou código
-        $produto = Produto::where('tiny_id', $tinyId)
-            ->orWhere('codigo', $codigo)
-            ->first();
+        $produto = Produto::where('tiny_id', $tinyId)->first();
+        if (!$produto && $sku) {
+            $produto = Produto::where('codigo', $sku)->first();
+        }
 
         $dados = [
             'tiny_id' => $tinyId,
-            'nome' => $nome,
-            'descricao' => $produtoData['descricao'] ?? null,
-            'preco' => $produtoData['preco'] ?? 0,
-            'preco_custo' => $produtoData['preco_custo'] ?? null,
-            'categoria' => $produtoData['categoria'] ?? null,
+            'preco' => $precos['preco'] ?? 0,
+            'preco_custo' => $precos['precoCusto'] ?? null,
             'unidade' => $produtoData['unidade'] ?? null,
-            'estoque_minimo' => $produtoData['estoque_minimo'] ?? null,
-            'modo_uso' => $produtoData['modo_uso'] ?? null,
             'tiny_sync_at' => now(),
-            'ativo' => ($produtoData['situacao'] ?? 'A') === 'A', // A = Ativo
+            'ativo' => ($produtoData['situacao'] ?? 'A') === 'A',
         ];
 
-        if ($codigo && !$produto) {
-            // Se não existe e tem código, criar novo
-            $dados['codigo'] = $codigo;
-            Produto::create($dados);
-        } elseif ($produto) {
-            // Se existe, atualizar
+        if ($produto) {
+            if (empty($produto->nome)) {
+                $dados['nome'] = $descricao;
+            }
             $produto->update($dados);
         } else {
-            // Se não tem código e não existe, criar com código gerado
-            $dados['codigo'] = 'TINY-' . $tinyId;
+            $dados['codigo'] = $sku ?: ('TINY-' . $tinyId);
+            $dados['nome'] = $descricao;
             Produto::create($dados);
         }
     }

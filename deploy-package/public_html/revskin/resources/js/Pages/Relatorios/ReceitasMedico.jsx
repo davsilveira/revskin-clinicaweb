@@ -1,13 +1,18 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Pagination from '@/Components/Pagination';
+import ExportConfirmModal from '@/Components/ExportConfirmModal';
+import Toast from '@/Components/Toast';
 
 export default function ReceitasMedico({ medicos, dados, filters }) {
+    const { auth, flash } = usePage().props || {};
     const [medicoId, setMedicoId] = useState(filters?.medico_id || '');
     const [dataInicio, setDataInicio] = useState(filters?.data_inicio || '');
     const [dataFim, setDataFim] = useState(filters?.data_fim || '');
     const [perPage, setPerPage] = useState(filters?.per_page || 15);
+    const [exportModal, setExportModal] = useState({ open: false, format: null });
+    const [toast, setToast] = useState(null);
 
     // Sincronizar estado com filters quando mudarem (ex: navegação de paginação)
     useEffect(() => {
@@ -16,6 +21,11 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
         setDataFim(filters?.data_fim || '');
         setPerPage(filters?.per_page || 15);
     }, [filters]);
+
+    useEffect(() => {
+        if (flash?.success) setToast({ message: flash.success, type: 'success' });
+        if (flash?.error) setToast({ message: flash.error, type: 'error' });
+    }, [flash?.success, flash?.error]);
 
     const handleFiltrar = (e) => {
         e.preventDefault();
@@ -38,16 +48,60 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
         }, { preserveState: true });
     };
 
-    const handleExport = (format) => {
-        const params = new URLSearchParams();
-        if (medicoId) params.append('medico_id', medicoId);
-        if (dataInicio) params.append('data_inicio', dataInicio);
-        if (dataFim) params.append('data_fim', dataFim);
-        window.open(`/relatorios/receitas-medico/export/${format}?${params}`, '_blank');
+    const openExportModal = (format) => {
+        setExportModal({ open: true, format });
+    };
+
+    const handleExportConfirm = (extraEmails) => {
+        const payload = {
+            format: exportModal.format,
+            medico_id: medicoId || null,
+            data_inicio: dataInicio || null,
+            data_fim: dataFim || null,
+            extra_emails: extraEmails,
+        };
+
+        router.post('/relatorios/receitas-medico/export', payload, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setExportModal({ open: false, format: null });
+                setToast({
+                    message: 'A exportação será processada em segundo plano. Você receberá um e-mail quando estiver pronto para download.',
+                    type: 'success'
+                });
+            },
+            onError: (errors) => {
+                setToast({
+                    message: Object.values(errors).flat().find(Boolean) || 'Erro ao solicitar exportação.',
+                    type: 'error'
+                });
+            }
+        });
+    };
+
+    const getItemCount = () => {
+        return dados?.receitas?.total ?? dados?.receitas?.data?.length ?? 0;
     };
 
     return (
         <DashboardLayout>
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
+            <ExportConfirmModal
+                open={exportModal.open}
+                onClose={() => setExportModal({ open: false, format: null })}
+                onConfirm={handleExportConfirm}
+                itemCount={getItemCount()}
+                itemLabel="receitas"
+                formatLabel={exportModal.format === 'pdf' ? 'PDF' : 'Excel'}
+                defaultEmail={auth?.user?.email}
+                title="Confirmar exportação"
+            />
             <div className="p-6">
                 <div className="mb-6">
                     <Link
@@ -111,7 +165,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                         <div className="flex items-end">
                             <button
                                 type="submit"
-                                className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                                className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer"
                             >
                                 Filtrar
                             </button>
@@ -166,8 +220,8 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                 </div>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => handleExport('pdf')}
-                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                                        onClick={() => openExportModal('pdf')}
+                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -175,8 +229,8 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                         PDF
                                     </button>
                                     <button
-                                        onClick={() => handleExport('xlsx')}
-                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                                        onClick={() => openExportModal('xlsx')}
+                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

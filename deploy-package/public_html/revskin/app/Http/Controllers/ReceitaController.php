@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CriarNegociacaoRdStationJob;
+use App\Jobs\CriarPedidoTinyJob;
 use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\ReceitaItem;
+use App\Models\Setting;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,10 +24,11 @@ class ReceitaController extends Controller
     {
         $user = $request->user();
 
-        $query = Receita::with(['paciente:id,nome', 'medico:id,nome'])
+        $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
                 $q->whereHas('paciente', fn($pq) => $pq->where('nome', 'like', "%{$search}%"));
             })
+            ->when($request->paciente_id, fn($q, $id) => $q->where('paciente_id', $id))
             ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId))
             ->when($request->status, fn($q, $status) => $q->where('status', $status))
             ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
@@ -37,12 +43,17 @@ class ReceitaController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
 
         return Inertia::render('Receitas/Index', [
             'receitas' => $receitas,
             'medicos' => $medicos,
-            'filters' => $request->only(['search', 'medico_id', 'status', 'data_inicio', 'data_fim']),
+            'filters' => $request->only(['search', 'medico_id', 'paciente_id', 'status', 'data_inicio', 'data_fim']),
         ]);
     }
 
@@ -61,10 +72,10 @@ class ReceitaController extends Controller
         }
 
         $medicos = $user->isMedico() && $user->medico_id
-            ? Medico::where('id', $user->medico_id)->get(['id', 'nome'])
-            : Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+            ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
+            : Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id');
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
         
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
@@ -94,7 +105,7 @@ class ReceitaController extends Controller
             'desconto_motivo' => 'nullable|string',
             'valor_caixa' => 'nullable|numeric|min:0',
             'valor_frete' => 'nullable|numeric|min:0',
-            'status' => 'nullable|in:rascunho,finalizada',
+            'status' => 'nullable|in:aberta,finalizada',
             'itens' => 'required|array|min:1',
             'itens.*.produto_id' => 'required|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string',
@@ -111,7 +122,7 @@ class ReceitaController extends Controller
         }
 
         $receita = Receita::create([
-            'numero' => Receita::gerarNumero(),
+            'numero' => Receita::gerarNumero($validated['paciente_id']),
             'paciente_id' => $validated['paciente_id'],
             'medico_id' => $validated['medico_id'],
             'data_receita' => $validated['data_receita'],
@@ -121,7 +132,7 @@ class ReceitaController extends Controller
             'desconto_motivo' => $validated['desconto_motivo'] ?? null,
             'valor_caixa' => $validated['valor_caixa'] ?? 0,
             'valor_frete' => $validated['valor_frete'] ?? 0,
-            'status' => $validated['status'] ?? 'rascunho',
+            'status' => $validated['status'] ?? 'aberta',
         ]);
 
         foreach ($validated['itens'] as $index => $item) {
@@ -158,92 +169,46 @@ class ReceitaController extends Controller
 
     public function show(Receita $receita): Response
     {
-        $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
-
-        // Add acquisition dates to each item
-        // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
-        $receita->itens->each(function ($item) use ($receita) {
-            if (!$item->produto_id) {
-                $item->ultima_aquisicao = null;
-                $item->datas_aquisicao = [];
-                return;
-            }
-            
-            // Buscar todas as aquisições deste produto para este paciente em todas as receitas
-            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
-                $query->where('produto_id', $item->produto_id)
-                      ->whereHas('receita', function ($q) use ($receita) {
-                          $q->where('paciente_id', $receita->paciente_id);
-                      });
-            })->orderByDesc('data_aquisicao')->get();
-
-            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
-            
-            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
-            $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
-        });
-
-        // Get other receitas from the same patient with items
-        $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
-            ->where('id', '!=', $receita->id)
-            ->where('ativo', true)
-            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
-            ->orderByDesc('id')
-            ->take(10)
-            ->get();
-
-        return Inertia::render('Receitas/Show', [
-            'receita' => $receita,
-            'receitasAnteriores' => $receitasAnteriores,
-        ]);
+        return $this->renderReceitaForm($receita, request(), viewMode: true);
     }
 
-    public function edit(Request $request, Receita $receita): Response
+    public function edit(Request $request, Receita $receita): Response|RedirectResponse
     {
-        $receita->load(['paciente', 'medico', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+        // Redirect finalized prescriptions to view – they are not editable
+        if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita);
+        }
 
-        // Format acquisition dates for current receita items
-        // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
-        $receita->itens->each(function ($item) use ($receita) {
-            if (!$item->produto_id) {
-                $item->ultima_aquisicao = null;
-                $item->datas_aquisicao = [];
-                return;
-            }
-            
-            // Buscar todas as aquisições deste produto para este paciente em todas as receitas
-            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
-                $query->where('produto_id', $item->produto_id)
-                      ->whereHas('receita', function ($q) use ($receita) {
-                          $q->where('paciente_id', $receita->paciente_id);
-                      });
-            })->orderByDesc('data_aquisicao')->get();
+        return $this->renderReceitaForm($receita, $request, viewMode: false);
+    }
 
-            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
-            
-            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
-            $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
-        });
+    private function renderReceitaForm(Receita $receita, Request $request, bool $viewMode = false): Response
+    {
+        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
 
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
-        
-        // Map preco to preco_venda for frontend compatibility
+        $this->loadAcquisitionDates($receita);
+
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
+
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
             return $produto;
         });
 
-        // Get other receitas from the same patient with items
         $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
-            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id,nome'])
+            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->orderByDesc('id')
             ->take(10)
             ->get();
 
-        // Format acquisition dates for previous receitas items
         $receitasAnteriores->each(function ($r) {
             $r->itens->each(function ($item) {
                 $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
@@ -252,41 +217,67 @@ class ReceitaController extends Controller
         });
 
         $user = $request->user();
-        
-        // Check if receita is blocked for editing
-        // Condition 1: atendimento in production or finalized
-        $bloqueadaPorAtendimento = $receita->atendimentoCallcenter && 
+
+        $bloqueadaPorAtendimento = $receita->atendimentoCallcenter &&
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado']);
-        
-        // Condition 2: médico trying to edit finalized receita
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
-        
         $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
-        return Inertia::render('Receitas/Form', [
+        $props = [
             'receita' => $receita,
             'paciente' => $receita->paciente,
             'medicos' => $medicos,
             'produtos' => $produtos,
             'receitasAnteriores' => $receitasAnteriores,
             'bloqueadaParaEdicao' => $bloqueadaParaEdicao,
-        ]);
+            'viewMode' => $viewMode,
+        ];
+
+        if (config('app.enable_debug_receitas')) {
+            $props['casoClinico'] = session('caso_clinico_debug');
+        }
+
+        return Inertia::render('Receitas/Form', $props);
+    }
+
+    private function loadAcquisitionDates(Receita $receita): void
+    {
+        $receita->itens->each(function ($item) use ($receita) {
+            if (!$item->produto_id) {
+                $item->ultima_aquisicao = null;
+                $item->datas_aquisicao = [];
+                return;
+            }
+
+            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
+                $query->where('produto_id', $item->produto_id)
+                      ->whereHas('receita', function ($q) use ($receita) {
+                          $q->where('paciente_id', $receita->paciente_id);
+                      });
+            })->orderByDesc('data_aquisicao')->get();
+
+            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
+
+            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
+            $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
+        });
     }
 
     public function update(Request $request, Receita $receita)
     {
         $user = $request->user();
-        
+
         // Check if receita is blocked for editing (atendimento in production or finalized)
         $receita->load('atendimentoCallcenter');
-        if ($receita->atendimentoCallcenter && 
+        if ($receita->atendimentoCallcenter &&
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
             return back()->with('error', 'Esta receita não pode ser editada pois o atendimento já está em produção ou finalizado.');
         }
-        
-        // Check if médico is trying to edit finalized receita
-        if ($user->isMedico() && $receita->status === 'finalizada') {
-            return back()->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
+
+        // Bloquear edição de receitas finalizadas para todos os usuários
+        if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita)
+                ->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
         }
 
         $validated = $request->validate([
@@ -297,7 +288,7 @@ class ReceitaController extends Controller
             'desconto_motivo' => 'nullable|string',
             'valor_caixa' => 'nullable|numeric|min:0',
             'valor_frete' => 'nullable|numeric|min:0',
-            'status' => 'nullable|in:rascunho,finalizada,cancelada',
+            'status' => 'nullable|in:aberta,finalizada,cancelada',
             'itens' => 'required|array|min:1',
             'itens.*.produto_id' => 'required|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string',
@@ -347,7 +338,6 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        // Create callcenter atendimento if status changed to finalizada
         if ($receita->status === 'finalizada' && !$receita->atendimentoCallcenter) {
             AtendimentoCallcenter::create([
                 'receita_id' => $receita->id,
@@ -357,6 +347,18 @@ class ReceitaController extends Controller
                 'data_abertura' => now(),
                 'usuario_id' => $request->user()->id,
             ]);
+
+            if (Setting::get('tiny_enabled', false)) {
+                CriarPedidoTinyJob::dispatch($receita)->delay(now()->addMinute());
+                Log::info('Tiny ERP: CriarPedidoTinyJob despachado', [
+                    'receita_id' => $receita->id,
+                    'receita_numero' => $receita->numero,
+                ]);
+            }
+
+            if (Setting::get('rd_enabled', false)) {
+                CriarNegociacaoRdStationJob::dispatch($receita)->delay(now()->addMinute());
+            }
         }
 
         return redirect()->route('receitas.show', $receita)
@@ -387,7 +389,7 @@ class ReceitaController extends Controller
             'desconto_motivo' => 'nullable|string',
             'valor_caixa' => 'nullable|numeric|min:0',
             'valor_frete' => 'nullable|numeric|min:0',
-            'status' => 'nullable|in:rascunho,finalizada',
+            'status' => 'nullable|in:aberta,finalizada',
             'itens' => 'nullable|array',
             'itens.*.produto_id' => 'required|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string',
@@ -428,7 +430,7 @@ class ReceitaController extends Controller
             ]);
         } else {
             $receita = Receita::create([
-                'numero' => Receita::gerarNumero(),
+                'numero' => Receita::gerarNumero($validated['paciente_id']),
                 'paciente_id' => $validated['paciente_id'],
                 'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
@@ -438,7 +440,7 @@ class ReceitaController extends Controller
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,
                 'valor_caixa' => $validated['valor_caixa'] ?? 0,
                 'valor_frete' => $validated['valor_frete'] ?? 0,
-                'status' => 'rascunho',
+                'status' => 'aberta',
             ]);
         }
 
@@ -475,18 +477,18 @@ class ReceitaController extends Controller
     public function copiar(Request $request, Receita $receita)
     {
         $novaReceita = Receita::create([
-            'numero' => Receita::gerarNumero(),
+            'numero' => Receita::gerarNumero($receita->paciente_id),
             'paciente_id' => $receita->paciente_id,
             'medico_id' => $request->user()->medico_id ?? $receita->medico_id,
             'data_receita' => now(),
             'anotacoes' => $receita->anotacoes,
-            'status' => 'rascunho',
+            'status' => 'aberta',
         ]);
 
         $novaReceita->copiarItensDeReceita($receita);
 
-        return redirect()->route('receitas.edit', $novaReceita)
-            ->with('success', 'Receita copiada com sucesso! Faça os ajustes necessários.');
+        $url = route('receitas.edit', $novaReceita) . '?duplicada=1';
+        return Inertia::location($url);
     }
 
     /**
@@ -494,7 +496,7 @@ class ReceitaController extends Controller
      */
     public function pdf(Receita $receita)
     {
-        $receita->load(['paciente', 'medico', 'itens' => fn($q) => $q->where('imprimir', true)->with('produto')]);
+        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens' => fn($q) => $q->where('imprimir', true)->with('produto')]);
 
         $pdf = Pdf::loadView('pdf.receita', [
             'receita' => $receita,

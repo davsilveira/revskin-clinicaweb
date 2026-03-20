@@ -134,7 +134,7 @@ class User extends Authenticatable
             return [];
         }
         // Médicos via pivot clinica_medico + médicos com clinica_id (legado)
-        $idsPivot = $clinica->medicos()->pluck('id')->toArray();
+        $idsPivot = $clinica->medicos()->pluck('medicos.id')->toArray();
         $idsLegado = Medico::where('clinica_id', $clinica->id)->pluck('id')->toArray();
         return array_values(array_unique(array_merge($idsPivot, $idsLegado)));
     }

@@ -273,7 +273,12 @@ class ExportController extends Controller
      */
     private function getFilterOptions(): array
     {
-        $medicos = Medico::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $medicos = Medico::ativo()
+            ->join('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderBy('users.name')
+            ->select('medicos.id')
+            ->get()
+            ->load('linkedUser:id,name,medico_id');
         $pacientes = Paciente::ativo()->orderBy('nome')->get(['id', 'nome']);
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
         $usuarios = User::where('role', '!=', 'admin')->orderBy('name')->get(['id', 'name']);
@@ -300,7 +305,7 @@ class ExportController extends Controller
             'receitas' => [
                 'status' => [
                     ['value' => 'all', 'label' => 'Todos'],
-                    ['value' => 'rascunho', 'label' => 'Rascunho'],
+                    ['value' => 'aberta', 'label' => 'Aberta'],
                     ['value' => 'finalizada', 'label' => 'Finalizada'],
                     ['value' => 'cancelada', 'label' => 'Cancelada'],
                 ],

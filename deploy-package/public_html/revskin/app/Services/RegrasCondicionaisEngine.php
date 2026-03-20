@@ -107,9 +107,10 @@ class RegrasCondicionaisEngine
      * Obter produtos sugeridos para um caso clínico.
      *
      * @param string $casoClinico Código do caso clínico (ex: PSM1R1A1)
+     * @param array $avaliacaoClinica Dados da avaliação (fototipo para resolver TONALITE-__-)
      * @return array Lista de produtos sugeridos com flag de marcação
      */
-    public function obterProdutosSugeridos(string $casoClinico): array
+    public function obterProdutosSugeridos(string $casoClinico, array $avaliacaoClinica = []): array
     {
         $produtosSugeridos = [];
 
@@ -118,8 +119,13 @@ class RegrasCondicionaisEngine
             $produtosTabela = $this->tabelaSelecionada->buscarProdutosPorCaso($casoClinico);
             
             foreach ($produtosTabela as $item) {
+                $codigoResolvido = $this->resolverCodigoTonalite(
+                    $item['produto_codigo'],
+                    $avaliacaoClinica['fototipo'] ?? null
+                );
+
                 // Buscar produto pelo código
-                $produto = $this->buscarProdutoPorCodigo($item['produto_codigo']);
+                $produto = $this->buscarProdutoPorCodigo($codigoResolvido);
                 
                 $produtoId = $produto?->id;
                 
@@ -208,6 +214,20 @@ class RegrasCondicionaisEngine
         // 3. Remover produtos da lista de remoção (já filtrados acima)
 
         return $produtosSugeridos;
+    }
+
+    /**
+     * Resolver TONALITE-__- pelo fototipo selecionado.
+     * Ex: TONALITE-__-G30 com fototipo 2.5 vira TONALITE-2,5-G30.
+     */
+    private function resolverCodigoTonalite(string $codigo, ?string $fototipo): string
+    {
+        if (!str_contains($codigo, 'TONALITE-__-') || $fototipo === null || $fototipo === '') {
+            return $codigo;
+        }
+
+        $fototipoFormatado = str_replace('.', ',', $fototipo);
+        return str_replace('TONALITE-__-', 'TONALITE-' . $fototipoFormatado . '-', $codigo);
     }
 
     /**

@@ -97,9 +97,16 @@ class AuthController extends Controller
             $request->only('email')
         );
 
-        return $status === Password::RESET_LINK_SENT
-            ? back()->with('status', __($status))
-            : back()->withErrors(['email' => __($status)]);
+        if ($status === Password::RESET_LINK_SENT) {
+            return back()->with('status', __($status));
+        }
+
+        $throttleSeconds = config('auth.passwords.users.throttle', 60);
+        $message = $status === Password::RESET_THROTTLED
+            ? __('passwords.throttled', ['seconds' => $throttleSeconds])
+            : __($status);
+
+        return back()->withErrors(['email' => $message]);
     }
 
     /**

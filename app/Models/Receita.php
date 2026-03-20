@@ -101,14 +101,22 @@ class Receita extends Model
      */
     public function calcularTotais(): void
     {
-        $subtotal = $this->itens->sum('valor_total');
+        $this->load('itens');
+
+        $subtotal = $this->itens->where('imprimir', true)->sum('valor_total');
         $this->subtotal = $subtotal;
 
         if ($this->desconto_percentual > 0) {
             $this->desconto_valor = $subtotal * ($this->desconto_percentual / 100);
+        } else {
+            $this->desconto_valor = 0;
         }
 
-        $this->valor_total = $subtotal - $this->desconto_valor + $this->valor_frete + $this->valor_caixa;
+        $desconto = (float) $this->desconto_valor;
+        $frete = (float) ($this->valor_frete ?? 0);
+        $caixa = (float) ($this->valor_caixa ?? 0);
+
+        $this->valor_total = $subtotal - $desconto + $frete + $caixa;
         $this->save();
     }
 

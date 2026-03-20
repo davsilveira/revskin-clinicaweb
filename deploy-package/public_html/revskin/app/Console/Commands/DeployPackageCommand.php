@@ -424,6 +424,8 @@ class DeployPackageCommand extends Command
         $dirs = [
             'storage/app',
             'storage/app/public',
+            'storage/app/private',
+            'storage/app/private/karnaugh',
             'storage/framework/cache/data',
             'storage/framework/sessions',
             'storage/framework/views',
@@ -453,6 +455,7 @@ A pasta {$appDirName}/ fica DENTRO de public_html e é protegida por .htaccess.
    - Enviar TODO o conteúdo da pasta public_html/ para o public_html do seu domínio na Hostinger.
    - Ou seja: arraste index.php, build/, images/, {$appDirName}/ para dentro do public_html remoto.
    - Não faça upload na raiz (DO_NOT_UPLOAD_HERE); use apenas public_html.
+   - REDEPLOY: ao fazer atualização, não sobrescreva {$appDirName}/storage/ no servidor (contém arquivos gerados, ex.: tabelas Karnaugh). Desmarque essa pasta no FileZilla ou faça backup antes.
 
 2. Banco de dados
    - No phpMyAdmin da Hostinger, criar um banco MySQL e importar o arquivo schema.sql (raiz deste pacote).
@@ -472,8 +475,8 @@ A pasta {$appDirName}/ fica DENTRO de public_html e é protegida por .htaccess.
    - O caminho do artisan será algo como: .../public_html/{$appDirName}/artisan
    - schedule:run a cada minuto:
      * * * * * /usr/bin/php /home/SEU_USUARIO/public_html/{$appDirName}/artisan schedule:run >> /dev/null 2>&1
-   - queue:work (processar fila) a cada minuto:
-     * * * * * /usr/bin/php /home/SEU_USUARIO/public_html/{$appDirName}/artisan queue:work database --stop-when-empty --max-time=50 >> /dev/null 2>&1
+   - queue:work (processar fila) a cada minuto (todas as filas: default,tiny-sync,exports,rd-sync,tiny-webhooks):
+     * * * * * /usr/bin/php /home/SEU_USUARIO/public_html/{$appDirName}/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50 >> /dev/null 2>&1
 
 Instruções completas: ver DEPLOY_HOSTINGER.md na raiz do projeto.
 TEXT;

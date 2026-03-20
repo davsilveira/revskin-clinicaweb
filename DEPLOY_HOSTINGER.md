@@ -18,7 +18,7 @@ Um único comando gera o pacote pronto para FTP (build, pastas e opcionalmente o
    Exige **Node 20+** para o build. Se já tiver rodado `npm run build` antes, use `php artisan deploy:package --no-build`.
 3. Será criada a pasta **`deploy-package/`** com:
    - **`public_html/`** – enviar **todo** o conteúdo desta pasta para o **`public_html`** da Hostinger (único destino; a Hostinger não permite upload fora de `public_html`). Dentro já vêm `index.php`, `build/`, `images/` e a subpasta **`revskin/`** (app, vendor, etc.), protegida por `.htaccess`.
-   - **`schema.sql`** – só aparece se você configurou `database` em `deploy.local.php`; importe no phpMyAdmin.
+   - **`schema.sql`** – gerado automaticamente (a partir do SQLite local ou MySQL em `deploy.local.php`); importe no phpMyAdmin.
    - **`LEIA-ME.txt`** – resumo dos passos (FTP, .env, cron).
 
 Depois: criar o `.env` em `public_html/revskin/.env` no servidor, configurar permissões e cron conforme a seção 6 abaixo (ou o LEIA-ME.txt).
@@ -112,7 +112,20 @@ Alternativa: faça backup manual de `revskin/storage/app/private/karnaugh/` ante
 
 Monte manualmente: conteúdo de `public/` em `public_html/` e o restante do app em `public_html/revskin/`, com `index.php` apontando para `__DIR__.'/revskin/'`. O comando `deploy:package` já gera tudo isso.
 
+### 2.3 Subir SQL da base completa
 
+Quando a base mudou consideravelmente (ex.: após migração de dados do legado), use o dump completo com estrutura e dados:
+
+**Pré-requisito:** O `.env` local deve ter `DB_CONNECTION=sqlite` e o banco `database/database.sqlite` deve existir com migrations e dados atualizados (incluindo importação legado, se aplicável).
+
+**Passos:**
+
+1. Rodar `php artisan deploy:package` (ou `--no-build` se o build já foi feito).
+2. O arquivo `deploy-package/schema.sql` será gerado automaticamente (dump completo do SQLite convertido para MySQL).
+3. No phpMyAdmin da Hostinger: criar banco MySQL vazio (ou dropar tabelas existentes se reutilizar banco) e importar `schema.sql`.
+4. **Atenção:** O arquivo pode ser grande (~797 pacientes, 1229 receitas, etc.). Se o phpMyAdmin tiver limite de upload, aumente `upload_max_filesize` e `post_max_size` no PHP da Hostinger ou divida o SQL em partes menores.
+
+---
 
 ## 3. Arquivo `.env` no servidor
 
@@ -220,9 +233,10 @@ Substitua `seu_usuario` e o caminho real do projeto. O `schedule:run` executa os
 Como não há processo “worker” rodando 24h na shared host, use o cron para processar a fila de forma limitada a cada minuto (ou a cada 5 minutos):
 
 ```bash
-/usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --stop-when-empty --max-time=50
+/usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50
 ```
 
+- `--queue=default,tiny-sync,exports,rd-sync,tiny-webhooks`: processa todas as filas usadas pelo sistema (Tiny, exportações, RD Station, webhooks). Sem isso, apenas a fila `default` seria processada e os jobs nunca rodariam.
 - `--stop-when-empty`: para quando não houver mais jobs (evita ficar rodando à toa).
 - `--max-time=50`: sai após 50 segundos para não ultrapassar o limite de tempo do cron (ex.: 60 s).
 
@@ -230,10 +244,33 @@ Como não há processo “worker” rodando 24h na shared host, use o cron para 
 
 ```text
 * * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan schedule:run >> /dev/null 2>&1
-* * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --stop-when-empty --max-time=50 >> /dev/null 2>&1
+* * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50 >> /dev/null 2>&1
 ```
 
 O caminho do PHP pode variar (ex.: `php` em vez de `/usr/bin/php`). A Hostinger costuma mostrar o caminho correto na tela de Cron Jobs.
+
+### 6.4 Recuperação e troubleshooting
+
+Na Hostinger (shared hosting) não há processo worker contínuo. O cron executa `queue:work --stop-when-empty --max-time=50` a cada minuto. Cada execução é independente.
+
+**Se o cron parar de rodar (ex.: desabilitado acidentalmente):**
+
+- Reativar os Cron Jobs no painel Hostinger (Avançado → Cron Jobs).
+- Jobs pendentes na tabela `jobs` serão processados na próxima execução.
+
+**Se jobs falharem (tabela `failed_jobs`):**
+
+- Monitorar manualmente e rodar `php artisan queue:retry all` ou `php artisan queue:retry {id}` quando necessário.
+- Opcional: adicionar um terceiro cron para retentar (cuidado: pode re-executar jobs que falharam por motivo válido):
+
+  ```text
+  */15 * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:retry all >> /dev/null 2>&1
+  ```
+
+**Verificar se o cron está rodando:**
+
+- Adicionar log temporário: trocar `>> /dev/null 2>&1` por `>> /home/seu_usuario/cron.log 2>&1` para inspecionar saída.
+- Ou criar rota de health check que grava timestamp quando `schedule:run` é executado.
 
 ---
 
@@ -241,12 +278,13 @@ O caminho do PHP pode variar (ex.: `php` em vez de `/usr/bin/php`). A Hostinger 
 
 - [ ] Build local com `APP_URL` de produção; pasta `public/build/` gerada.
 - [ ] **Redeploy:** Não sobrescrever `revskin/storage/` no servidor (preservar tabelas Karnaugh e outros arquivos gerados).
-- [ ] Migrations aplicadas (remotamente no MySQL da Hostinger ou via export/import no phpMyAdmin).
+- [ ] `schema.sql` gerado com dados atuais (`php artisan deploy:package` com SQLite ou MySQL em `deploy.local.php`).
+- [ ] `schema.sql` importado no phpMyAdmin (banco vazio ou tabelas dropadas).
 - [ ] Projeto (exceto `public`) em pasta tipo `revskin/`; conteúdo de `public/` em `public_html/`.
 - [ ] `index.php` em `public_html` ajustado para `../revskin/` (ou nome da pasta).
 - [ ] `.env` criado em `revskin/` com APP_KEY, DB_*, APP_URL, APP_DEBUG=false.
 - [ ] Permissões em `storage/` e `bootstrap/cache/`.
 - [ ] `storage:link` (se possível) ou alternativa para arquivos em `storage/app/public`.
-- [ ] Cron: `schedule:run` a cada minuto e `queue:work database --stop-when-empty --max-time=50` (ex.: a cada 1 ou 5 minutos).
+- [ ] Cron: `schedule:run` a cada minuto e `queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50` (ex.: a cada 1 ou 5 minutos).
 
 Depois disso, acesse `https://seudominio.com` e teste login e uma tela que use fila/agendamento para validar o cron.

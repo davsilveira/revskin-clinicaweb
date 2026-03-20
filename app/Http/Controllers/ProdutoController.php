@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
-use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ProdutoController extends Controller
@@ -154,42 +153,6 @@ class ProdutoController extends Controller
             'produtos' => $produtos,
             'filters' => $request->only(['search']),
         ]);
-    }
-
-    /**
-     * Export catalogo de produtos (PDF ou Excel).
-     */
-    public function catalogoExport(Request $request)
-    {
-        $format = $request->get('format', 'pdf');
-
-        $produtos = Produto::ativo()
-            ->when($request->search, function ($q, $search) {
-                $q->where(function ($query) use ($search) {
-                    $query->where('nome', 'like', "%{$search}%")
-                        ->orWhere('codigo', 'like', "%{$search}%");
-                });
-            })
-            ->orderBy('nome')
-            ->get(['id', 'codigo', 'nome', 'descricao', 'modo_uso', 'anotacoes']);
-
-        if ($format === 'pdf') {
-            $pdf = Pdf::loadView('pdf.catalogo-produtos', [
-                'produtos' => $produtos,
-                'total' => $produtos->count(),
-            ])->setPaper('a4', 'landscape');
-
-            return $pdf->download('catalogo-produtos.pdf');
-        }
-
-        if ($format === 'xlsx') {
-            return Excel::download(
-                new CatalogoProdutosExport($produtos),
-                'catalogo-produtos.xlsx'
-            );
-        }
-
-        abort(400, 'Formato não suportado');
     }
 
     /**

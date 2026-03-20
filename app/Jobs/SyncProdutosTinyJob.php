@@ -40,12 +40,27 @@ class SyncProdutosTinyJob implements ShouldQueue
         $offset = 0;
         $limit = 100;
 
-        Log::info('Tiny ERP: Iniciando sincronização de produtos', ['api_version' => $isV2 ? 'v2' : 'v3']);
+        $apenasClinicaweb = Setting::get('tiny_sync_apenas_clinicaweb', true);
+        $idTag = $apenasClinicaweb && $isV2 ? $this->obterIdTagClinicaweb($client) : null;
+
+        if ($apenasClinicaweb && $isV2 && !$idTag) {
+            Log::error('Tiny ERP: Sincronização filtrada por tag "clinicaweb" ativa, mas tag não encontrada. Configure a tag ou desative tiny_sync_apenas_clinicaweb.');
+            return;
+        }
+
+        Log::info('Tiny ERP: Iniciando sincronização de produtos', [
+            'api_version' => $isV2 ? 'v2' : 'v3',
+            'filtro_tag_clinicaweb' => (bool) $idTag,
+        ]);
 
         do {
             $params = $isV2
                 ? ['pesquisa' => '', 'pagina' => $pagina]
                 : ['limit' => $limit, 'offset' => $offset];
+
+            if ($idTag) {
+                $params['idTag'] = $idTag;
+            }
 
             $result = $client->listarProdutos($params);
 
@@ -95,6 +110,34 @@ class SyncProdutosTinyJob implements ShouldQueue
             'synced' => $synced,
             'errors' => $errors,
         ]);
+    }
+
+    protected function obterIdTagClinicaweb(TinyErpClient $client): ?int
+    {
+        $cached = Setting::get('tiny_clinicaweb_tag_id');
+        if ($cached) {
+            return (int) $cached;
+        }
+
+        $result = $client->pesquisarTags('clinicaweb');
+        if ($result['status'] !== 'success') {
+            Log::warning('Tiny ERP: Erro ao pesquisar tag clinicaweb', ['message' => $result['message'] ?? '']);
+            return null;
+        }
+
+        $tags = $result['data']['tags'] ?? [];
+        foreach ($tags as $tag) {
+            $nome = $tag['nome'] ?? '';
+            if (strcasecmp(trim($nome), 'clinicaweb') === 0) {
+                $id = (int) ($tag['id'] ?? 0);
+                if ($id > 0) {
+                    Setting::set('tiny_clinicaweb_tag_id', $id, 'tiny');
+                    return $id;
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function sincronizarProduto(array $produtoData): void

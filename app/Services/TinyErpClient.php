@@ -320,6 +320,27 @@ class TinyErpClient
         return $this->makeRequest('GET', 'info');
     }
 
+    /**
+     * Pesquisa tags no Tiny (V2). Retorna registros com id e nome da tag.
+     */
+    public function pesquisarTags(string $pesquisa = ''): array
+    {
+        if (!$this->isV2()) {
+            return ['status' => 'error', 'message' => 'Pesquisa de tags disponível apenas na API V2'];
+        }
+
+        $params = ['pesquisa' => $pesquisa];
+        $result = $this->makeV2Request('tag.pesquisa.php', $params);
+
+        if ($result['status'] === 'success') {
+            $retorno = $result['data'];
+            $registros = $retorno['registros'] ?? [];
+            $result['data'] = ['tags' => array_map(fn($r) => $r['registro'] ?? $r, $registros)];
+        }
+
+        return $result;
+    }
+
     public function listarProdutos(array $filters = []): array
     {
         if ($this->isV2()) {
@@ -329,6 +350,9 @@ class TinyErpClient
             }
             if (!empty($filters['situacao'])) {
                 $params['situacao'] = $filters['situacao'];
+            }
+            if (!empty($filters['idTag'])) {
+                $params['idTag'] = (int) $filters['idTag'];
             }
 
             $result = $this->makeV2Request('produtos.pesquisa.php', $params);
@@ -451,11 +475,28 @@ class TinyErpClient
             ]);
 
             if ($result['status'] === 'success') {
-                $registros = $result['data']['registros'] ?? [];
-                $firstReg = $registros[0]['registro'] ?? [];
+                $retorno = $result['data'];
+                $registros = $retorno['registros'] ?? [];
+                // API retorna registros como objeto {"registro": {...}} ou array [{"registro": {...}}]
+                $firstReg = [];
+                if (isset($registros['registro'])) {
+                    $firstReg = is_array($registros['registro']) ? $registros['registro'] : [];
+                } elseif (isset($registros[0])) {
+                    $firstReg = $registros[0]['registro'] ?? $registros[0] ?? [];
+                }
+                $id = $firstReg['id'] ?? $retorno['id'] ?? null;
+                $numero = $firstReg['numero'] ?? $retorno['numero'] ?? null;
+
+                Log::info('Tiny ERP V2: Resposta pedido.incluir', [
+                    'raw_registros' => $registros,
+                    'first_registro' => $firstReg,
+                    'id_extraido' => $id,
+                    'numero_extraido' => $numero,
+                ]);
+
                 $result['data'] = [
-                    'id' => $firstReg['id'] ?? null,
-                    'numero' => $firstReg['numero'] ?? null,
+                    'id' => $id,
+                    'numero' => $numero,
                 ];
             }
             return $result;

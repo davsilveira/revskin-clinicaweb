@@ -6,6 +6,7 @@ import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MedicoFormFields from '@/Components/MedicoFormFields';
+import Pagination from '@/Components/Pagination';
 
 export default function UsersIndex({ users, clinicas = [] }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -16,6 +17,8 @@ export default function UsersIndex({ users, clinicas = [] }) {
     const isMedico = (role) => role === 'medico';
 
     const { props } = usePage();
+    const auth = props.auth || {};
+    const tinyEnabled = auth.tinyEnabled || false;
     const serverErrors = props.errors || {};
     const { data, setData, setError, clearErrors, processing, errors, reset } = useForm({
         name: '',
@@ -232,7 +235,7 @@ export default function UsersIndex({ users, clinicas = [] }) {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {users.map((user) => (
+                                {(users.data || users).map((user) => (
                                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-gray-900">{user.name}</div>
@@ -266,6 +269,9 @@ export default function UsersIndex({ users, clinicas = [] }) {
                             </tbody>
                         </table>
                     </div>
+                    {users?.links && (
+                        <Pagination links={users.links} preserveScroll />
+                    )}
                 </div>
             </div>
 
@@ -296,7 +302,7 @@ export default function UsersIndex({ users, clinicas = [] }) {
                                         { value: 'callcenter', label: 'Call Center' },
                                         { value: 'secretaria', label: 'Secretária' },
                                         { value: 'admin', label: 'Administrador' },
-                                    ]}
+                                    ].filter((o) => (tinyEnabled ? o.value !== 'callcenter' : true))}
                                 />
 
                                 <Input

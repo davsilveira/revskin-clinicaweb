@@ -649,13 +649,13 @@ export default function AssistenteReceitaIndex({
                                     )}
                                 </div>
                                 {showPacienteDropdown && pacienteResults.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
                                         {pacienteResults.map((paciente) => (
                                             <button
                                                 key={paciente.id}
                                                 type="button"
                                                 onClick={() => selectPaciente(paciente)}
-                                                className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b last:border-0"
+                                                className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                             >
                                                 <div className="font-medium text-gray-900">{paciente.nome}</div>
                                                 <div className="text-sm text-gray-500">{paciente.cpf}</div>

@@ -245,6 +245,18 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         }
     }, [flash]);
 
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('duplicada') === '1') {
+            setToast({ message: 'Receita duplicada com sucesso!', type: 'success' });
+            params.delete('duplicada');
+            const newUrl = params.toString()
+                ? `${window.location.pathname}?${params.toString()}`
+                : window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+        }
+    }, []);
+
     // Debounced search for patients
     const searchPacientes = useCallback(
         debounce(async (term) => {
@@ -372,7 +384,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         const subtotal = calcularSubtotal();
         const desconto = calcularDesconto();
         const frete = parseFloat(data.valor_frete) || 0;
-        return subtotal - desconto + frete;
+        const caixa = parseFloat(data.valor_caixa) || 0;
+        return subtotal - desconto + frete + caixa;
     };
 
     const handleSubmit = (e) => {

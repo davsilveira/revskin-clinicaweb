@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
+import ProductCombobox from './ProductCombobox';
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -37,28 +38,6 @@ const formatCurrency = (value) => {
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('pt-BR');
-};
-
-const formatRelativeTime = (dateString) => {
-    if (!dateString) return null;
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return null;
-        const now = new Date();
-        const diffTime = Math.abs(now - date);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) return 'hoje';
-        if (diffDays === 1) return 'há 1 dia';
-        if (diffDays < 30) return `há ${diffDays} dias`;
-        if (diffDays < 60) return 'há 1 mês';
-        const diffMonths = Math.floor(diffDays / 30);
-        if (diffMonths < 12) return `há ${diffMonths} meses`;
-        const diffYears = Math.floor(diffDays / 365);
-        return `há ${diffYears} ${diffYears === 1 ? 'ano' : 'anos'}`;
-    } catch (e) {
-        return null;
-    }
 };
 
 /**
@@ -223,7 +202,8 @@ export default function ProductItemsEditor({
         const subtotal = calcularSubtotal();
         const desconto = calcularDesconto();
         const frete = parseFloat(valorFrete) || 0;
-        return subtotal - desconto + frete;
+        const caixa = parseFloat(valorCaixa) || 0;
+        return subtotal - desconto + frete + caixa;
     };
 
     // Renderizar linha de item
@@ -253,25 +233,14 @@ export default function ProductItemsEditor({
                     className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
                 />
                 
-                {/* Local de Uso */}
-                <div className="w-36 flex-shrink-0" title={item.local_uso || '-'}>
-                    <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded block truncate">
-                        {formatLocalUso(item.local_uso)}
-                    </span>
-                </div>
-                
-                {/* Produto Select */}
-                <select
+                {/* Produto Combobox */}
+                <ProductCombobox
                     value={item.produto_id}
-                    onChange={(e) => updateItem(index, 'produto_id', e.target.value)}
+                    onChange={(val) => updateItem(index, 'produto_id', val)}
+                    produtos={produtos}
                     disabled={readOnly}
-                    className="flex-[2] min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                >
-                    <option value="">Produto...</option>
-                    {produtos?.map((p) => (
-                        <option key={p.id} value={p.id}>{p.codigo} - {p.nome}</option>
-                    ))}
-                </select>
+                    className="flex-[3]"
+                />
                 
                 {/* Anotações */}
                 <input
@@ -280,7 +249,7 @@ export default function ProductItemsEditor({
                     value={item.anotacoes || ''}
                     onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
                     disabled={readOnly}
-                    className="flex-[0.8] min-w-0 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                    className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                 />
                 
                 {/* Data de Aquisição */}
@@ -306,7 +275,7 @@ export default function ProductItemsEditor({
                                     theme="light-border"
                                 >
                                     <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                        <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                        <span>{formatDate(ultimaAquisicao)}</span>
                                         <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
                                             +{datasAquisicao.length - 1}
                                         </span>
@@ -323,7 +292,7 @@ export default function ProductItemsEditor({
                                     theme="light-border"
                                 >
                                     <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
-                                        <span>{formatRelativeTime(ultimaAquisicao) || formatDate(ultimaAquisicao)}</span>
+                                        <span>{formatDate(ultimaAquisicao)}</span>
                                     </span>
                                 </Tippy>
                             )}
@@ -431,13 +400,12 @@ export default function ProductItemsEditor({
                             {/* Cabeçalhos da tabela */}
                             <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                                 <div className="w-4 flex-shrink-0"></div>
-                                <div className="w-36 flex-shrink-0">
-                                    <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                                </div>
-                                <div className="flex-[2] min-w-0">
+                                <div className="flex-[3] min-w-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                 </div>
-                                <div className="flex-[0.8] min-w-0"></div>
+                                <div className="flex-[2] min-w-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                                </div>
                                 <div className="w-36 flex-shrink-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                                 </div>
@@ -486,13 +454,12 @@ export default function ProductItemsEditor({
                             {/* Cabeçalhos da tabela */}
                             <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                                 <div className="w-4 flex-shrink-0"></div>
-                                <div className="w-36 flex-shrink-0">
-                                    <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                                </div>
-                                <div className="flex-[2] min-w-0">
+                                <div className="flex-[3] min-w-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                 </div>
-                                <div className="flex-[0.8] min-w-0"></div>
+                                <div className="flex-[2] min-w-0">
+                                    <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                                </div>
                                 <div className="w-36 flex-shrink-0">
                                     <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                                 </div>
@@ -519,13 +486,12 @@ export default function ProductItemsEditor({
                         {/* Cabeçalhos da tabela */}
                         <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                             <div className="w-4 flex-shrink-0"></div>
-                            <div className="w-36 flex-shrink-0">
-                                <span className="text-xs font-semibold text-gray-600 uppercase">Tipo</span>
-                            </div>
-                            <div className="flex-[2] min-w-0">
+                            <div className="flex-[3] min-w-0">
                                 <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                             </div>
-                            <div className="flex-[0.8] min-w-0"></div>
+                            <div className="flex-[2] min-w-0">
+                                <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                            </div>
                             <div className="w-36 flex-shrink-0">
                                 <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                             </div>
@@ -567,7 +533,7 @@ export default function ProductItemsEditor({
                         {/* Caixa e Frete */}
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2">
-                                <label className="text-sm font-medium text-gray-700">Caixa:</label>
+                                <label className="text-sm font-medium text-gray-700">Embalagem:</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -603,6 +569,12 @@ export default function ProductItemsEditor({
                                     <div className="flex justify-between text-sm text-red-600">
                                         <span>Valor Descontos ({descontoPercentual}%):</span>
                                         <span>- {formatCurrency(calcularDesconto())}</span>
+                                    </div>
+                                )}
+                                {valorCaixa > 0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Embalagem:</span>
+                                        <span>+ {formatCurrency(valorCaixa)}</span>
                                     </div>
                                 )}
                                 {valorFrete > 0 && (

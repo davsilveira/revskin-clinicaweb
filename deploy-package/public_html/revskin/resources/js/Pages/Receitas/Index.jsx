@@ -1,24 +1,29 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 
 export default function ReceitasIndex({ receitas, pacientes, filters }) {
+    const { auth } = usePage().props;
+    const isMedico = auth.user.role === 'medico';
     const [search, setSearch] = useState(filters?.search || '');
     const [status, setStatus] = useState(filters?.status || '');
+    const pacienteId = filters?.paciente_id;
 
     const handleSearch = (e) => {
         e.preventDefault();
-        router.get('/receitas', { search, status }, { preserveState: true });
+        const params = { search, status };
+        if (pacienteId) params.paciente_id = pacienteId;
+        router.get('/receitas', params, { preserveState: true });
     };
 
     const getStatusBadge = (status) => {
         const badges = {
-            rascunho: 'bg-gray-100 text-gray-800',
+            aberta: 'bg-gray-100 text-gray-800',
             finalizada: 'bg-green-100 text-green-800',
             cancelada: 'bg-red-100 text-red-800',
         };
         const labels = {
-            rascunho: 'Rascunho',
+            aberta: 'Aberta',
             finalizada: 'Finalizada',
             cancelada: 'Cancelada',
         };
@@ -77,7 +82,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                         >
                             <option value="">Todos os status</option>
-                            <option value="rascunho">Rascunho</option>
+                            <option value="aberta">Aberta</option>
                             <option value="finalizada">Finalizada</option>
                             <option value="cancelada">Cancelada</option>
                         </select>
@@ -96,7 +101,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Número
+                                    Código
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Paciente
@@ -104,9 +109,11 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Data
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Valor Total
-                                </th>
+                                {!isMedico && (
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Valor Total
+                                    </th>
+                                )}
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Status
                                 </th>
@@ -118,10 +125,14 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {receitas?.data?.length > 0 ? (
                                 receitas.data.map((receita) => (
-                                    <tr key={receita.id} className="hover:bg-gray-50">
+                                    <tr
+                                        key={receita.id}
+                                        className="hover:bg-gray-50 cursor-pointer"
+                                        onClick={() => router.visit(`/receitas/${receita.id}`)}
+                                    >
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-medium text-gray-900">
-                                                #{receita.numero}
+                                                {receita.numero}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -135,44 +146,46 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {new Date(receita.data_receita).toLocaleDateString('pt-BR')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {new Intl.NumberFormat('pt-BR', {
-                                                style: 'currency',
-                                                currency: 'BRL',
-                                            }).format(receita.valor_total)}
-                                        </td>
+                                        {!isMedico && (
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {new Intl.NumberFormat('pt-BR', {
+                                                    style: 'currency',
+                                                    currency: 'BRL',
+                                                }).format(receita.valor_total)}
+                                            </td>
+                                        )}
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {getStatusBadge(receita.status)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex justify-end gap-1">
+                                        <td className="px-6 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center justify-end gap-1">
                                                 <Link
                                                     href={`/receitas/${receita.id}`}
-                                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="Ver"
+                                                    className="inline-flex p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    aria-label="Ver receita"
                                                 >
                                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                     </svg>
                                                 </Link>
-                                                {receita.status === 'finalizada' && (
+                                                {receita.status === 'finalizada' ? (
                                                     <a
                                                         href={`/receitas/${receita.id}/pdf`}
                                                         target="_blank"
-                                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Baixar PDF"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        aria-label="Download PDF"
                                                     >
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                         </svg>
                                                     </a>
-                                                )}
-                                                {receita.status !== 'cancelada' && (
+                                                ) : (
                                                     <Link
                                                         href={`/receitas/${receita.id}/edit`}
-                                                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                        title="Editar"
+                                                        className="inline-flex p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                        aria-label="Editar receita"
                                                     >
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -185,7 +198,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center">
+                                    <td colSpan={isMedico ? 5 : 6} className="px-6 py-12 text-center">
                                         <div className="text-gray-500">
                                             <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

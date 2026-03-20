@@ -310,6 +310,96 @@ npm run dev
 npm run build
 ```
 
+## 🔄 Migração de Dados do ClinicaWeb (Sistema Legado)
+
+O projeto inclui dois comandos Artisan para migrar dados do sistema legado ClinicaWeb. O processo é dividido em duas etapas: **extração** (gera arquivos JSON para revisão) e **importação** (persiste no banco de dados).
+
+### Pré-requisitos
+
+- Dump SQL do ClinicaWeb em `docs/clinicaweb/database/bkp_cw2_20251201.sql`
+- Mapeamento de códigos de produtos em `docs/sanitization/mapeamento-codigos-legado-base.md`
+- Produtos já importados no novo sistema (a migração **não** importa produtos)
+
+### Etapa 1: Extração
+
+Lê o dump SQL e gera arquivos JSON em `docs/migration/` para revisão manual antes da importação.
+
+```bash
+php artisan migration:extrair-legado
+```
+
+**Opções:**
+
+| Opção | Padrão | Descrição |
+|-------|--------|-----------|
+| `--sql` | `docs/clinicaweb/database/bkp_cw2_20251201.sql` | Caminho do dump SQL |
+| `--output` | `docs/migration` | Diretório de saída dos JSONs |
+
+**Arquivos gerados:**
+
+- `clinicas.json` — Clínicas extraídas
+- `medicos.json` — Médicos com endereços (repeater)
+- `users.json` — Usuários com roles mapeadas (admin/medico/secretaria)
+- `pacientes.json` — Pacientes com telefones classificados (celular/fixo)
+- `receitas.json` — Receitas com itens e códigos de produtos corrigidos
+- `resumo-extracao.json` — Resumo com contagens e estatísticas
+
+**Transformações aplicadas automaticamente:**
+
+- Roles do sistema antigo mapeadas para `admin`, `medico` ou `secretaria`
+- Usuários com apenas role `ROLE_CALLCENTER` são excluídos
+- Códigos de produtos corrigidos conforme mapeamento
+- Datas no formato `dd/mm/yyyy` convertidas para `yyyy-mm-dd`
+- Telefones classificados: números começando com `9` (após DDD) são identificados como celular
+- Campos `fone1`/`fone2`/`fone3` mapeados para campo principal + repeater
+
+### Etapa 2: Importação
+
+Lê os JSONs gerados e importa no banco de dados na ordem correta de dependência.
+
+```bash
+php artisan migration:importar-legado
+```
+
+**Opções:**
+
+| Opção | Padrão | Descrição |
+|-------|--------|-----------|
+| `--source` | `docs/migration` | Diretório com os JSONs |
+| `--only` | *(todos)* | Importar apenas uma entidade: `clinicas`, `medicos`, `users`, `pacientes`, `receitas` |
+| `--dry-run` | — | Simula a importação sem persistir dados |
+
+**Ordem de importação:** Clínicas → Médicos → Usuários → Pacientes → Receitas
+
+**Exemplos:**
+
+```bash
+# Simular importação completa (sem persistir)
+php artisan migration:importar-legado --dry-run
+
+# Importar apenas pacientes
+php artisan migration:importar-legado --only=pacientes
+
+# Importar tudo
+php artisan migration:importar-legado
+```
+
+### Idempotência
+
+O comando de importação é **idempotente** — pode ser executado múltiplas vezes com segurança:
+
+- Mantém um arquivo `docs/migration/id-mapping.json` que mapeia IDs do sistema antigo para o novo
+- Na re-execução, registros já importados são identificados e pulados
+- Fallback por chaves naturais (CRM, CPF, email, nome) caso o mapeamento não exista
+
+### Observações importantes
+
+- **Acesso de usuários legados:** A maioria dos usuários antigos não possuía email. Foram criados com emails placeholder (`@legado.revskin.com.br`). Para acessar o sistema, precisam utilizar o fluxo de recuperação de senha com um email real
+- **Itens de receita sem produto:** Itens cujo produto não existe no novo sistema são automaticamente ignorados (não causam erro)
+- **Senhas:** As senhas originais são preservadas quando possível (bcrypt compatível)
+- **Endereços de médicos:** Importados como repeater (campo dinâmico), incluindo endereço principal e endereço da clínica quando disponível
+- **Telefones de pacientes:** Telefones extras são importados no repeater de telefones
+
 ## 🚀 Production Deployment
 
 ### 1. Server Requirements

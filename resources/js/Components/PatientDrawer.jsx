@@ -17,7 +17,10 @@ import debounce from 'lodash/debounce';
  * - onClose: function - callback ao fechar
  * - paciente: object|null - paciente para editar (null para novo)
  * - onSave: function - callback após salvar com sucesso
- * - isAdmin: boolean - mostrar campos de admin (médico responsável)
+ * - isAdmin: boolean - mostrar campos de admin (médico responsável) - retrocompat
+ * - showMedicoField: boolean - mostrar campo médico (admin e secretária)
+ * - medicos: array - lista de médicos para Select (quando fornecida, usa Select em vez de busca)
+ * - medicoRequired: boolean - tornar médico obrigatório (secretária) - bloqueia autosave e salvar sem médico
  * - enableAutoSave: boolean - habilitar autosave (default: true)
  */
 export default function PatientDrawer({
@@ -26,8 +29,12 @@ export default function PatientDrawer({
     paciente = null,
     onSave,
     isAdmin = false,
+    showMedicoField = null,
+    medicos = [],
+    medicoRequired = false,
     enableAutoSave = true,
 }) {
+    const showMedico = showMedicoField ?? isAdmin;
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
     const [cpfError, setCpfError] = useState(null);
@@ -125,15 +132,18 @@ export default function PatientDrawer({
         []
     );
 
+    const shouldShowMedicoField = showMedicoField ?? isAdmin;
+
     useEffect(() => {
-        if (isAdmin && searchMedico) {
+        if (shouldShowMedicoField && !medicos?.length && searchMedico) {
             searchMedicosApi(searchMedico);
         }
-    }, [searchMedico, searchMedicosApi, isAdmin]);
+    }, [searchMedico, searchMedicosApi, shouldShowMedicoField, medicos?.length]);
 
     const selectMedico = (medico) => {
         setSelectedMedico(medico);
         setData('medico_id', medico.id);
+        setFieldErrors(prev => ({ ...prev, medico_id: null }));
         setSearchMedico('');
         setShowMedicoDropdown(false);
     };
@@ -159,6 +169,9 @@ export default function PatientDrawer({
 
     // Autosave function
     const performAutoSave = useCallback(async () => {
+        if (isSavingRef.current) return;
+        // Médico obrigatório para secretária: bloquear se vazio
+        if (medicoRequired && showMedico && !data.medico_id) return;
         // Validar campos obrigatórios antes de tentar autosave
         if (!data.nome || data.nome.trim().length < 2) return;
         if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return;
@@ -191,9 +204,12 @@ export default function PatientDrawer({
         });
         
         if (!response.ok) {
-            // Se for erro de validação, não fazer throw para não quebrar o fluxo
             if (response.status === 422) {
-                return; // Silenciosamente falha se validação falhar
+                const errData = await response.json();
+                if (errData?.errors?.medico_id) {
+                    setFieldErrors(prev => ({ ...prev, medico_id: errData.errors.medico_id[0] }));
+                }
+                return;
             }
             throw new Error('Autosave failed');
         }
@@ -204,7 +220,7 @@ export default function PatientDrawer({
         }
         
         return result;
-    }, [data, currentPacienteId]);
+    }, [data, currentPacienteId, medicoRequired, showMedico]);
 
     // Verificar se todos os campos obrigatórios estão preenchidos para habilitar autosave
     const canAutoSave = useCallback(() => {
@@ -215,10 +231,12 @@ export default function PatientDrawer({
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
         if (!data.email1 || !data.email1.trim()) return false;
         if (data.cpf && !validateCPF(data.cpf)) return false;
+        if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [enableAutoSave, isOpen, data]);
+    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico]);
 
     const { 
+        lastSaved,
         lastSavedText, 
         isSaving: isAutoSaving, 
         triggerAutoSave, 
@@ -239,15 +257,20 @@ export default function PatientDrawer({
     const handleClose = () => {
         cancelAutoSave();
         onClose?.();
+        if (lastSaved) {
+            router.reload({ only: ['pacientes'] });
+        }
     };
 
     const [isSaving, setIsSaving] = useState(false);
+    const isSavingRef = useRef(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
         // Cancelar autosave pendente antes de validar
         cancelAutoSave();
+        isSavingRef.current = true;
         
         // Limpar erros anteriores
         setCpfError(null);
@@ -284,7 +307,10 @@ export default function PatientDrawer({
             newErrors.email1 = 'E-mail é obrigatório.';
             hasErrors = true;
         }
-        
+        if (medicoRequired && showMedico && !data.medico_id) {
+            newErrors.medico_id = 'Selecione o médico responsável.';
+            hasErrors = true;
+        }
         if (hasErrors) {
             setFieldErrors(newErrors);
             return;
@@ -345,11 +371,12 @@ export default function PatientDrawer({
                     }
                 }
             }
-        } catch (error) {
-            console.error('Error saving patient:', error);
-        } finally {
-            setIsSaving(false);
-        }
+    } catch (error) {
+                console.error('Error saving patient:', error);
+            } finally {
+                setIsSaving(false);
+                isSavingRef.current = false;
+            }
     };
 
     const handleDelete = () => {
@@ -615,67 +642,91 @@ export default function PatientDrawer({
                         </div>
                     </div>
 
-                    {/* Medico Search (Admin only) */}
-                    {isAdmin && (
+                    {/* Medico Responsável (admin e secretária; oculto para médico) */}
+                    {showMedico && (
                         <div className="border-t pt-6">
-                            <h3 className="text-sm font-medium text-gray-900 mb-4">Médico Responsável</h3>
-                            <div className="relative">
-                                {selectedMedico ? (
-                                    <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                                        <div>
-                                            <div className="font-medium text-gray-900">{selectedMedico.nome}</div>
-                                            {selectedMedico.crm && <div className="text-sm text-gray-500">CRM: {selectedMedico.crm}</div>}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedMedico(null);
-                                                setData('medico_id', '');
-                                            }}
-                                            className="text-gray-400 hover:text-gray-600"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                placeholder="Buscar médico pelo nome ou CRM..."
-                                                value={searchMedico}
-                                                onChange={(e) => setSearchMedico(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                            />
-                                            {loadingMedicos && (
-                                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                    <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                    </svg>
+                            <h3 className="text-sm font-medium text-gray-900 mb-4">Médico Responsável {medicoRequired && <span className="text-red-500">*</span>}</h3>
+                            {medicos?.length > 0 ? (
+                                <div>
+                                    <Select
+                                        label=""
+                                        value={data.medico_id ? String(data.medico_id) : ''}
+                                        onChange={(e) => {
+                                            setData('medico_id', e.target.value ? Number(e.target.value) : '');
+                                            setFieldErrors(prev => ({ ...prev, medico_id: null }));
+                                        }}
+                                        options={[
+                                            { value: '', label: 'Selecione o médico' },
+                                            ...medicos.map((m) => ({ value: String(m.id), label: m.nome || m.linked_user?.name || `Médico ${m.id}` })),
+                                        ]}
+                                        error={fieldErrors.medico_id || errors.medico_id}
+                                    />
+                                </div>
+                            ) : (
+                                <div>
+                                    <div className="relative">
+                                        {selectedMedico ? (
+                                            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                                                <div>
+                                                    <div className="font-medium text-gray-900">{selectedMedico.nome}</div>
+                                                    {selectedMedico.crm && <div className="text-sm text-gray-500">CRM: {selectedMedico.crm}</div>}
                                                 </div>
-                                            )}
-                                        </div>
-                                        {showMedicoDropdown && medicoResults.length > 0 && (
-                                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-auto">
-                                                {medicoResults.map((medico) => (
-                                                    <button
-                                                        key={medico.id}
-                                                        type="button"
-                                                        onClick={() => selectMedico(medico)}
-                                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                                                    >
-                                                        <div className="font-medium text-gray-900">{medico.nome}</div>
-                                                        <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
-                                                    </button>
-                                                ))}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedMedico(null);
+                                                        setData('medico_id', '');
+                                                        setFieldErrors(prev => ({ ...prev, medico_id: null }));
+                                                    }}
+                                                    className="text-gray-400 hover:text-gray-600"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
                                             </div>
+                                        ) : (
+                                            <>
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Buscar médico pelo nome ou CRM..."
+                                                        value={searchMedico}
+                                                        onChange={(e) => setSearchMedico(e.target.value)}
+                                                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${(fieldErrors.medico_id || errors.medico_id) ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                                    />
+                                                    {loadingMedicos && (
+                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                            <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {showMedicoDropdown && medicoResults.length > 0 && (
+                                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-auto">
+                                                        {medicoResults.map((medico) => (
+                                                            <button
+                                                                key={medico.id}
+                                                                type="button"
+                                                                onClick={() => selectMedico(medico)}
+                                                                className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                                            >
+                                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                                <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
-                                    </>
-                                )}
-                            </div>
+                                    </div>
+                                    {(fieldErrors.medico_id || errors.medico_id) && (
+                                        <p className="mt-1 text-sm text-red-600">{fieldErrors.medico_id || errors.medico_id}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -14,6 +14,7 @@ use App\Models\Setting;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -74,7 +75,7 @@ class ReceitaController extends Controller
             ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
             : Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id');
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
         
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
@@ -193,7 +194,7 @@ class ReceitaController extends Controller
             ->select('medicos.id')
             ->get()
             ->load('linkedUser:id,name,medico_id');
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
 
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
@@ -349,6 +350,10 @@ class ReceitaController extends Controller
 
             if (Setting::get('tiny_enabled', false)) {
                 CriarPedidoTinyJob::dispatch($receita)->delay(now()->addMinute());
+                Log::info('Tiny ERP: CriarPedidoTinyJob despachado', [
+                    'receita_id' => $receita->id,
+                    'receita_numero' => $receita->numero,
+                ]);
             }
 
             if (Setting::get('rd_enabled', false)) {
@@ -482,8 +487,8 @@ class ReceitaController extends Controller
 
         $novaReceita->copiarItensDeReceita($receita);
 
-        return redirect()->route('receitas.edit', $novaReceita)
-            ->with('success', 'Receita duplicada com sucesso!');
+        $url = route('receitas.edit', $novaReceita) . '?duplicada=1';
+        return Inertia::location($url);
     }
 
     /**

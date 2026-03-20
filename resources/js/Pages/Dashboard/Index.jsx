@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, usePage, router } from '@inertiajs/react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 
 export default function Dashboard() {
@@ -73,20 +73,19 @@ export default function Dashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {actions.map((action) => 
                             action.isLogout ? (
-                                <form key={action.href} method="POST" action="/logout">
-                                    <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')} />
-                                    <button
-                                        type="submit"
-                                        className="w-full flex items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 transition-all text-left"
-                                    >
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.iconBg}`}>
-                                            <svg className={`w-5 h-5 ${action.iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={action.iconPath} />
-                                            </svg>
-                                        </div>
-                                        <div className="font-semibold text-gray-900">{action.label}</div>
-                                    </button>
-                                </form>
+                                <button
+                                    key={action.href}
+                                    type="button"
+                                    onClick={() => router.post('/logout')}
+                                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 transition-all text-left"
+                                >
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.iconBg}`}>
+                                        <svg className={`w-5 h-5 ${action.iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={action.iconPath} />
+                                        </svg>
+                                    </div>
+                                    <div className="font-semibold text-gray-900">{action.label}</div>
+                                </button>
                             ) : (
                                 <a
                                     key={action.href}

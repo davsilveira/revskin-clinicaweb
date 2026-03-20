@@ -41,6 +41,8 @@ class Paciente extends Model
         'tiny_id',
         'tiny_sync_at',
         'tiny_updated_at',
+        'rd_organization_id',
+        'rd_contact_id',
         'ativo',
     ];
 

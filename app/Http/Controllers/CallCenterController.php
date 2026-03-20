@@ -93,7 +93,7 @@ class CallCenterController extends Controller
         }
 
         $statusOptions = AtendimentoCallcenter::getStatusOptions();
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'local_uso']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'local_uso', 'anotacoes']);
         $produtos->each(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
         });

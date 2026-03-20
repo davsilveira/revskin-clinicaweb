@@ -46,6 +46,7 @@ class SettingsController extends Controller
                     'produto_padrao_id' => $settings['rd_produto_padrao_id'] ?? '69a956705a1a6a00133167dc',
                     'medico_field_id' => $settings['rd_medico_field_id'] ?? '69a955ea78fde3001f6f61dc',
                     'receita_field_id' => $settings['rd_receita_field_id'] ?? '699efc3a13a467001cb81ea1',
+                    'owner_id' => $settings['rd_owner_id'] ?? '',
                 ],
                 'isAuthenticated' => $rdHasRefreshToken,
             ],
@@ -172,6 +173,7 @@ class SettingsController extends Controller
             'produto_padrao_id' => 'nullable|string',
             'medico_field_id' => 'nullable|string',
             'receita_field_id' => 'nullable|string',
+            'owner_id' => 'nullable|string',
         ]);
 
         Setting::set('rd_enabled', $validated['enabled'] ?? false);
@@ -197,6 +199,9 @@ class SettingsController extends Controller
         }
         if (array_key_exists('receita_field_id', $validated)) {
             Setting::set('rd_receita_field_id', $validated['receita_field_id']);
+        }
+        if (array_key_exists('owner_id', $validated)) {
+            Setting::set('rd_owner_id', $validated['owner_id'] ? trim($validated['owner_id']) : null);
         }
 
         return back()->with('success', 'Configurações do RD Station salvas com sucesso!');

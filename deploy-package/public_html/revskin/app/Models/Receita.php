@@ -30,6 +30,8 @@ class Receita extends Model
         'valor_total',
         'status',
         'ativo',
+        'tiny_pedido_id',
+        'rd_deal_id',
     ];
 
     protected function casts(): array
@@ -99,14 +101,22 @@ class Receita extends Model
      */
     public function calcularTotais(): void
     {
-        $subtotal = $this->itens->sum('valor_total');
+        $this->load('itens');
+
+        $subtotal = $this->itens->where('imprimir', true)->sum('valor_total');
         $this->subtotal = $subtotal;
 
         if ($this->desconto_percentual > 0) {
             $this->desconto_valor = $subtotal * ($this->desconto_percentual / 100);
+        } else {
+            $this->desconto_valor = 0;
         }
 
-        $this->valor_total = $subtotal - $this->desconto_valor + $this->valor_frete;
+        $desconto = (float) $this->desconto_valor;
+        $frete = (float) ($this->valor_frete ?? 0);
+        $caixa = (float) ($this->valor_caixa ?? 0);
+
+        $this->valor_total = $subtotal - $desconto + $frete + $caixa;
         $this->save();
     }
 
@@ -125,6 +135,7 @@ class Receita extends Model
                 'valor_total' => $item->valor_total,
                 'imprimir' => $item->imprimir,
                 'ordem' => $item->ordem,
+                'grupo' => $item->grupo,
             ]);
         }
     }
@@ -135,7 +146,7 @@ class Receita extends Model
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'rascunho' => 'Rascunho',
+            'aberta' => 'Aberta',
             'finalizada' => 'Finalizada',
             'cancelada' => 'Cancelada',
             default => ucfirst($this->status),
@@ -145,15 +156,11 @@ class Receita extends Model
     /**
      * Generate next number.
      */
-    public static function gerarNumero(): string
+    public static function gerarNumero(int $pacienteId): string
     {
-        $ultimo = static::whereYear('created_at', now()->year)
-            ->orderByDesc('id')
-            ->first();
+        $count = static::where('paciente_id', $pacienteId)->count();
 
-        $sequencia = $ultimo ? ((int) substr($ultimo->numero, -6)) + 1 : 1;
-
-        return now()->format('Y') . str_pad($sequencia, 6, '0', STR_PAD_LEFT);
+        return $pacienteId . '-' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
     }
 }
 

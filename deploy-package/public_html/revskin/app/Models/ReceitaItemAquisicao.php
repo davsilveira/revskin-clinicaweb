@@ -16,6 +16,7 @@ class ReceitaItemAquisicao extends Model
         'receita_item_id',
         'data_aquisicao',
         'atendimento_id',
+        'tiny_pedido_id',
     ];
 
     protected function casts(): array

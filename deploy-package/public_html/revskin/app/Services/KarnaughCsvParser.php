@@ -11,20 +11,7 @@ class KarnaughCsvParser
     /**
      * Parsear e importar um arquivo CSV de tabela Karnaugh.
      *
-     * Estrutura esperada do CSV:
-     * - Linha 1: Grupos (Primeiro Grupo / Segundo Grupo)
-     * - Linha 2: Sequência/ordem
-     * - Linha 3: Nomes das categorias (colunas de produtos)
-     * - Linha 4: Teste? (indica campos condicionais)
-     * - Linha 5: Marcar? (indica se o produto deve vir pré-selecionado)
-     * - Linhas 6+: Dados dos casos clínicos
-     *
      * @param string $csvContent Conteúdo do CSV
-     * @param string $nome Nome da tabela
-     * @param string|null $descricao Descrição opcional
-     * @param string|null $arquivoOriginal Nome do arquivo original
-     * @param bool $definirComoPadrao Se deve ser a tabela padrão
-     * @return TabelaKarnaugh
      */
     public function parse(
         string $csvContent,
@@ -34,26 +21,44 @@ class KarnaughCsvParser
         bool $definirComoPadrao = false
     ): TabelaKarnaugh {
         $lines = $this->parseCsvLines($csvContent);
-        
+        return $this->parseFromRows($lines, $nome, $descricao, $arquivoOriginal, $definirComoPadrao);
+    }
+
+    /**
+     * Parsear e importar tabela Karnaugh a partir de array de linhas (CSV ou XLSX).
+     *
+     * Estrutura esperada:
+     * - Linha 1: Grupos (Primeiro Grupo / Segundo Grupo)
+     * - Linha 2: Sequência/ordem
+     * - Linha 3: Nomes das categorias (colunas de produtos)
+     * - Linha 4: Teste? (indica campos condicionais)
+     * - Linha 5: Marcar? (indica se o produto deve vir pré-selecionado)
+     * - Linhas 6+: Dados dos casos clínicos
+     *
+     * @param array $lines Array de linhas, cada linha é array de células
+     */
+    public function parseFromRows(
+        array $lines,
+        string $nome,
+        ?string $descricao = null,
+        ?string $arquivoOriginal = null,
+        bool $definirComoPadrao = false
+    ): TabelaKarnaugh {
         if (count($lines) < 6) {
-            throw new \InvalidArgumentException('CSV deve ter pelo menos 6 linhas (cabeçalhos + dados)');
+            throw new \InvalidArgumentException('Arquivo deve ter pelo menos 6 linhas (cabeçalhos + dados)');
         }
 
-        // Parsear estrutura do cabeçalho
         $gruposRow = $lines[0] ?? [];
         $seqRow = $lines[1] ?? [];
         $categoriasRow = $lines[2] ?? [];
-        $testeRow = $lines[3] ?? [];
         $marcarRow = $lines[4] ?? [];
 
-        // Identificar colunas de produtos e seus grupos
         $colunasProdutos = $this->identificarColunasProdutos($gruposRow, $categoriasRow, $marcarRow, $seqRow);
 
         return DB::transaction(function () use (
             $nome, $descricao, $arquivoOriginal, $definirComoPadrao,
             $lines, $colunasProdutos
         ) {
-            // Criar a tabela
             $tabela = TabelaKarnaugh::create([
                 'nome' => $nome,
                 'descricao' => $descricao,
@@ -62,33 +67,30 @@ class KarnaughCsvParser
                 'padrao' => false,
             ]);
 
-            // Processar linhas de dados (a partir da linha 6, índice 5)
             $ordemLinha = 0;
-            for ($i = 5; $i < count($lines); $i++) {
+            $totalLinhas = count($lines);
+            for ($i = 5; $i < $totalLinhas; $i++) {
                 $row = $lines[$i];
-                
-                // Ignorar linhas vazias ou de legenda
-                if (count($row) < 2 || empty(trim($row[1] ?? ''))) {
+                $row = is_array($row) ? $row : [];
+
+                $celulaCaso = $this->cellValue($row[1] ?? null);
+                if (count($row) < 2 || trim($celulaCaso) === '') {
                     continue;
                 }
 
-                $casoClinico = trim($row[1] ?? '');
-                
-                // Ignorar se não parece um código de caso clínico válido
+                $casoClinico = trim($celulaCaso);
+
                 if (empty($casoClinico) || !preg_match('/^P[SNRMO]/i', $casoClinico)) {
                     continue;
                 }
 
-                // Processar cada coluna de produto
                 foreach ($colunasProdutos as $colIndex => $colInfo) {
-                    $produtoCodigo = trim($row[$colIndex] ?? '');
-                    
-                    // Ignorar células vazias ou marcadores especiais
+                    $produtoCodigo = trim($this->cellValue($row[$colIndex] ?? null));
+
                     if (empty($produtoCodigo) || $produtoCodigo === '*****' || $produtoCodigo === 'Fim') {
                         continue;
                     }
-                    
-                    // Ignorar marcadores como "Linhas 0"
+
                     if (preg_match('/^Linhas?\s+\d+$/i', $produtoCodigo)) {
                         continue;
                     }
@@ -104,11 +106,10 @@ class KarnaughCsvParser
                         'sequencia_coluna' => $colInfo['sequencia'],
                     ]);
                 }
-                
+
                 $ordemLinha++;
             }
 
-            // Definir como padrão se solicitado
             if ($definirComoPadrao) {
                 $tabela->definirComoPadrao();
             }
@@ -118,9 +119,17 @@ class KarnaughCsvParser
     }
 
     /**
+     * Normalizar valor de célula (null do XLSX vira string vazia).
+     */
+    private function cellValue(mixed $value): string
+    {
+        return $value === null ? '' : (string) $value;
+    }
+
+    /**
      * Parsear linhas do CSV.
      */
-    private function parseCsvLines(string $content): array
+    public function parseCsvLines(string $content): array
     {
         $lines = [];
         $rows = explode("\n", $content);
@@ -148,10 +157,10 @@ class KarnaughCsvParser
         $grupoAtual = 'primeiro';
 
         for ($i = 2; $i < count($categoriasRow); $i++) {
-            $categoria = trim($categoriasRow[$i] ?? '');
-            $grupo = trim($gruposRow[$i] ?? '');
-            $marcar = trim($marcarRow[$i] ?? '');
-            $seq = trim($seqRow[$i] ?? '');
+            $categoria = trim($this->cellValue($categoriasRow[$i] ?? null));
+            $grupo = trim($this->cellValue($gruposRow[$i] ?? null));
+            $marcar = trim($this->cellValue($marcarRow[$i] ?? null));
+            $seq = trim($this->cellValue($seqRow[$i] ?? null));
 
             // Ignorar colunas sem categoria válida
             if (empty($categoria) || $categoria === 'Fim' || $categoria === 'Coluna Extra') {
@@ -187,19 +196,26 @@ class KarnaughCsvParser
      */
     public function validate(string $csvContent): array
     {
-        $errors = [];
         $lines = $this->parseCsvLines($csvContent);
+        return $this->validateRows($lines);
+    }
+
+    /**
+     * Validar estrutura do array de linhas antes de importar (CSV ou XLSX).
+     */
+    public function validateRows(array $lines): array
+    {
+        $errors = [];
 
         if (count($lines) < 6) {
-            $errors[] = 'CSV deve ter pelo menos 6 linhas (5 de cabeçalho + dados)';
+            $errors[] = 'Arquivo deve ter pelo menos 6 linhas (5 de cabeçalho + dados)';
             return $errors;
         }
 
-        // Verificar linha de grupos
         $gruposRow = $lines[0];
         $hasPrimeiroGrupo = false;
         foreach ($gruposRow as $cell) {
-            if (stripos($cell, 'Primeiro Grupo') !== false) {
+            if (stripos($this->cellValue($cell), 'Primeiro Grupo') !== false) {
                 $hasPrimeiroGrupo = true;
                 break;
             }
@@ -208,17 +224,17 @@ class KarnaughCsvParser
             $errors[] = 'Linha 1 deve conter "Primeiro Grupo"';
         }
 
-        // Verificar linha de categorias
         $categoriasRow = $lines[2];
-        if (empty(trim($categoriasRow[0] ?? '')) && empty(trim($categoriasRow[1] ?? ''))) {
+        $cat0 = trim($this->cellValue($categoriasRow[0] ?? null));
+        $cat1 = trim($this->cellValue($categoriasRow[1] ?? null));
+        if ($cat0 === '' && $cat1 === '') {
             $errors[] = 'Linha 3 deve conter as categorias de produtos';
         }
 
-        // Contar casos clínicos válidos
         $casosValidos = 0;
         for ($i = 5; $i < count($lines); $i++) {
             $row = $lines[$i];
-            $casoClinico = trim($row[1] ?? '');
+            $casoClinico = trim($this->cellValue($row[1] ?? null));
             if (!empty($casoClinico) && preg_match('/^P[SNRMO]/i', $casoClinico)) {
                 $casosValidos++;
             }
