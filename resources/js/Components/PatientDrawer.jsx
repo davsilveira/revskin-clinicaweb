@@ -69,6 +69,7 @@ export default function PatientDrawer({
     const [showMedicoDropdown, setShowMedicoDropdown] = useState(false);
     const [selectedMedico, setSelectedMedico] = useState(null);
     const [loadingMedicos, setLoadingMedicos] = useState(false);
+    const [auditNames, setAuditNames] = useState({ created: null, updated: null });
 
     // Initialize form data when paciente changes
     useEffect(() => {
@@ -76,6 +77,10 @@ export default function PatientDrawer({
             if (paciente) {
                 setCurrentPacienteId(paciente.id);
                 setSelectedMedico(paciente.medico || null);
+                setAuditNames({
+                    created: paciente.created_by?.name ?? paciente.createdBy?.name ?? null,
+                    updated: paciente.updated_by?.name ?? paciente.updatedBy?.name ?? null,
+                });
                 setData({
                     nome: paciente.nome || '',
                     cpf: paciente.cpf || '',
@@ -100,6 +105,7 @@ export default function PatientDrawer({
                 reset();
                 setCurrentPacienteId(null);
                 setSelectedMedico(null);
+                setAuditNames({ created: null, updated: null });
             }
             setShowDeleteConfirm(false);
             setCpfError(null);
@@ -218,7 +224,13 @@ export default function PatientDrawer({
         if (result.id && !currentPacienteId) {
             setCurrentPacienteId(result.id);
         }
-        
+        if (result.created_by_name != null || result.updated_by_name != null) {
+            setAuditNames((prev) => ({
+                created: result.created_by_name ?? prev.created,
+                updated: result.updated_by_name ?? prev.updated,
+            }));
+        }
+
         return result;
     }, [data, currentPacienteId, medicoRequired, showMedico]);
 
@@ -753,6 +765,19 @@ export default function PatientDrawer({
                                     { value: '0', label: 'Inativo' },
                                 ]}
                             />
+                        </div>
+                    )}
+
+                    {(paciente || currentPacienteId) && (
+                        <div className="border-t pt-6 text-xs text-gray-500 space-y-1.5">
+                            <p>
+                                <span className="font-medium text-gray-600">Cadastrado por:</span>{' '}
+                                {auditNames.created ?? '—'}
+                            </p>
+                            <p>
+                                <span className="font-medium text-gray-600">Última edição por:</span>{' '}
+                                {auditNames.updated ?? '—'}
+                            </p>
                         </div>
                     )}
                 </div>

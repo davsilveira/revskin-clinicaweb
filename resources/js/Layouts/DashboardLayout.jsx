@@ -10,13 +10,13 @@ export default function DashboardLayout({ children }) {
     const [showProfileDrawer, setShowProfileDrawer] = useState(false);
     const [expandedMenus, setExpandedMenus] = useState({});
     
-    // Sidebar collapsed state with localStorage persistence (default: collapsed)
+    // Sidebar collapsed state with localStorage persistence (default: expanded)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window !== 'undefined') {
             const stored = localStorage.getItem('sidebarCollapsed');
-            return stored === null ? true : stored === 'true';
+            return stored === null ? false : stored === 'true';
         }
-        return true;
+        return false;
     });
 
     useEffect(() => {

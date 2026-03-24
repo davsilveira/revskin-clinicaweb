@@ -8,6 +8,13 @@ import ProductCombobox from '@/Components/Receita/ProductCombobox';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
+import { formatAnotacaoDisplay } from '@/utils/text';
+
+const tippyAquisicaoProps = {
+    appendTo: () => document.body,
+    popperOptions: { strategy: 'fixed' },
+    zIndex: 9999,
+};
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -53,9 +60,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showDuplicarModal, setShowDuplicarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
-    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [expandedReceitas, setExpandedReceitas] = useState({});
-    const moreMenuRef = useRef(null);
     
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
@@ -225,16 +230,6 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             triggerAutoSave();
         }
     }, [data, canAutoSave, triggerAutoSave]);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
-                setShowMoreMenu(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     useEffect(() => {
         if (flash?.success) {
@@ -560,41 +555,30 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                             )}
 
                             {isEditing && (
-                                <div className="relative" ref={moreMenuRef}>
+                                <>
                                     <button
                                         type="button"
-                                        onClick={() => setShowMoreMenu(!showMoreMenu)}
-                                        className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                        onClick={() => setShowDuplicarModal(true)}
+                                        className="flex items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
                                     >
-                                        + Ações
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                        Duplicar Receita
                                     </button>
-                                    {showMoreMenu && (
-                                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                                            <button
-                                                type="button"
-                                                onClick={() => { setShowDuplicarModal(true); setShowMoreMenu(false); }}
-                                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                                Duplicar Receita
-                                            </button>
-                                            {canCancel && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { setShowCancelarModal(true); setShowMoreMenu(false); }}
-                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                    Cancelar Receita
-                                                </button>
-                                            )}
-                                        </div>
+                                    {canCancel && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCancelarModal(true)}
+                                            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                            Cancelar Receita
+                                        </button>
                                     )}
-                                </div>
+                                </>
                             )}
                         </div>
                     </div>
@@ -822,7 +806,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     <div 
                                                         key={index} 
                                                         ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50'}`}
                                                     >
                                                         {item.vendido && (
                                                             <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -871,6 +855,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             placement="top"
                                                                             interactive={true}
                                                                             theme="light-border"
+                                                                            {...tippyAquisicaoProps}
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
                                                                                 <span>{formatDate(ultimaAquisicao)}</span>
@@ -888,6 +873,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             }
                                                                             placement="top"
                                                                             theme="light-border"
+                                                                            {...tippyAquisicaoProps}
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
                                                                                 <span>{formatDate(ultimaAquisicao)}</span>
@@ -989,7 +975,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     <div 
                                                         key={index} 
                                                         ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50'}`}
                                                     >
                                                         {item.vendido && (
                                                             <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -1038,6 +1024,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             placement="top"
                                                                             interactive={true}
                                                                             theme="light-border"
+                                                                            {...tippyAquisicaoProps}
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
                                                                                 <span>{formatDate(ultimaAquisicao)}</span>
@@ -1055,6 +1042,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                             }
                                                                             placement="top"
                                                                             theme="light-border"
+                                                                            {...tippyAquisicaoProps}
                                                                         >
                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
                                                                                 <span>{formatDate(ultimaAquisicao)}</span>
@@ -1288,13 +1276,13 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     {r.anotacoes && (
                                                         <div className="mb-1">
                                                             <span className="font-medium text-gray-700">Anotações Internas:</span>
-                                                            <span className="text-gray-600 ml-1">{r.anotacoes}</span>
+                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes)}</span>
                                                         </div>
                                                     )}
                                                     {r.anotacoes_paciente && (
                                                         <div>
                                                             <span className="font-medium text-gray-700">Anotações Paciente:</span>
-                                                            <span className="text-gray-600 ml-1">{r.anotacoes_paciente}</span>
+                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes_paciente)}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1358,6 +1346,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                                             placement="top"
                                                                                             interactive={true}
                                                                                             theme="light-border"
+                                                                                            {...tippyAquisicaoProps}
                                                                                         >
                                                                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
                                                                                                 <span>{formatDate(ultimaAquisicao)}</span>
@@ -1378,6 +1367,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                                         }
                                                                                         placement="top"
                                                                                         theme="light-border"
+                                                                                        {...tippyAquisicaoProps}
                                                                                     >
                                                                                         <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors inline-flex">
                                                                                             <span>{formatDate(ultimaAquisicao)}</span>
