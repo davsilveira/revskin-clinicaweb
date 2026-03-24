@@ -2,13 +2,10 @@
 
 namespace App\Jobs;
 
-use App\Exports\AquisicaoProdutosExport;
-use App\Exports\ReceitasMedicoExport;
 use App\Http\Controllers\RelatorioController;
 use App\Mail\RelatorioExportReadyMail;
-use App\Models\Medico;
-use App\Models\Receita;
 use App\Models\RelatorioExportRequest;
+use App\Services\RelatorioExcelExportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,6 +24,7 @@ class ProcessRelatorioExportJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 600;
 
     public function __construct(
@@ -118,7 +116,7 @@ class ProcessRelatorioExportJob implements ShouldQueue
         }
 
         $fileName = sprintf('relatorio-aquisicao-produtos_%s_%s.%s', now()->format('Ymd_His'), $req->id, $req->format);
-        $filePath = 'exports/' . $fileName;
+        $filePath = 'exports/'.$fileName;
 
         if ($req->format === 'pdf') {
             $pdf = Pdf::loadView('pdf.relatorio-aquisicao-produtos', [
@@ -129,11 +127,9 @@ class ProcessRelatorioExportJob implements ShouldQueue
             ]);
             $pdf->save($disk->path($filePath));
         } else {
-            Excel::store(
-                new AquisicaoProdutosExport($dados, $dataInicio, $dataFim, $isAdmin),
-                $filePath,
-                'local'
-            );
+            $bundle = app(RelatorioExcelExportService::class)->buildAquisicaoProdutosExport($user, $filters);
+            Excel::store($bundle['export'], $filePath, 'local');
+            $totalRecords = $bundle['total_records'];
         }
 
         return [
@@ -147,25 +143,19 @@ class ProcessRelatorioExportJob implements ShouldQueue
     {
         $filters = $req->filters ?? [];
 
-        $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
-            ->whereIn('status', ['finalizada', 'aberta'])
-            ->when($filters['medico_id'] ?? null, fn ($q, $id) => $q->where('medico_id', $id))
-            ->when($filters['data_inicio'] ?? null, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
-            ->when($filters['data_fim'] ?? null, fn ($q, $data) => $q->whereDate('data_receita', '<=', $data))
-            ->orderBy('data_receita', 'desc');
-
-        $receitas = $query->get();
-        $medico = ($filters['medico_id'] ?? null) ? Medico::with('linkedUser:id,name,medico_id')->find($filters['medico_id']) : null;
-
         $disk = Storage::disk('local');
         if (! $disk->exists('exports')) {
             $disk->makeDirectory('exports');
         }
 
         $fileName = sprintf('relatorio-receitas-medico_%s_%s.%s', now()->format('Ymd_His'), $req->id, $req->format);
-        $filePath = 'exports/' . $fileName;
+        $filePath = 'exports/'.$fileName;
 
         if ($req->format === 'pdf') {
+            $bundle = app(RelatorioExcelExportService::class)->buildReceitasMedicoExport($filters);
+            $receitas = $bundle['receitas'];
+            $medico = $bundle['medico'];
+
             $pdf = Pdf::loadView('pdf.relatorio-receitas-medico', [
                 'receitas' => $receitas,
                 'medico' => $medico,
@@ -177,18 +167,21 @@ class ProcessRelatorioExportJob implements ShouldQueue
                 ],
             ]);
             $pdf->save($disk->path($filePath));
-        } else {
-            Excel::store(
-                new ReceitasMedicoExport($receitas, $medico),
-                $filePath,
-                'local'
-            );
+
+            return [
+                'file_path' => $filePath,
+                'file_name' => $fileName,
+                'total_records' => $receitas->count(),
+            ];
         }
+
+        $bundle = app(RelatorioExcelExportService::class)->buildReceitasMedicoExport($filters);
+        Excel::store($bundle['export'], $filePath, 'local');
 
         return [
             'file_path' => $filePath,
             'file_name' => $fileName,
-            'total_records' => $receitas->count(),
+            'total_records' => $bundle['total_records'],
         ];
     }
 

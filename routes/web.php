@@ -1,26 +1,26 @@
 <?php
 
+use App\Http\Controllers\AssistenteReceitaController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\CallCenterController;
+use App\Http\Controllers\CatalogoExportController;
+use App\Http\Controllers\ClinicaController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\InfosimplesIntegrationController;
-use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\MedicoController;
-use App\Http\Controllers\ClinicaController;
+use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\ProdutoController;
-use App\Http\Controllers\CatalogoExportController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RdStationIntegrationController;
 use App\Http\Controllers\ReceitaController;
-use App\Http\Controllers\CallCenterController;
-use App\Http\Controllers\AssistenteReceitaController;
+use App\Http\Controllers\RegraCondicionalController;
 use App\Http\Controllers\RelatorioController;
 use App\Http\Controllers\RelatorioExportController;
-use App\Http\Controllers\TinyIntegrationController;
-use App\Http\Controllers\RdStationIntegrationController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TabelaKarnaughController;
-use App\Http\Controllers\RegraCondicionalController;
+use App\Http\Controllers\TinyIntegrationController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -137,6 +137,7 @@ Route::middleware(['auth'])->group(function () {
     // Relatórios - índice e Aquisição de Produtos (admin e médico)
     Route::get('/relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('/relatorios/aquisicao-produtos', [RelatorioController::class, 'aquisicaoProdutos'])->name('relatorios.aquisicao-produtos');
+    Route::get('/relatorios/aquisicao-produtos/excel', [RelatorioExportController::class, 'downloadExcelAquisicao'])->name('relatorios.aquisicao-produtos.excel');
     Route::post('/relatorios/aquisicao-produtos/export', [RelatorioExportController::class, 'storeAquisicao'])->name('relatorios.aquisicao-produtos.export.store');
     Route::get('/relatorios/export/{relatorioExportRequest}/download', [RelatorioExportController::class, 'download'])->name('relatorios.export.download');
 
@@ -146,7 +147,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('medicos', MedicoController::class);
         Route::post('/medicos/{medico}/assinatura', [MedicoController::class, 'uploadAssinatura'])->name('medicos.assinatura');
         Route::get('/api/medicos/search', [MedicoController::class, 'search'])->name('medicos.search');
-        
+
         Route::resource('clinicas', ClinicaController::class);
         // Users management
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -156,7 +157,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Settings
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-        
+
         // Settings - Tiny ERP integration
         Route::put('/settings/integrations/tiny', [SettingsController::class, 'updateTiny'])
             ->name('settings.tiny.update');
@@ -168,7 +169,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/exports', [ExportController::class, 'store'])->name('exports.store');
         Route::get('/exports/{exportRequest}/download', [ExportController::class, 'download'])->name('exports.download');
         Route::delete('/exports/history', [ExportController::class, 'clearHistory'])->name('exports.history.clear');
-        
+
         // Assistente - Tabelas Karnaugh (admin only)
         Route::get('/assistente/tabelas-karnaugh', [TabelaKarnaughController::class, 'index'])->name('assistente.tabelas-karnaugh.index');
         Route::get('/assistente/tabelas-karnaugh/{tabelaKarnaugh}', [TabelaKarnaughController::class, 'show'])->name('assistente.tabelas-karnaugh.show');
@@ -188,6 +189,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Relatórios (apenas admin)
         Route::get('/relatorios/receitas-medico', [RelatorioController::class, 'receitasPorMedico'])->name('relatorios.receitas-medico');
+        Route::get('/relatorios/receitas-medico/excel', [RelatorioExportController::class, 'downloadExcelReceitasMedico'])->name('relatorios.receitas-medico.excel');
         Route::post('/relatorios/receitas-medico/export', [RelatorioExportController::class, 'storeReceitasMedico'])->name('relatorios.receitas-medico.export.store');
 
         // Integração Tiny ERP

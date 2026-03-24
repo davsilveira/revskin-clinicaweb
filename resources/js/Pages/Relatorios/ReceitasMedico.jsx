@@ -66,7 +66,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
             onSuccess: () => {
                 setExportModal({ open: false, format: null });
                 setToast({
-                    message: 'A exportação será processada em segundo plano. Você receberá um e-mail quando estiver pronto para download.',
+                    message: 'Pedido registrado. Você receberá um e-mail com o link para download quando o arquivo estiver pronto.',
                     type: 'success'
                 });
             },
@@ -81,6 +81,14 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
 
     const getItemCount = () => {
         return dados?.receitas?.total ?? dados?.receitas?.data?.length ?? 0;
+    };
+
+    const buildExcelDownloadUrl = () => {
+        const p = new URLSearchParams();
+        if (medicoId) p.set('medico_id', String(medicoId));
+        if (dataInicio) p.set('data_inicio', dataInicio);
+        if (dataFim) p.set('data_fim', dataFim);
+        return `/relatorios/receitas-medico/excel?${p.toString()}`;
     };
 
     return (
@@ -100,7 +108,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                 itemLabel="receitas"
                 formatLabel={exportModal.format === 'pdf' ? 'PDF' : 'Excel'}
                 defaultEmail={auth?.user?.email}
-                title="Confirmar exportação"
+                title={exportModal.format === 'pdf' ? 'Enviar PDF por e-mail' : 'Enviar Excel por e-mail'}
             />
             <div className="p-6">
                 <div className="mb-6">
@@ -218,24 +226,36 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2 justify-end">
                                     <button
-                                        onClick={() => openExportModal('pdf')}
-                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                        type="button"
+                                        onClick={() => window.location.assign(buildExcelDownloadUrl())}
+                                        className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                         </svg>
-                                        PDF
+                                        Baixar Excel
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => openExportModal('xlsx')}
                                         className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                         </svg>
-                                        Excel
+                                        Enviar Excel por e-mail
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => openExportModal('pdf')}
+                                        className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        Enviar PDF por e-mail
                                     </button>
                                 </div>
                             </div>
