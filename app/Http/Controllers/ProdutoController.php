@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Produto;
-use App\Models\Setting;
-use App\Exports\CatalogoProdutosExport;
 use App\Exports\ProdutosAdminExport;
 use App\Exports\ProdutosTemplateExport;
+use App\Models\Produto;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -31,7 +30,7 @@ class ProdutoController extends Controller
                         ->orWhere('codigo_cq', 'like', "%{$s}%");
                 });
             })
-            ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')))
+            ->when($request->has('ativo'), fn ($q) => $q->where('ativo', $request->boolean('ativo')))
             ->when($request->boolean('pendentes'), function ($q) {
                 $q->where(function ($query) {
                     $query->whereNull('descricao')->orWhere('descricao', '');
@@ -43,6 +42,14 @@ class ProdutoController extends Controller
         $produtos = $query->orderBy('codigo')
             ->paginate(50)
             ->withQueryString();
+
+        if ($request->user()?->role !== 'admin') {
+            $produtos->through(function (Produto $produto) {
+                $produto->makeHidden('anotacoes_internas');
+
+                return $produto;
+            });
+        }
 
         $filters = $request->only(['search', 'ativo', 'pendentes']);
         if (isset($filters['search']) && in_array($filters['search'], ['undefined', 'null', ''], true)) {
@@ -66,7 +73,7 @@ class ProdutoController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $rules = [
             'codigo' => 'required|string|max:255|unique:produtos,codigo',
             'codigo_cq' => 'nullable|string|max:255',
             'nome' => 'required|string|max:255',
@@ -81,7 +88,14 @@ class ProdutoController extends Controller
             'estoque_minimo' => 'nullable|integer|min:0',
             'tiny_id' => 'nullable|string|max:255',
             'ativo' => 'boolean',
-        ]);
+        ];
+        if ($request->user()?->role === 'admin') {
+            $rules['anotacoes_internas'] = 'nullable|string';
+        }
+        $validated = $request->validate($rules);
+        if ($request->user()?->role !== 'admin') {
+            unset($validated['anotacoes_internas']);
+        }
 
         // Map preco_venda to preco
         if (isset($validated['preco_venda'])) {
@@ -111,13 +125,20 @@ class ProdutoController extends Controller
 
     public function update(Request $request, Produto $produto)
     {
-        $validated = $request->validate([
+        $rules = [
             'nome' => 'nullable|string|max:255',
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'modo_uso' => 'nullable|string',
             'ativo' => 'boolean',
-        ]);
+        ];
+        if ($request->user()?->role === 'admin') {
+            $rules['anotacoes_internas'] = 'nullable|string';
+        }
+        $validated = $request->validate($rules);
+        if ($request->user()?->role !== 'admin') {
+            unset($validated['anotacoes_internas']);
+        }
 
         $produto->update($validated);
 
@@ -173,7 +194,7 @@ class ProdutoController extends Controller
                         ->orWhere('codigo_cq', 'like', "%{$s}%");
                 });
             })
-            ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')))
+            ->when($request->has('ativo'), fn ($q) => $q->where('ativo', $request->boolean('ativo')))
             ->when($request->boolean('pendentes'), function ($q) {
                 $q->where(function ($query) {
                     $query->whereNull('descricao')->orWhere('descricao', '');
@@ -186,17 +207,18 @@ class ProdutoController extends Controller
         $produtos = $query->get();
         $format = $request->get('format', 'xlsx');
         $date = now()->format('Y-m-d');
+        $includeAnotacoesInternas = $request->user()?->role === 'admin';
 
         if ($format === 'csv') {
             return Excel::download(
-                new ProdutosAdminExport($produtos),
+                new ProdutosAdminExport($produtos, $includeAnotacoesInternas),
                 "produtos-export-{$date}.csv",
                 \Maatwebsite\Excel\Excel::CSV
             );
         }
 
         return Excel::download(
-            new ProdutosAdminExport($produtos),
+            new ProdutosAdminExport($produtos, $includeAnotacoesInternas),
             "produtos-export-{$date}.xlsx"
         );
     }
@@ -208,17 +230,18 @@ class ProdutoController extends Controller
     {
         $format = $request->get('format', 'xlsx');
         $date = now()->format('Y-m-d');
+        $includeAnotacoesInternas = $request->user()?->role === 'admin';
 
         if ($format === 'csv') {
             return Excel::download(
-                new ProdutosTemplateExport(),
+                new ProdutosTemplateExport($includeAnotacoesInternas),
                 "produtos-modelo-{$date}.csv",
                 \Maatwebsite\Excel\Excel::CSV
             );
         }
 
         return Excel::download(
-            new ProdutosTemplateExport(),
+            new ProdutosTemplateExport($includeAnotacoesInternas),
             "produtos-modelo-{$date}.xlsx"
         );
     }
@@ -231,33 +254,56 @@ class ProdutoController extends Controller
                 return $v;
             }
         }
+
         return null;
     }
 
-    private function extractDadosFromRow(array $row): array
+    /**
+     * @param  array<int, string>  $aliases
+     */
+    private function getValAliases(array $row, array $aliases): mixed
+    {
+        foreach ($aliases as $key) {
+            $v = $this->getVal($row, $key);
+            if ($v !== null) {
+                return $v;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractDadosFromRow(array $row, bool $importAnotacoesInternas = false): array
     {
         $dados = [];
         $nome = $this->getVal($row, 'nome');
         if ($nome !== null && $nome !== '') {
             $dados['nome'] = $nome;
         }
-        $desc = $this->getVal($row, 'descricao');
+        $desc = $this->getValAliases($row, ['descricao_formula', 'descricao']);
         if ($desc !== null) {
             $dados['descricao'] = $desc;
         }
-        $anot = $this->getVal($row, 'anotacoes');
-        if ($anot !== null) {
-            $dados['anotacoes'] = $anot;
-        }
-        $modo = $this->getVal($row, 'modo_uso');
+        $modo = $this->getValAliases($row, ['modo_uso', 'modo_de_uso']);
         if ($modo !== null) {
             $dados['modo_uso'] = $modo;
         }
-        $val = $this->getVal($row, 'ativo');
+        $anot = $this->getValAliases($row, ['anotacoes_especialista', 'anotacoes_dos_especialistas', 'anotacoes']);
+        if ($anot !== null) {
+            $dados['anotacoes'] = $anot;
+        }
+        if ($importAnotacoesInternas) {
+            $internas = $this->getVal($row, 'anotacoes_internas');
+            if ($internas !== null) {
+                $dados['anotacoes_internas'] = $internas;
+            }
+        }
+        $val = $this->getValAliases($row, ['ativo', 'status']);
         if ($val !== null) {
             $ativo = in_array(strtolower((string) $val), ['1', 'sim', 's', 'ativo', 'true']);
             $dados['ativo'] = $ativo;
         }
+
         return $dados;
     }
 
@@ -301,6 +347,7 @@ class ProdutoController extends Controller
         $alteracoesCount = 0;
         $naoEncontradosCount = 0;
         $naoEncontradosList = [];
+        $importAnotacoesInternas = $request->user()?->role === 'admin';
 
         foreach ($linhas as $row) {
             $codigo = trim((string) ($this->getVal($row, 'codigo') ?? $this->getVal($row, 'codigo_legado') ?? ''));
@@ -311,22 +358,23 @@ class ProdutoController extends Controller
             if (! $produto) {
                 $naoEncontradosCount++;
                 $naoEncontradosList[] = $codigo;
+
                 continue;
             }
-            $dados = $this->extractDadosFromRow($row);
+            $dados = $this->extractDadosFromRow($row, $importAnotacoesInternas);
             if (! empty($dados)) {
                 $alteracoesCount++;
             }
         }
 
-        $tempName = 'preview_' . uniqid() . '.' . ($ext ?: 'tmp');
+        $tempName = 'preview_'.uniqid().'.'.($ext ?: 'tmp');
         $stored = Storage::putFileAs('imports', $file, $tempName);
-        $fullPath = Storage::path('imports/' . $tempName);
+        $fullPath = Storage::path('imports/'.$tempName);
 
         session()->put('import_preview_data', [
             'path' => $fullPath,
             'ext' => $ext,
-            'temp_key' => 'imports/' . $tempName,
+            'temp_key' => 'imports/'.$tempName,
         ]);
 
         return back()->with([
@@ -355,6 +403,7 @@ class ProdutoController extends Controller
         $path = $preview['path'];
         $ext = $preview['ext'] ?? '';
         $linhas = $this->lerArquivoImportacao($path, $ext);
+        $importAnotacoesInternas = $request->user()?->role === 'admin';
 
         $atualizados = 0;
         $naoEncontrados = [];
@@ -377,10 +426,11 @@ class ProdutoController extends Controller
                     'linha' => $linhaNum,
                     'mensagem' => "Código {$codigo} não encontrado na base — verifique se o produto existe.",
                 ];
+
                 continue;
             }
 
-            $dados = $this->extractDadosFromRow($row);
+            $dados = $this->extractDadosFromRow($row, $importAnotacoesInternas);
 
             if (! empty($dados)) {
                 try {
@@ -425,7 +475,7 @@ class ProdutoController extends Controller
 
         if ($ext === 'csv' || $ext === 'txt') {
             $fp = fopen($path, 'r');
-            if (!$fp) {
+            if (! $fp) {
                 return [];
             }
             $firstLine = fgets($fp);
@@ -435,6 +485,7 @@ class ProdutoController extends Controller
             while (($row = fgetcsv($fp, 0, $separador, '"', '')) !== false) {
                 if ($headers === null) {
                     $headers = array_map('trim', $row);
+
                     continue;
                 }
                 $linha = [];
@@ -444,6 +495,7 @@ class ProdutoController extends Controller
                 $linhas[] = $linha;
             }
             fclose($fp);
+
             return $linhas;
         }
 
@@ -480,7 +532,7 @@ class ProdutoController extends Controller
 
             return $linhas;
         } catch (\Throwable $e) {
-            throw new \RuntimeException('Erro ao ler arquivo Excel: ' . $e->getMessage(), 0, $e);
+            throw new \RuntimeException('Erro ao ler arquivo Excel: '.$e->getMessage(), 0, $e);
         }
     }
 
@@ -503,13 +555,3 @@ class ProdutoController extends Controller
         return response()->json($produtos);
     }
 }
-
-
-
-
-
-
-
-
-
-

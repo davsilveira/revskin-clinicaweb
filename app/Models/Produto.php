@@ -18,6 +18,7 @@ class Produto extends Model
         'nome',
         'descricao',
         'anotacoes',
+        'anotacoes_internas',
         'local_uso',
         'categoria',
         'modo_uso',
@@ -84,6 +85,11 @@ class Produto extends Model
         return $this->normalizeNewlines($value);
     }
 
+    public function getAnotacoesInternasAttribute(?string $value): ?string
+    {
+        return $this->normalizeNewlines($value);
+    }
+
     /**
      * Get display name with code.
      */
@@ -92,13 +98,3 @@ class Produto extends Model
         return "{$this->codigo} - {$this->nome}";
     }
 }
-
-
-
-
-
-
-
-
-
-

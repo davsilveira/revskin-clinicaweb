@@ -33,6 +33,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
         nome: '',
         descricao: '',
         anotacoes: '',
+        anotacoes_internas: '',
         modo_uso: '',
         ativo: true,
     });
@@ -43,6 +44,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
             nome: produto.nome || '',
             descricao: produto.descricao || '',
             anotacoes: produto.anotacoes || '',
+            anotacoes_internas: produto.anotacoes_internas || '',
             modo_uso: produto.modo_uso || '',
             ativo: produto.ativo ?? true,
         });
@@ -289,6 +291,11 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                             <div className="mt-4">
                                 <Input label="Anotações dos Especialistas" value={data.anotacoes} onChange={(e) => setData('anotacoes', e.target.value)} multiline rows={3} placeholder="Dicas sobre o creme: para quem é indicado, outras formas de uso..." />
                             </div>
+                            {isAdmin && (
+                                <div className="mt-4">
+                                    <Input label="Anotações Internas" value={data.anotacoes_internas} onChange={(e) => setData('anotacoes_internas', e.target.value)} multiline rows={3} placeholder="Notas internas da equipe (não exibidas no catálogo)..." />
+                                </div>
+                            )}
                         </div>
 
                         <Select label="Status" value={data.ativo ? '1' : '0'} onChange={(e) => setData('ativo', e.target.value === '1')} options={[{ value: '1', label: 'Ativo' }, { value: '0', label: 'Inativo' }]} />
