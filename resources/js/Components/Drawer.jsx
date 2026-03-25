@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 
-export default function Drawer({ 
-    isOpen, 
-    onClose, 
-    title, 
+export default function Drawer({
+    isOpen,
+    onClose,
+    title,
     children,
-    width = 'w-[700px]'
+    width = 'w-full max-w-[100vw] sm:max-w-[700px] sm:w-[700px]',
 }) {
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -60,10 +60,10 @@ export default function Drawer({
             />
 
             {/* Drawer */}
-            <div className="fixed inset-y-0 right-0 z-50 flex">
-                <div 
+            <div className="fixed inset-y-0 right-0 z-50 flex justify-end min-w-0">
+                <div
                     className={`
-                        ${width} bg-white shadow-2xl flex flex-col
+                        ${width} min-w-0 h-full bg-white shadow-2xl flex flex-col
                         transform transition-transform duration-300 ease-out
                         ${isAnimating ? 'translate-x-0' : 'translate-x-full'}
                     `}

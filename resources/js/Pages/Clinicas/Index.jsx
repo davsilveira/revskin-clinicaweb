@@ -1,6 +1,8 @@
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
+import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
@@ -205,69 +207,144 @@ export default function ClinicasIndex({ clinicas, filters }) {
     return (
         <DashboardLayout>
             <Head title="Clinicas" />
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Clinicas</h1>
-                        <p className="text-gray-600 mt-1">Gerencie as clinicas cadastradas</p>
-                    </div>
-                    <button onClick={openCreateDrawer} className="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                        Nova Clinica
-                    </button>
-                </div>
+            <div className="py-4 lg:py-6 px-0">
+                <PageHeader
+                    title="Clinicas"
+                    description="Gerencie as clinicas cadastradas"
+                    actions={
+                        <button
+                            type="button"
+                            onClick={openCreateDrawer}
+                            className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Nova Clinica
+                        </button>
+                    }
+                />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex gap-4">
-                        <input type="text" placeholder="Buscar por nome ou CNPJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500" />
-                        <button type="submit" className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Buscar</button>
+                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 min-w-0">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome ou CNPJ..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <button
+                            type="submit"
+                            className="w-full sm:w-auto min-h-[44px] shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                        >
+                            Buscar
+                        </button>
                     </form>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CNPJ</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cidade</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acoes</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {clinicasList.length > 0 ? clinicasList.map((clinica) => (
-                                <tr key={clinica.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center">
-                                            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3">
-                                                <span className="text-sm font-medium text-purple-700">{clinica.nome?.charAt(0)}</span>
+                    <ResponsiveEntityList
+                        desktop={
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CNPJ</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cidade</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acoes</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {clinicasList.length > 0 ? (
+                                        clinicasList.map((clinica) => (
+                                            <tr key={clinica.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 text-sm font-medium text-gray-900">{clinica.nome}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">{clinica.cnpj || '-'}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">{clinica.cidade ? `${clinica.cidade}/${clinica.uf}` : '-'}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${clinica.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        {clinica.ativo ? 'Ativo' : 'Inativo'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditDrawer(clinica)}
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                        title="Editar"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                                                Nenhuma clinica encontrada
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        }
+                        mobile={
+                            <div className="divide-y divide-gray-200">
+                                {clinicasList.length > 0 ? (
+                                    clinicasList.map((clinica) => (
+                                        <div key={clinica.id} className="p-4 max-w-full">
+                                            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                                <button
+                                                    type="button"
+                                                    className="w-full text-left p-3 min-h-[44px] hover:bg-gray-50 transition-colors"
+                                                    onClick={() => openEditDrawer(clinica)}
+                                                >
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="font-medium text-gray-900 break-words">{clinica.nome}</div>
+                                                            {(clinica.cnpj || clinica.cidade) && (
+                                                                <div className="mt-1 space-y-0.5">
+                                                                    {clinica.cnpj ? (
+                                                                        <p className="text-sm text-gray-600">{clinica.cnpj}</p>
+                                                                    ) : null}
+                                                                    {clinica.cidade ? (
+                                                                        <p className="text-sm text-gray-500">
+                                                                            {clinica.uf ? `${clinica.cidade}/${clinica.uf}` : clinica.cidade}
+                                                                        </p>
+                                                                    ) : null}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className={`flex-shrink-0 px-2 py-1 text-xs rounded-full ${clinica.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                            {clinica.ativo ? 'Ativo' : 'Inativo'}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                                <div className="flex flex-wrap items-center justify-end gap-1 px-2 py-2 border-t border-gray-100 bg-gray-50/60">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditDrawer(clinica)}
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                                        aria-label="Editar"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="text-sm font-medium text-gray-900">{clinica.nome}</div>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{clinica.cnpj || '-'}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{clinica.cidade ? `${clinica.cidade}/${clinica.uf}` : '-'}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 text-xs rounded-full ${clinica.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {clinica.ativo ? 'Ativo' : 'Inativo'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button
-                                            onClick={() => openEditDrawer(clinica)}
-                                            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                            title="Editar"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
-                            )) : <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-500">Nenhuma clinica encontrada</td></tr>}
-                        </tbody>
-                    </table>
+                                    ))
+                                ) : (
+                                    <div className="px-4 py-12 text-center text-gray-500">Nenhuma clinica encontrada</div>
+                                )}
+                            </div>
+                        }
+                    />
                 </div>
             </div>
 

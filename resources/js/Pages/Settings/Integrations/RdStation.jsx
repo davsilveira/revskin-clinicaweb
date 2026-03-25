@@ -159,22 +159,22 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
     const canTest = settings.has_client_id && settings.has_client_secret;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
+                <div className="min-w-0">
                     <h2 className="text-xl font-bold text-gray-900">Integracao RD Station CRM</h2>
                     <p className="mt-1 text-sm text-gray-600">
                         Configure o acesso a API do RD Station CRM para envio automatico de negociacoes ao finalizar receitas.
                     </p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col gap-2 w-full md:w-auto items-stretch md:items-end">
                     {isAuthenticated && (
-                        <span className="inline-flex items-center gap-1.5 px-3 h-7 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                        <span className="inline-flex self-start md:self-end items-center gap-1.5 px-3 h-7 text-xs font-medium rounded-full bg-green-100 text-green-700">
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                             Autenticado
                         </span>
                     )}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
                         {settings.has_client_id && settings.has_client_secret && (
                             <button type="button" onClick={handleAuthorize} disabled={authorizing} className={`${btnBase} bg-blue-600 text-white hover:bg-blue-700`}>
                                 {authorizing ? spinner : <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
@@ -195,7 +195,7 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
             </div>
 
             {testResult && (
-                <div className={`p-4 rounded-lg ${testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <div className={`p-3 sm:p-4 rounded-lg ${testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
                     <div className="flex items-start gap-3">
                         {testResult.success ? (
                             <svg className="w-5 h-5 text-green-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -228,9 +228,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                 <div className="lg:col-span-2">
-                    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+                    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 space-y-4 sm:space-y-5">
                         <div>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <Checkbox
@@ -245,8 +245,8 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             {errors.enabled && <p className="mt-1 text-sm text-red-600">{errors.enabled}</p>}
                         </div>
 
-                        <div className="border-t border-gray-200 pt-6">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-4">Credenciais OAuth 2.0</h3>
+                        <div className="border-t border-gray-200 pt-4 sm:pt-5">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">Credenciais OAuth 2.0</h3>
 
                             <div className="space-y-4">
                                 <div>
@@ -323,12 +323,12 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             </div>
                         </div>
 
-                        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+                        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 sm:p-4">
                             <div className="flex items-start gap-3">
-                                <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="font-medium text-blue-800">URL de Redirecionamento</p>
                                     <p className="text-sm text-blue-700 mt-1">
                                         Configure esta URL no aplicativo criado na RD Station App Store:
@@ -343,8 +343,8 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             </div>
                         </div>
 
-                        <div className="border-t border-gray-200 pt-6">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-4">Configuracoes do CRM</h3>
+                        <div className="border-t border-gray-200 pt-4 sm:pt-5">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">Configuracoes do CRM</h3>
 
                             <div className="space-y-4">
                                 <div>
@@ -426,9 +426,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                     </form>
                 </div>
 
-                <div className="space-y-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-6">
-                        <div className="flex items-center gap-3 mb-4">
+                <div className="space-y-4">
+                    <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 sm:p-5">
+                        <div className="flex items-center gap-3 mb-3">
                             <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center">
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -473,7 +473,7 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                         </ul>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5">
                         <h2 className="text-lg font-semibold text-gray-900 mb-3">
                             Como obter as credenciais
                         </h2>
@@ -498,9 +498,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                         </a>
                     </div>
 
-                    <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                    <div className="bg-amber-50 rounded-xl border border-amber-200 p-3 sm:p-4">
                         <div className="flex items-start gap-3">
-                            <svg className="w-5 h-5 text-amber-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                             <div>

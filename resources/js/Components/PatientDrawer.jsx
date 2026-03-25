@@ -431,11 +431,10 @@ export default function PatientDrawer({
             isOpen={isOpen}
             onClose={handleClose}
             title={paciente ? 'Editar Paciente' : 'Novo Paciente'}
-            width="w-[700px]"
         >
             <form onSubmit={handleSubmit} className="flex flex-col h-full">
                 <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <Input
                                 label="Nome Completo"
