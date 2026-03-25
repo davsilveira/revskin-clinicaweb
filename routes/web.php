@@ -8,6 +8,7 @@ use App\Http\Controllers\ClinicaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\InfosimplesIntegrationController;
+use App\Http\Controllers\ManualController;
 use App\Http\Controllers\MedicoController;
 use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\ProdutoController;
@@ -54,6 +55,8 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword'])
 Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/manual', [ManualController::class, 'index'])->name('manual.index');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
