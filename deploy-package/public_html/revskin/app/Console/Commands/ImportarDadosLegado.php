@@ -10,7 +10,10 @@ use App\Models\PacienteTelefone;
 use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\ReceitaItem;
+use App\Models\ReceitaItemAquisicao;
 use App\Models\User;
+use App\Support\LegadoCodigoProdutoMapeamento;
+use App\Support\LegadoProdutoDescricaoParser;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -20,29 +23,42 @@ class ImportarDadosLegado extends Command
 {
     protected $signature = 'migration:importar-legado
                             {--source=docs/migration : Diretório com JSONs gerados pela extração}
-                            {--only= : Importar apenas uma entidade: clinicas,medicos,users,pacientes,receitas}
-                            {--dry-run : Apenas simula, não persiste nada}';
+                            {--only= : Importar apenas: clinicas,medicos,users,pacientes,produtos,receitas,itemAquisicoesLegado (produtos: não cria; itemAquisicoesLegado após receitas)}
+                            {--dry-run : Apenas simula, não persiste nada}
+                            {--mapeamento-codigos=docs/sanitization/mapeamento-codigos-legado-base.md : Tabela markdown legado → código base (Tiny) para produtos e itens de receita}';
 
-    protected $description = 'Importa dados extraídos do ClinicaWeb para o novo sistema (idempotente)';
+    protected $description = 'Importa dados extraídos do ClinicaWeb (idempotente). Usa mapeamento-codigos para localizar produtos quando o código legado ≠ base.';
 
     private array $idMapping = [];
+
     private string $mappingPath;
+
     private array $stats = [];
+
+    /** @var array<string, string> */
+    private array $mapeamentoCodigoLegadoBase = [];
 
     public function handle(): int
     {
         $sourceDir = base_path($this->option('source'));
-        $this->mappingPath = rtrim($sourceDir, '/') . '/id-mapping.json';
+        $this->mappingPath = rtrim($sourceDir, '/').'/id-mapping.json';
         $only = $this->option('only');
         $dryRun = $this->option('dry-run');
 
-        if (!is_dir($sourceDir)) {
+        if (! is_dir($sourceDir)) {
             $this->error("Diretório não encontrado: {$sourceDir}");
             $this->error('Execute primeiro: php artisan migration:extrair-legado');
+
             return 1;
         }
 
         $this->loadIdMapping();
+
+        $mapPath = base_path($this->option('mapeamento-codigos'));
+        $this->mapeamentoCodigoLegadoBase = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
+        if ($this->mapeamentoCodigoLegadoBase !== []) {
+            $this->line('Mapeamento legado→base: '.\count($this->mapeamentoCodigoLegadoBase).' códigos ('.basename($mapPath).')');
+        }
 
         $this->info('=== Importação de Dados Legado ClinicaWeb ===');
         if ($dryRun) {
@@ -50,35 +66,39 @@ class ImportarDadosLegado extends Command
         }
         $this->newLine();
 
-        $entidades = $only ? explode(',', $only) : ['clinicas', 'medicos', 'users', 'pacientes', 'receitas'];
+        $entidades = $only ? explode(',', $only) : ['clinicas', 'medicos', 'users', 'pacientes', 'produtos', 'receitas', 'itemAquisicoesLegado'];
 
         foreach ($entidades as $entidade) {
             $entidade = trim($entidade);
-            $jsonPath = rtrim($sourceDir, '/') . "/{$entidade}.json";
+            $jsonPath = rtrim($sourceDir, '/')."/{$entidade}.json";
 
-            if (!file_exists($jsonPath)) {
+            if (! file_exists($jsonPath)) {
                 $this->warn("Arquivo não encontrado: {$entidade}.json - pulando");
+
                 continue;
             }
 
             $dados = json_decode(file_get_contents($jsonPath), true);
-            if (!is_array($dados)) {
+            if (! is_array($dados)) {
                 $this->error("Erro ao ler {$entidade}.json");
+
                 continue;
             }
 
-            $this->info("Importando {$entidade} (" . count($dados) . " registros)...");
+            $this->info("Importando {$entidade} (".count($dados).' registros)...');
             $this->stats[$entidade] = ['importados' => 0, 'existentes' => 0, 'erros' => 0];
 
-            $method = 'importar' . ucfirst($entidade);
-            if (!method_exists($this, $method)) {
+            $method = 'importar'.ucfirst($entidade);
+            if (! method_exists($this, $method)) {
                 $this->error("Método {$method} não encontrado");
+
                 continue;
             }
 
             if ($dryRun) {
                 $this->stats[$entidade]['importados'] = count($dados);
                 $this->line("   [dry-run] {$this->count($dados)} registros seriam importados");
+
                 continue;
             }
 
@@ -116,7 +136,7 @@ class ImportarDadosLegado extends Command
     private function saveIdMapping(): void
     {
         $dir = dirname($this->mappingPath);
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
         file_put_contents(
@@ -132,7 +152,10 @@ class ImportarDadosLegado extends Command
 
     private function getMapping(string $entity, int|string|null $oldId): int|string|null
     {
-        if ($oldId === null) return null;
+        if ($oldId === null) {
+            return null;
+        }
+
         return $this->idMapping[$entity][$oldId] ?? null;
     }
 
@@ -145,13 +168,14 @@ class ImportarDadosLegado extends Command
                 ? Clinica::find($this->getMapping('clinicas', $item['legado_id']))
                 : null;
 
-            if (!$existente) {
+            if (! $existente) {
                 $existente = Clinica::where('nome', $item['nome'])->first();
             }
 
             if ($existente) {
                 $this->setMapping('clinicas', $item['legado_id'], $existente->id);
                 $this->stats['clinicas']['existentes']++;
+
                 continue;
             }
 
@@ -192,17 +216,18 @@ class ImportarDadosLegado extends Command
                 ? Medico::find($this->getMapping('medicos', $item['legado_id']))
                 : null;
 
-            if (!$existente && !empty($item['crm'])) {
+            if (! $existente && ! empty($item['crm'])) {
                 $existente = Medico::where('crm', $item['crm'])->first();
             }
 
-            if (!$existente && !empty($item['apelido'])) {
+            if (! $existente && ! empty($item['apelido'])) {
                 $existente = Medico::where('apelido', $item['apelido'])->first();
             }
 
             if ($existente) {
                 $this->setMapping('medicos', $item['legado_id'], $existente->id);
                 $this->stats['medicos']['existentes']++;
+
                 continue;
             }
 
@@ -273,11 +298,11 @@ class ImportarDadosLegado extends Command
                 ? User::find($this->getMapping('users', $item['legado_id']))
                 : null;
 
-            if (!$existente && !empty($item['email'])) {
+            if (! $existente && ! empty($item['email'])) {
                 $existente = User::where('email', $item['email'])->first();
             }
 
-            if (!$existente && !empty($item['nome'])) {
+            if (! $existente && ! empty($item['nome'])) {
                 $existente = User::where('name', $item['nome'])->first();
             }
 
@@ -286,6 +311,7 @@ class ImportarDadosLegado extends Command
                 $this->stats['users']['existentes']++;
 
                 $this->syncUserMedicoLinks($existente, $item);
+
                 continue;
             }
 
@@ -293,13 +319,13 @@ class ImportarDadosLegado extends Command
                 $medicoId = null;
                 $clinicaId = $this->getMapping('clinicas', $item['legado_clinica_id']);
 
-                if ($item['role'] === 'medico' && !empty($item['legado_medico_ids'])) {
+                if ($item['role'] === 'medico' && ! empty($item['legado_medico_ids'])) {
                     $medicoId = $this->getMapping('medicos', $item['legado_medico_ids'][0]);
                 }
 
                 $email = $item['email'];
-                if (!$email) {
-                    $email = Str::slug($item['username'] ?? $item['nome'], '.') . '@legado.revskin.com.br';
+                if (! $email) {
+                    $email = Str::slug($item['username'] ?? $item['nome'], '.').'@legado.revskin.com.br';
                 }
 
                 $user = User::create([
@@ -333,14 +359,14 @@ class ImportarDadosLegado extends Command
             }
         }
 
-        if (!empty($medicoIds)) {
+        if (! empty($medicoIds)) {
             // For medico users, the first link is via medico_id (already set on create)
             // Additional links go to pivot
             $pivotIds = $medicoIds;
             if ($user->medico_id && in_array($user->medico_id, $pivotIds)) {
                 $pivotIds = array_diff($pivotIds, [$user->medico_id]);
             }
-            if (!empty($pivotIds)) {
+            if (! empty($pivotIds)) {
                 $user->medicos()->syncWithoutDetaching($pivotIds);
             }
         }
@@ -355,11 +381,11 @@ class ImportarDadosLegado extends Command
                 ? Paciente::find($this->getMapping('pacientes', $item['legado_id']))
                 : null;
 
-            if (!$existente && !empty($item['cpf'])) {
+            if (! $existente && ! empty($item['cpf'])) {
                 $existente = Paciente::where('cpf', $item['cpf'])->first();
             }
 
-            if (!$existente && !empty($item['nome'])) {
+            if (! $existente && ! empty($item['nome'])) {
                 $medicoId = $this->getMapping('medicos', $item['legado_medico_id']);
                 $query = Paciente::where('nome', $item['nome']);
                 if ($medicoId) {
@@ -371,6 +397,7 @@ class ImportarDadosLegado extends Command
             if ($existente) {
                 $this->setMapping('pacientes', $item['legado_id'], $existente->id);
                 $this->stats['pacientes']['existentes']++;
+
                 continue;
             }
 
@@ -421,6 +448,62 @@ class ImportarDadosLegado extends Command
         }
     }
 
+    // ─── IMPORT: PRODUTOS (descricao legado → nome/descricao/modo_uso; nomeGenerico → anotacoes_internas) ───
+
+    private function importarProdutos(array $dados): void
+    {
+        foreach ($dados as $item) {
+            $codigo = trim((string) ($item['codigo'] ?? ''));
+            if ($codigo === '') {
+                $this->stats['produtos']['erros']++;
+
+                continue;
+            }
+
+            $produto = $this->findProdutoPorCodigoLegado($codigo);
+            if (! $produto) {
+                $this->stats['produtos']['erros']++;
+
+                continue;
+            }
+
+            $descLegado = trim((string) ($item['descricao_legado'] ?? ''));
+            if ($descLegado !== '') {
+                $parsed = LegadoProdutoDescricaoParser::parse($descLegado);
+                if ($parsed['nome'] !== '') {
+                    $produto->nome = $parsed['nome'];
+                }
+                if ($parsed['formula'] !== '') {
+                    $produto->descricao = $parsed['formula'];
+                }
+                if ($parsed['modo_uso'] !== '') {
+                    $produto->modo_uso = $parsed['modo_uso'];
+                }
+            }
+
+            $texto = $item['anotacoes_internas'] ?? $item['nome_generico_legado'] ?? '';
+            $produto->anotacoes_internas = is_string($texto) ? $texto : '';
+            $produto->saveQuietly();
+            $this->stats['produtos']['importados']++;
+        }
+    }
+
+    private function findProdutoPorCodigoLegado(string $codigoLegado): ?Produto
+    {
+        $codigoLegado = trim($codigoLegado);
+        if ($codigoLegado === '') {
+            return null;
+        }
+
+        $base = LegadoCodigoProdutoMapeamento::paraBase($codigoLegado, $this->mapeamentoCodigoLegadoBase);
+        $p = Produto::where('codigo', $base)->first();
+        if ($p) {
+            return $p;
+        }
+
+        return Produto::where('codigo', 'like', $base.' %')->first();
+    }
+
     // ─── IMPORT: RECEITAS ───
 
     private function importarReceitas(array $dados): void
@@ -432,8 +515,9 @@ class ImportarDadosLegado extends Command
             $pacienteId = $this->getMapping('pacientes', $item['legado_paciente_id']);
             $medicoId = $this->getMapping('medicos', $item['legado_medico_id']);
 
-            if (!$pacienteId || !$medicoId) {
+            if (! $pacienteId || ! $medicoId) {
                 $this->stats['receitas']['erros']++;
+
                 continue;
             }
 
@@ -441,7 +525,9 @@ class ImportarDadosLegado extends Command
 
             if ($existente) {
                 $this->setMapping('receitas', $item['legado_id'], $existente->id);
+                $this->sincronizarMapeamentoReceitaItensExistente($existente, $item['itens'] ?? [], $produtoCache);
                 $this->stats['receitas']['existentes']++;
+
                 continue;
             }
 
@@ -449,9 +535,9 @@ class ImportarDadosLegado extends Command
                 $numero = Receita::gerarNumero($pacienteId);
 
                 $anotacoes = $item['anotacoes'] ?? '';
-                $anotacoes = trim($anotacoes . "\n[legado:{$item['legado_id']}|num:{$item['numero_legado']}]");
+                $anotacoes = trim($anotacoes."\n[legado:{$item['legado_id']}|num:{$item['numero_legado']}]");
 
-                $receita = new Receita();
+                $receita = new Receita;
                 $receita->numero = $numero;
                 $receita->data_receita = $item['data_receita'];
                 $receita->paciente_id = $pacienteId;
@@ -468,28 +554,15 @@ class ImportarDadosLegado extends Command
                 $receita->saveQuietly();
 
                 foreach ($item['itens'] as $receitaItem) {
-                    $produtoId = null;
-                    $codigoMapeado = $receitaItem['codigo_produto_mapeado'];
+                    $produtoId = $this->resolverProdutoIdItemLegadoJson($receitaItem, $produtoCache);
 
-                    if ($codigoMapeado) {
-                        $produto = $produtoCache->get($codigoMapeado);
-                        if (!$produto) {
-                            $produto = Produto::where('codigo', $codigoMapeado)
-                                ->orWhere('codigo', 'like', $codigoMapeado . ' %')
-                                ->first();
-                            if ($produto) {
-                                $produtoCache->put($produto->codigo, $produto);
-                            }
-                        }
-                        $produtoId = $produto?->id;
-                    }
-
-                    if (!$produtoId) {
+                    if (! $produtoId) {
                         $receitasSemProduto++;
+
                         continue;
                     }
 
-                    $ri = new ReceitaItem();
+                    $ri = new ReceitaItem;
                     $ri->receita_id = $receita->id;
                     $ri->produto_id = $produtoId;
                     $ri->local_uso = $receitaItem['local_uso'];
@@ -502,6 +575,7 @@ class ImportarDadosLegado extends Command
                     $ri->ordem = $receitaItem['ordem'];
                     $ri->grupo = 'recomendado';
                     $ri->saveQuietly();
+                    $this->setMapping('receita_itens', $receitaItem['legado_id'], $ri->id);
                 }
 
                 $this->setMapping('receitas', $item['legado_id'], $receita->id);
@@ -520,6 +594,105 @@ class ImportarDadosLegado extends Command
     private function findReceitaByLegadoTag(int|string $legadoId): ?Receita
     {
         return Receita::where('anotacoes', 'like', "%[legado:{$legadoId}|%")->first();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection  $produtoCache  keyBy codigo
+     */
+    private function resolverProdutoIdItemLegadoJson(array $receitaItem, $produtoCache): ?int
+    {
+        $legado = trim((string) ($receitaItem['codigo_produto_legado'] ?? ''));
+        $codigoBusca = $legado !== ''
+            ? LegadoCodigoProdutoMapeamento::paraBase($legado, $this->mapeamentoCodigoLegadoBase)
+            : trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
+
+        if ($codigoBusca === '') {
+            return null;
+        }
+
+        $produto = $produtoCache->get($codigoBusca);
+        if (! $produto) {
+            $produto = Produto::where('codigo', $codigoBusca)
+                ->orWhere('codigo', 'like', $codigoBusca.' %')
+                ->first();
+            if ($produto) {
+                $produtoCache->put($produto->codigo, $produto);
+            }
+        }
+
+        return $produto?->id;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection  $produtoCache
+     */
+    private function sincronizarMapeamentoReceitaItensExistente(Receita $receita, array $itensJson, $produtoCache): void
+    {
+        $dbItens = $receita->itens()->orderBy('ordem')->get();
+        $usedDbIds = [];
+
+        foreach ($itensJson as $ji) {
+            $legadoItemId = $ji['legado_id'] ?? null;
+            if ($legadoItemId === null || $legadoItemId === '') {
+                continue;
+            }
+
+            $produtoId = $this->resolverProdutoIdItemLegadoJson($ji, $produtoCache);
+            if (! $produtoId) {
+                continue;
+            }
+
+            foreach ($dbItens as $db) {
+                if (isset($usedDbIds[$db->id])) {
+                    continue;
+                }
+                if ((int) $db->produto_id === (int) $produtoId) {
+                    $this->setMapping('receita_itens', $legadoItemId, $db->id);
+                    $usedDbIds[$db->id] = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // ─── IMPORT: ITEM AQUISIÇÕES (histórico legado) ───
+
+    private function importarItemAquisicoesLegado(array $dados): void
+    {
+        foreach ($dados as $row) {
+            $legadoItemId = $row['legado_receita_item_id'] ?? null;
+            $dataAquisicao = $row['data_aquisicao'] ?? null;
+            if ($legadoItemId === null || $legadoItemId === '' || ! $dataAquisicao) {
+                $this->stats['itemAquisicoesLegado']['erros']++;
+
+                continue;
+            }
+
+            $newItemId = $this->getMapping('receita_itens', $legadoItemId);
+            if (! $newItemId) {
+                $this->stats['itemAquisicoesLegado']['erros']++;
+
+                continue;
+            }
+
+            $jaExiste = ReceitaItemAquisicao::query()
+                ->where('receita_item_id', $newItemId)
+                ->whereDate('data_aquisicao', $dataAquisicao)
+                ->exists();
+
+            if ($jaExiste) {
+                $this->stats['itemAquisicoesLegado']['existentes']++;
+
+                continue;
+            }
+
+            ReceitaItemAquisicao::create([
+                'receita_item_id' => $newItemId,
+                'data_aquisicao' => $dataAquisicao,
+                'atendimento_id' => null,
+            ]);
+            $this->stats['itemAquisicoesLegado']['importados']++;
+        }
     }
 
     // ─── HELPERS ───

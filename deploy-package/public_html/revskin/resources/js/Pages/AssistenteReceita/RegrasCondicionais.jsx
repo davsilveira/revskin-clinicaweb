@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
 import Drawer from '@/Components/Drawer';
 
 export default function RegrasCondicionais({
@@ -242,29 +243,27 @@ export default function RegrasCondicionais({
 
     return (
         <DashboardLayout title="Regras Condicionais">
-            <div className="p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Regras Condicionais</h1>
-                        <p className="text-gray-500 mt-1">
-                            Configure regras para determinar tabela Karnaugh e modificar produtos
-                        </p>
-                    </div>
-                    <button
-                        onClick={openCreate}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Nova Regra
-                    </button>
-                </div>
+            <div className="py-4 lg:py-6 px-0">
+                <PageHeader
+                    title="Regras Condicionais"
+                    description="Configure regras para determinar tabela Karnaugh e modificar produtos"
+                    actions={
+                        <button
+                            type="button"
+                            onClick={openCreate}
+                            className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Nova Regra
+                        </button>
+                    }
+                />
 
-                {/* Filtros - Segmented Control */}
-                <div className="mb-6">
-                    <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
+                <div className="mb-6 -mx-1">
+                    <div className="overflow-x-auto pb-1 overscroll-x-contain">
+                        <div className="inline-flex min-w-min bg-gray-100 rounded-lg p-1 gap-1">
                         <button
                             onClick={() => handleFiltroChange('todas')}
                             className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -298,6 +297,7 @@ export default function RegrasCondicionais({
                                 {tabela.nome} {tabela.padrao && '(Padrão)'}
                             </button>
                         ))}
+                        </div>
                     </div>
                 </div>
 
@@ -321,10 +321,10 @@ export default function RegrasCondicionais({
                         {regras.map((regra, index) => (
                             <div
                                 key={regra.id}
-                                className={`bg-white rounded-xl shadow-sm border ${regra.ativo ? 'border-gray-200' : 'border-gray-200 opacity-60'} p-5`}
+                                className={`bg-white rounded-xl shadow-sm border max-w-full ${regra.ativo ? 'border-gray-200' : 'border-gray-200 opacity-60'} p-5`}
                             >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-4">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="flex items-start gap-4 min-w-0">
                                         <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full text-gray-500 font-medium text-sm">
                                             {index + 1}
                                         </div>
@@ -355,10 +355,11 @@ export default function RegrasCondicionais({
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 lg:border-0 lg:pt-0 lg:justify-end">
                                         <button
+                                            type="button"
                                             onClick={() => openEdit(regra)}
-                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                            className="min-h-[44px] min-w-[44px] p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                                             title="Editar"
                                         >
                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -366,8 +367,9 @@ export default function RegrasCondicionais({
                                             </svg>
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => handleToggleAtivo(regra)}
-                                            className={`p-2 rounded-lg ${
+                                            className={`min-h-[44px] min-w-[44px] p-2 rounded-lg ${
                                                 regra.ativo 
                                                     ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50' 
                                                     : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
@@ -384,8 +386,9 @@ export default function RegrasCondicionais({
                                         </button>
                                         {deletingId !== regra.id && (
                                             <button
+                                                type="button"
                                                 onClick={() => setDeletingId(regra.id)}
-                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                className="min-h-[44px] min-w-[44px] p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                                                 title="Excluir"
                                             >
                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -422,56 +425,59 @@ export default function RegrasCondicionais({
                     isOpen={showDrawer}
                     onClose={() => setShowDrawer(false)}
                     title={editingRegra ? 'Editar Regra' : 'Nova Regra'}
-                    width="w-[800px]"
+                    width="w-full max-w-[100vw] sm:max-w-[800px] sm:w-[800px]"
                 >
-                    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6 min-w-0 max-w-full overflow-x-hidden">
                                 {error && (
                                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                                         {error}
                                     </div>
                                 )}
 
-                                {/* Tipo de Regra */}
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                                {/* Tipo de Regra — segmento compacto + descrição única abaixo */}
+                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Tipo de Regra *
                                     </label>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex rounded-lg bg-gray-200/80 p-1 gap-1">
                                         <button
                                             type="button"
                                             onClick={() => handleTipoChange('selecao_tabela')}
-                                            className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                                            className={`flex-1 min-h-[48px] rounded-md flex items-center justify-center gap-2 px-2 py-2 transition-all ${
                                                 form.tipo === 'selecao_tabela'
-                                                    ? 'border-emerald-500 bg-emerald-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                    ? 'bg-white text-emerald-900 shadow-sm ring-1 ring-black/5'
+                                                    : 'text-gray-600 hover:text-gray-900'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                </svg>
-                                                <span className="font-medium text-gray-900">Seleção de Tabela</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500">Define qual tabela Karnaugh usar</p>
+                                            <svg className="w-7 h-7 flex-shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                            </svg>
+                                            <span className="text-xs sm:text-sm font-semibold text-center leading-tight">
+                                                Seleção de Tabela
+                                            </span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => handleTipoChange('modificacao_tabela')}
-                                            className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                                            className={`flex-1 min-h-[48px] rounded-md flex items-center justify-center gap-2 px-2 py-2 transition-all ${
                                                 form.tipo === 'modificacao_tabela'
-                                                    ? 'border-emerald-500 bg-emerald-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                    ? 'bg-white text-blue-900 shadow-sm ring-1 ring-black/5'
+                                                    : 'text-gray-600 hover:text-gray-900'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
-                                                <span className="font-medium text-gray-900">Modificação de Tabela</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500">Adiciona ou remove produtos de uma tabela</p>
+                                            <svg className="w-7 h-7 flex-shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                            <span className="text-xs sm:text-sm font-semibold text-center leading-tight">
+                                                Modificação de Tabela
+                                            </span>
                                         </button>
                                     </div>
+                                    <p className="mt-2 text-xs text-gray-500 leading-snug">
+                                        {form.tipo === 'selecao_tabela'
+                                            ? 'Define qual tabela Karnaugh usar quando as condições forem atendidas.'
+                                            : 'Adiciona ou remove produtos de uma tabela quando as condições forem atendidas.'}
+                                    </p>
                                 </div>
 
                                 {/* Tabela Alvo (apenas para modificação) */}
@@ -549,51 +555,54 @@ export default function RegrasCondicionais({
                                     
                                     <div className="space-y-2">
                                         {form.condicoes.map((cond, index) => (
-                                            <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                                            <div key={index} className="p-3 bg-gray-50 rounded-lg min-w-0">
                                                 {index > 0 && (
-                                                    <span className="text-xs text-gray-400 font-medium">E</span>
+                                                    <span className="mb-2 inline-block text-xs text-gray-400 font-medium">E</span>
                                                 )}
-                                                <select
-                                                    value={cond.campo}
-                                                    onChange={(e) => updateCondicao(index, 'campo', e.target.value)}
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                                >
-                                                    {Object.entries(camposDisponiveis).map(([key, label]) => (
-                                                        <option key={key} value={key}>{label}</option>
-                                                    ))}
-                                                </select>
-                                                <select
-                                                    value={cond.operador}
-                                                    onChange={(e) => updateCondicao(index, 'operador', e.target.value)}
-                                                    className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                                >
-                                                    {Object.entries(operadores).map(([key, label]) => (
-                                                        <option key={key} value={key}>{label}</option>
-                                                    ))}
-                                                </select>
-                                                {cond.operador !== 'qualquer' && (
+                                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2 min-w-0">
                                                     <select
-                                                        value={cond.valor}
-                                                        onChange={(e) => updateCondicao(index, 'valor', e.target.value)}
-                                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                        value={cond.campo}
+                                                        onChange={(e) => updateCondicao(index, 'campo', e.target.value)}
+                                                        className="w-full min-w-0 md:flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                                     >
-                                                        <option value="">Selecione...</option>
-                                                        {(opcoesValores[cond.campo] || []).map((val) => (
-                                                            <option key={val} value={val}>{val}</option>
+                                                        {Object.entries(camposDisponiveis).map(([key, label]) => (
+                                                            <option key={key} value={key}>{label}</option>
                                                         ))}
                                                     </select>
-                                                )}
-                                                {form.condicoes.length > 1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeCondicao(index)}
-                                                        className="p-2 text-gray-400 hover:text-red-600"
+                                                    <select
+                                                        value={cond.operador}
+                                                        onChange={(e) => updateCondicao(index, 'operador', e.target.value)}
+                                                        className="w-full min-w-0 md:w-36 md:flex-shrink-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                                     >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                        </svg>
-                                                    </button>
-                                                )}
+                                                        {Object.entries(operadores).map(([key, label]) => (
+                                                            <option key={key} value={key}>{label}</option>
+                                                        ))}
+                                                    </select>
+                                                    {cond.operador !== 'qualquer' && (
+                                                        <select
+                                                            value={cond.valor}
+                                                            onChange={(e) => updateCondicao(index, 'valor', e.target.value)}
+                                                            className="w-full min-w-0 md:flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                        >
+                                                            <option value="">Selecione...</option>
+                                                            {(opcoesValores[cond.campo] || []).map((val) => (
+                                                                <option key={val} value={val}>{val}</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                    {form.condicoes.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeCondicao(index)}
+                                                            className="self-end md:self-center p-2 text-gray-400 hover:text-red-600 rounded-lg min-h-[44px] min-w-[44px] inline-flex items-center justify-center shrink-0"
+                                                            aria-label="Remover condição"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

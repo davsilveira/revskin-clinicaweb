@@ -5,7 +5,7 @@
     <title>Receita {{ $receita->numero }}</title>
     <style>
         @page {
-            margin: 20mm 25mm;
+            margin: 22mm 25mm 20mm 25mm;
         }
         * {
             margin: 0;
@@ -21,10 +21,11 @@
         }
         .container {
             max-width: 100%;
-            padding: 0 15mm;
+            padding: 4mm 15mm 0 15mm;
         }
         
         /* Cabeçalho */
+        /* table: DomPDF trata melhor que flex; logo à esquerda, médico à direita na mesma linha */
         .cabecalho {
             margin-bottom: 25px;
             margin-top: 0;
@@ -41,22 +42,19 @@
             padding-right: 20px;
             padding-top: 0;
         }
-        .logo-placeholder {
-            width: 70px;
-            height: 70px;
-            border: 1px dashed #ccc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 9px;
-            color: #999;
-            text-align: center;
-            padding: 5px;
+        .cabecalho-logo-img {
+            max-width: 70px;
+            max-height: 70px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
             margin-top: 2px;
         }
         .cabecalho-profissional {
             display: table-cell;
             vertical-align: top;
+            width: auto;
             padding-top: 0;
         }
         .nome-profissional {
@@ -211,11 +209,11 @@
     <div class="container">
         <!-- Cabeçalho -->
         <div class="cabecalho">
+            @if(!empty($clinicaLogoFullPath ?? null))
             <div class="cabecalho-logo">
-                <div class="logo-placeholder">
-                    [ LOGO ]
-                </div>
+                <img class="cabecalho-logo-img" src="{{ $clinicaLogoFullPath }}" alt="">
             </div>
+            @endif
             <div class="cabecalho-profissional">
                 <div class="nome-profissional">
                     {{ $receita->medico->nome }}

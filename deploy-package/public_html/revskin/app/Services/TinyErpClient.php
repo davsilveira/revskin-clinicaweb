@@ -10,10 +10,15 @@ use Illuminate\Support\Facades\Log;
 class TinyErpClient
 {
     protected string $baseUrl;
+
     protected string $baseUrlV2 = 'https://api.tiny.com.br/api2';
+
     protected string $tokenUrl = 'https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/token';
+
     protected ?string $accessToken = null;
+
     protected ?string $lastError = null;
+
     protected string $apiVersion;
 
     public function __construct()
@@ -34,6 +39,7 @@ class TinyErpClient
         $token = Setting::get('tiny_token');
         if (empty($token)) {
             $this->lastError = 'Token da API V2 não configurado. Acesse Configurações > Integrações > Tiny ERP.';
+
             return null;
         }
         try {
@@ -46,7 +52,7 @@ class TinyErpClient
     protected function makeV2Request(string $endpoint, array $extraParams = []): array
     {
         $token = $this->getV2Token();
-        if (!$token) {
+        if (! $token) {
             return [
                 'status' => 'error',
                 'message' => $this->lastError ?? 'Token V2 não configurado.',
@@ -54,7 +60,7 @@ class TinyErpClient
             ];
         }
 
-        $url = rtrim($this->baseUrlV2, '/') . '/' . ltrim($endpoint, '/');
+        $url = rtrim($this->baseUrlV2, '/').'/'.ltrim($endpoint, '/');
         $params = array_merge(['token' => $token, 'formato' => 'JSON'], $extraParams);
 
         Log::debug('Tiny ERP V2 Request', ['url' => $url, 'params' => array_diff_key($params, ['token' => ''])]);
@@ -62,11 +68,12 @@ class TinyErpClient
         try {
             $response = Http::timeout(30)->asForm()->post($url, $params);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error('Tiny ERP V2 HTTP Error', ['url' => $url, 'status' => $response->status()]);
+
                 return [
                     'status' => 'error',
-                    'message' => 'Erro HTTP ' . $response->status(),
+                    'message' => 'Erro HTTP '.$response->status(),
                     'status_code' => $response->status(),
                 ];
             }
@@ -77,6 +84,7 @@ class TinyErpClient
             if (($retorno['status'] ?? '') === 'Erro') {
                 $erros = collect($retorno['erros'] ?? [])->pluck('erro')->join('; ');
                 Log::error('Tiny ERP V2 API Error', ['url' => $url, 'erros' => $erros]);
+
                 return [
                     'status' => 'error',
                     'message' => $erros ?: 'Erro na API V2',
@@ -90,6 +98,7 @@ class TinyErpClient
             ];
         } catch (\Exception $e) {
             Log::error('Tiny ERP V2 Exception', ['url' => $url, 'message' => $e->getMessage()]);
+
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
@@ -101,6 +110,7 @@ class TinyErpClient
         $cachedToken = Cache::get('tiny_access_token');
         if ($cachedToken) {
             $this->accessToken = $cachedToken;
+
             return $cachedToken;
         }
 
@@ -119,6 +129,7 @@ class TinyErpClient
 
         $this->lastError = 'Refresh token não encontrado. É necessário fazer autenticação inicial. Acesse Configurações > Integrações > Tiny ERP e clique em "Autorizar Aplicativo".';
         Log::warning('Tiny ERP: Refresh token não encontrado');
+
         return null;
     }
 
@@ -127,8 +138,9 @@ class TinyErpClient
         $clientId = Setting::get('tiny_client_id');
         $clientSecret = Setting::get('tiny_client_secret');
 
-        if (!$clientId || !$clientSecret) {
+        if (! $clientId || ! $clientSecret) {
             Log::error('Tiny ERP: Client ID ou Client Secret não configurados');
+
             return null;
         }
 
@@ -158,6 +170,7 @@ class TinyErpClient
                     }
                     $this->accessToken = $token;
                     Log::info('Tiny ERP: Access token renovado com refresh token', ['expires_in' => $expiresIn]);
+
                     return $token;
                 }
             }
@@ -170,6 +183,7 @@ class TinyErpClient
             return null;
         } catch (\Exception $e) {
             Log::error('Tiny ERP: Exceção ao renovar access token', ['message' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -179,7 +193,7 @@ class TinyErpClient
         $clientId = Setting::get('tiny_client_id');
         $clientSecret = Setting::get('tiny_client_secret');
 
-        if (!$clientId || !$clientSecret) {
+        if (! $clientId || ! $clientSecret) {
             return ['status' => 'error', 'message' => 'Client ID ou Client Secret não configurados'];
         }
 
@@ -207,14 +221,15 @@ class TinyErpClient
                     'token_type' => $data['token_type'] ?? 'unknown',
                     'scope' => $data['scope'] ?? 'none',
                     'expires_in' => $expiresIn,
-                    'has_access_token' => !empty($accessToken),
-                    'has_refresh_token' => !empty($refreshToken),
+                    'has_access_token' => ! empty($accessToken),
+                    'has_refresh_token' => ! empty($refreshToken),
                 ]);
 
                 if ($accessToken && $refreshToken) {
                     Cache::put('tiny_access_token', $accessToken, now()->addSeconds($expiresIn - 300));
                     Setting::set('tiny_refresh_token', encrypt($refreshToken));
                     Log::info('Tiny ERP: Tokens obtidos com sucesso via authorization code');
+
                     return ['status' => 'success', 'message' => 'Autenticação realizada com sucesso!'];
                 }
             }
@@ -222,9 +237,11 @@ class TinyErpClient
             $errorData = $response->json();
             $errorMessage = $errorData['error_description'] ?? $errorData['error'] ?? 'Erro ao trocar código por tokens';
             Log::error('Tiny ERP: Erro ao trocar código por tokens', ['status' => $response->status()]);
+
             return ['status' => 'error', 'message' => $errorMessage];
         } catch (\Exception $e) {
             Log::error('Tiny ERP: Exceção ao trocar código por tokens', ['message' => $e->getMessage()]);
+
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
@@ -241,7 +258,7 @@ class TinyErpClient
             'response_type' => 'code',
         ]);
 
-        return $authUrl . '?' . $params;
+        return $authUrl.'?'.$params;
     }
 
     // ─── V3 API Request ────────────────────────────────────────
@@ -250,7 +267,7 @@ class TinyErpClient
     {
         $token = $this->obterAccessToken();
 
-        if (!$token) {
+        if (! $token) {
             return [
                 'status' => 'error',
                 'message' => $this->lastError ?? 'Não foi possível obter access token.',
@@ -258,7 +275,7 @@ class TinyErpClient
             ];
         }
 
-        $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
+        $url = rtrim($this->baseUrl, '/').'/'.ltrim($endpoint, '/');
 
         Log::debug('Tiny ERP API Request', ['method' => $method, 'url' => $url]);
 
@@ -296,12 +313,13 @@ class TinyErpClient
 
             return [
                 'status' => 'error',
-                'message' => 'Erro na comunicação com Tiny ERP (HTTP ' . $response->status() . ')',
+                'message' => 'Erro na comunicação com Tiny ERP (HTTP '.$response->status().')',
                 'status_code' => $response->status(),
                 'data' => $response->json(),
             ];
         } catch (\Exception $e) {
             Log::error('Tiny ERP API Exception', ['endpoint' => $endpoint, 'message' => $e->getMessage()]);
+
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
@@ -315,8 +333,10 @@ class TinyErpClient
             if ($result['status'] === 'success') {
                 $result['data'] = $result['data']['conta'] ?? $result['data'];
             }
+
             return $result;
         }
+
         return $this->makeRequest('GET', 'info');
     }
 
@@ -325,7 +345,7 @@ class TinyErpClient
      */
     public function pesquisarTags(string $pesquisa = ''): array
     {
-        if (!$this->isV2()) {
+        if (! $this->isV2()) {
             return ['status' => 'error', 'message' => 'Pesquisa de tags disponível apenas na API V2'];
         }
 
@@ -335,7 +355,7 @@ class TinyErpClient
         if ($result['status'] === 'success') {
             $retorno = $result['data'];
             $registros = $retorno['registros'] ?? [];
-            $result['data'] = ['tags' => array_map(fn($r) => $r['registro'] ?? $r, $registros)];
+            $result['data'] = ['tags' => array_map(fn ($r) => $r['registro'] ?? $r, $registros)];
         }
 
         return $result;
@@ -345,13 +365,13 @@ class TinyErpClient
     {
         if ($this->isV2()) {
             $params = ['pesquisa' => $filters['pesquisa'] ?? ''];
-            if (!empty($filters['pagina'])) {
+            if (! empty($filters['pagina'])) {
                 $params['pagina'] = $filters['pagina'];
             }
-            if (!empty($filters['situacao'])) {
+            if (! empty($filters['situacao'])) {
                 $params['situacao'] = $filters['situacao'];
             }
-            if (!empty($filters['idTag'])) {
+            if (! empty($filters['idTag'])) {
                 $params['idTag'] = (int) $filters['idTag'];
             }
 
@@ -360,7 +380,7 @@ class TinyErpClient
             if ($result['status'] === 'success') {
                 $retorno = $result['data'];
                 $produtos = $retorno['produtos'] ?? [];
-                $itens = array_map(fn($p) => $this->normalizeV2Product($p['produto'] ?? $p), $produtos);
+                $itens = array_map(fn ($p) => $this->normalizeV2Product($p['produto'] ?? $p), $produtos);
 
                 $result['data'] = [
                     'itens' => $itens,
@@ -370,11 +390,13 @@ class TinyErpClient
                     ],
                 ];
             }
+
             return $result;
         }
 
         $queryParams = http_build_query($filters);
-        $endpoint = 'produtos' . ($queryParams ? '?' . $queryParams : '');
+        $endpoint = 'produtos'.($queryParams ? '?'.$queryParams : '');
+
         return $this->makeRequest('GET', $endpoint);
     }
 
@@ -386,8 +408,10 @@ class TinyErpClient
                 $produto = $result['data']['produto'] ?? $result['data'];
                 $result['data'] = $this->normalizeV2Product($produto);
             }
+
             return $result;
         }
+
         return $this->makeRequest('GET', "produtos/{$id}");
     }
 
@@ -395,11 +419,23 @@ class TinyErpClient
     {
         if ($this->isV2()) {
             $params = ['pesquisa' => $filters['pesquisa'] ?? ''];
-            if (!empty($filters['cpf_cnpj'])) {
+            if (! empty($filters['cpf_cnpj'])) {
                 $params['cpf_cnpj'] = $filters['cpf_cnpj'];
             }
-            if (!empty($filters['pagina'])) {
+            if (! empty($filters['pagina'])) {
                 $params['pagina'] = $filters['pagina'];
+            }
+            if (! empty($filters['dataMinimaAtualizacao'])) {
+                $params['dataMinimaAtualizacao'] = $filters['dataMinimaAtualizacao'];
+            }
+            if (! empty($filters['dataCriacao'])) {
+                $params['dataCriacao'] = $filters['dataCriacao'];
+            }
+            if (! empty($filters['situacao'])) {
+                $params['situacao'] = $filters['situacao'];
+            }
+            if (! empty($filters['idVendedor'])) {
+                $params['idVendedor'] = (int) $filters['idVendedor'];
             }
 
             $result = $this->makeV2Request('contatos.pesquisa.php', $params);
@@ -407,14 +443,22 @@ class TinyErpClient
             if ($result['status'] === 'success') {
                 $retorno = $result['data'];
                 $contatos = $retorno['contatos'] ?? [];
-                $itens = array_map(fn($c) => $c['contato'] ?? $c, $contatos);
-                $result['data'] = ['itens' => $itens];
+                $itens = array_map(fn ($c) => $c['contato'] ?? $c, $contatos);
+                $result['data'] = [
+                    'itens' => $itens,
+                    'paginacao' => [
+                        'pagina' => (int) ($retorno['pagina'] ?? 1),
+                        'numero_paginas' => (int) ($retorno['numero_paginas'] ?? 1),
+                    ],
+                ];
             }
+
             return $result;
         }
 
         $queryParams = http_build_query($filters);
-        $endpoint = 'contatos' . ($queryParams ? '?' . $queryParams : '');
+        $endpoint = 'contatos'.($queryParams ? '?'.$queryParams : '');
+
         return $this->makeRequest('GET', $endpoint);
     }
 
@@ -425,8 +469,10 @@ class TinyErpClient
             if ($result['status'] === 'success') {
                 $result['data'] = $result['data']['contato'] ?? $result['data'];
             }
+
             return $result;
         }
+
         return $this->makeRequest('GET', "contatos/{$id}");
     }
 
@@ -443,8 +489,10 @@ class TinyErpClient
                 $firstReg = $registros[0]['registro'] ?? [];
                 $result['data'] = ['id' => $firstReg['id'] ?? null];
             }
+
             return $result;
         }
+
         return $this->makeRequest('POST', 'contatos', $data);
     }
 
@@ -461,8 +509,10 @@ class TinyErpClient
                 $firstReg = $registros[0]['registro'] ?? [];
                 $result['data'] = ['id' => $firstReg['id'] ?? $id];
             }
+
             return $result;
         }
+
         return $this->makeRequest('PUT', "contatos/{$id}", $data);
     }
 
@@ -499,8 +549,10 @@ class TinyErpClient
                     'numero' => $numero,
                 ];
             }
+
             return $result;
         }
+
         return $this->makeRequest('POST', 'pedidos', $data);
     }
 
@@ -512,8 +564,10 @@ class TinyErpClient
                 $pedido = $result['data']['pedido'] ?? $result['data'];
                 $result['data'] = $this->normalizeV2Order($pedido);
             }
+
             return $result;
         }
+
         return $this->makeRequest('GET', "pedidos/{$id}");
     }
 
@@ -521,19 +575,21 @@ class TinyErpClient
     {
         if ($this->isV2()) {
             $params = ['pesquisa' => $filters['pesquisa'] ?? ''];
-            if (!empty($filters['pagina'])) {
+            if (! empty($filters['pagina'])) {
                 $params['pagina'] = $filters['pagina'];
             }
             $result = $this->makeV2Request('pedidos.pesquisa.php', $params);
             if ($result['status'] === 'success') {
                 $pedidos = $result['data']['pedidos'] ?? [];
-                $result['data'] = ['itens' => array_map(fn($p) => $p['pedido'] ?? $p, $pedidos)];
+                $result['data'] = ['itens' => array_map(fn ($p) => $p['pedido'] ?? $p, $pedidos)];
             }
+
             return $result;
         }
 
         $queryParams = http_build_query($filters);
-        $endpoint = 'pedidos' . ($queryParams ? '?' . $queryParams : '');
+        $endpoint = 'pedidos'.($queryParams ? '?'.$queryParams : '');
+
         return $this->makeRequest('GET', $endpoint);
     }
 
@@ -542,6 +598,7 @@ class TinyErpClient
         if ($this->isV2()) {
             return ['status' => 'error', 'message' => 'Atualizar pedido não disponível na V2 por esta rota.'];
         }
+
         return $this->makeRequest('PUT', "pedidos/{$id}", $data);
     }
 
@@ -553,6 +610,7 @@ class TinyErpClient
                 'situacao' => $situacao,
             ]);
         }
+
         return $this->makeRequest('PUT', "pedidos/{$id}/situacao", ['situacao' => $situacao]);
     }
 
@@ -607,22 +665,22 @@ class TinyErpClient
             'situacao' => 'A',
         ];
 
-        if (!empty($data['tipoPessoa'])) {
+        if (! empty($data['tipoPessoa'])) {
             $contato['tipo_pessoa'] = $data['tipoPessoa'];
         }
-        if (!empty($data['cpfCnpj'])) {
+        if (! empty($data['cpfCnpj'])) {
             $contato['cpf_cnpj'] = $data['cpfCnpj'];
         }
-        if (!empty($data['email'])) {
+        if (! empty($data['email'])) {
             $contato['email'] = $data['email'];
         }
-        if (!empty($data['telefone'])) {
+        if (! empty($data['telefone'])) {
             $contato['fone'] = $data['telefone'];
         }
-        if (!empty($data['celular'])) {
+        if (! empty($data['celular'])) {
             $contato['celular'] = $data['celular'];
         }
-        if (!empty($data['endereco']) && is_array($data['endereco'])) {
+        if (! empty($data['endereco']) && is_array($data['endereco'])) {
             $end = $data['endereco'];
             $contato['endereco'] = $end['endereco'] ?? '';
             $contato['numero'] = $end['numero'] ?? '';
@@ -643,41 +701,41 @@ class TinyErpClient
             'situacao' => 'aberto',
         ];
 
-        if (!empty($data['data'])) {
+        if (! empty($data['data'])) {
             $pedido['data_pedido'] = date('d/m/Y', strtotime($data['data']));
         }
 
-        if (!empty($data['valorFrete'])) {
+        if (! empty($data['valorFrete'])) {
             $pedido['valor_frete'] = number_format($data['valorFrete'], 2, '.', '');
         }
-        if (!empty($data['valorDesconto'])) {
+        if (! empty($data['valorDesconto'])) {
             $pedido['valor_desconto'] = number_format($data['valorDesconto'], 2, '.', '');
         }
 
         $pedido['nome_vendedor'] = 'ClinicaWeb';
 
-        if (!empty($data['obs_internas'])) {
+        if (! empty($data['obs_internas'])) {
             $pedido['obs_internas'] = mb_substr($data['obs_internas'], 0, 100);
         }
 
-        if (!empty($data['numero_pedido_ecommerce'])) {
+        if (! empty($data['numero_pedido_ecommerce'])) {
             $pedido['numero_pedido_ecommerce'] = mb_substr($data['numero_pedido_ecommerce'], 0, 50);
         }
-        if (!empty($data['ecommerce']) && empty($data['id_ecommerce'])) {
+        if (! empty($data['ecommerce']) && empty($data['id_ecommerce'])) {
             $pedido['ecommerce'] = mb_substr($data['ecommerce'], 0, 50);
         }
 
-        if (!empty($data['marcadores'])) {
+        if (! empty($data['marcadores'])) {
             $pedido['marcadores'] = array_map(
                 fn (string $descricao) => ['marcador' => ['descricao' => mb_substr($descricao, 0, 50)]],
                 $data['marcadores']
             );
         }
 
-        if (!empty($data['cliente'])) {
+        if (! empty($data['cliente'])) {
             $pedido['cliente'] = $data['cliente'];
             $pedido['cliente']['atualizar_cliente'] = 'S';
-        } elseif (!empty($data['idContato'])) {
+        } elseif (! empty($data['idContato'])) {
             $pedido['cliente'] = ['codigo' => (string) $data['idContato']];
         }
 
@@ -690,7 +748,7 @@ class TinyErpClient
                 'valor_unitario' => number_format($item['valorUnitario'] ?? 0, 2, '.', ''),
             ];
 
-            if (!empty($item['produto']['id'])) {
+            if (! empty($item['produto']['id'])) {
                 $v2Item['id_produto'] = $item['produto']['id'];
             }
 

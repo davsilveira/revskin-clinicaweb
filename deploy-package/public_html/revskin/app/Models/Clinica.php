@@ -28,6 +28,7 @@ class Clinica extends Model
         'uf',
         'cep',
         'anotacoes',
+        'logo_path',
         'ativo',
     ];
 
@@ -62,14 +63,15 @@ class Clinica extends Model
     {
         return $query->where('ativo', true);
     }
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        if ($this->logo_path) {
+            return asset('storage/'.$this->logo_path);
+        }
+
+        return null;
+    }
+
+    protected $appends = ['logo_url'];
 }
-
-
-
-
-
-
-
-
-
-

@@ -1,6 +1,8 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
+import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import ExportConfirmModal from '@/Components/ExportConfirmModal';
 import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
@@ -247,7 +249,7 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
             onSuccess: () => {
                 setExportModal({ open: false, format: null });
                 setToast({
-                    message: 'A exportação será processada em segundo plano. Você receberá um e-mail quando estiver pronto para download.',
+                    message: 'Pedido registrado. Você receberá um e-mail com o link para download quando o arquivo estiver pronto.',
                     type: 'success'
                 });
             },
@@ -264,6 +266,22 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
         if (!dados?.pacientes?.length) return 0;
         const productsSum = dados.pacientes.reduce((acc, p) => acc + (p.produtos?.length || 0), 0);
         return productsSum > 0 ? productsSum : dados.pacientes.length;
+    };
+
+    const buildExcelDownloadUrl = () => {
+        const params = new URLSearchParams();
+        params.set('data_inicio', dataInicio || defaultDates.inicio);
+        params.set('data_fim', dataFim || defaultDates.fim);
+        if (isAdmin && selectedMedicos.length > 0) {
+            selectedMedicos.forEach((m) => params.append('medico_ids[]', String(m.id)));
+        }
+        if (selectedPacientes.length > 0) {
+            selectedPacientes.forEach((p) => params.append('paciente_ids[]', String(p.id)));
+        }
+        if (selectedProdutos.length > 0) {
+            selectedProdutos.forEach((pr) => params.append('produto_ids[]', String(pr.id)));
+        }
+        return `/relatorios/aquisicao-produtos/excel?${params.toString()}`;
     };
 
     const formatCurrency = (value) => {
@@ -328,22 +346,22 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                 itemLabel="itens"
                 formatLabel={exportModal.format === 'pdf' ? 'PDF' : 'Excel'}
                 defaultEmail={auth?.user?.email}
-                title="Confirmar exportação"
+                title={exportModal.format === 'pdf' ? 'Enviar PDF por e-mail' : 'Enviar Excel por e-mail'}
             />
-            <div className="p-6">
-                <div className="mb-6">
-                    <Link
-                        href="/relatorios"
-                        className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                        Voltar para Relatórios
-                    </Link>
-                    <h1 className="text-2xl font-bold text-gray-900 mt-2">Relatório de Aquisição de Produtos</h1>
-                    <p className="text-gray-600 mt-1">Relatório detalhado de produtos adquiridos por paciente</p>
-                </div>
+            <div className="py-4 lg:py-6 px-0">
+                <Link
+                    href="/relatorios"
+                    className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm mb-4"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Voltar para Relatórios
+                </Link>
+                <PageHeader
+                    title="Relatório de Aquisição de Produtos"
+                    description="Relatório detalhado de produtos adquiridos por paciente"
+                />
 
                 {/* Filtros */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -611,26 +629,38 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             {/* Header com botões de exportação */}
                             {dados && (
-                                <div className="flex justify-between items-center p-4 border-b border-gray-200">
-                                    <div></div>
-                                    <div className="flex gap-2">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between p-4 border-b border-gray-200">
+                                    <div className="hidden lg:block" />
+                                    <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full lg:w-auto lg:justify-end">
                                         <button
-                                            onClick={() => openExportModal('pdf')}
-                                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                            type="button"
+                                            onClick={() => window.location.assign(buildExcelDownloadUrl())}
+                                            className="min-h-[44px] w-full sm:w-auto justify-center px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                             </svg>
-                                            PDF
+                                            Baixar Excel
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => openExportModal('xlsx')}
-                                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                            className="min-h-[44px] w-full sm:w-auto justify-center px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                             </svg>
-                                            Excel
+                                            Enviar Excel por e-mail
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => openExportModal('pdf')}
+                                            className="min-h-[44px] w-full sm:w-auto justify-center px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                            Enviar PDF por e-mail
                                         </button>
                                     </div>
                                 </div>
@@ -659,48 +689,76 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                 </div>
                                             </div>
 
-                                            {/* Tabela: Produto | Última Modificação | Aquisições no Período | Qtd */}
-                                            <div className="overflow-x-auto">
-                                                <table className="min-w-full divide-y divide-gray-200">
-                                                    <thead className="bg-gray-50">
-                                                        <tr>
-                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Produto
-                                                            </th>
-                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Última Modificação
-                                                            </th>
-                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Aquisições no Período
-                                                            </th>
-                                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Qtd
-                                                            </th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white divide-y divide-gray-200">
-                                                        {(() => {
-                                                            const ultimaMod = ultimaModificacaoPorProduto(pacienteData.produtos);
-                                                            return pacienteData.produtos?.map((produto, prodIndex) => (
-                                                                <tr key={prodIndex} className="hover:bg-gray-50">
-                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                                        {produto.produto_nome}
-                                                                    </td>
-                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                        {ultimaMod[produto.produto_nome] ?? produto.data_receita}
-                                                                    </td>
-                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                        {produto.data_aquisicao}
-                                                                    </td>
-                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                                                                        {produto.quantidade}
-                                                                    </td>
-                                                                </tr>
-                                                            ));
-                                                        })()}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                            {(() => {
+                                                const ultimaMod = ultimaModificacaoPorProduto(pacienteData.produtos);
+                                                return (
+                                                    <ResponsiveEntityList
+                                                        desktop={
+                                                            <div className="overflow-x-auto">
+                                                                <table className="min-w-full divide-y divide-gray-200">
+                                                                    <thead className="bg-gray-50">
+                                                                        <tr>
+                                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                Produto
+                                                                            </th>
+                                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                Última Modificação
+                                                                            </th>
+                                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                Aquisições no Período
+                                                                            </th>
+                                                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                Qtd
+                                                                            </th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="bg-white divide-y divide-gray-200">
+                                                                        {pacienteData.produtos?.map((produto, prodIndex) => (
+                                                                            <tr key={prodIndex} className="hover:bg-gray-50">
+                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                                                    {produto.produto_nome}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                                    {ultimaMod[produto.produto_nome] ?? produto.data_receita}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                                    {produto.data_aquisicao}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                                                                                    {produto.quantidade}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        }
+                                                        mobile={
+                                                            <div className="divide-y divide-gray-200 bg-white">
+                                                                {pacienteData.produtos?.map((produto, prodIndex) => (
+                                                                    <div key={prodIndex} className="p-4 max-w-full">
+                                                                        <div className="font-medium text-gray-900 break-words">{produto.produto_nome}</div>
+                                                                        <dl className="mt-2 space-y-1 text-sm text-gray-600">
+                                                                            <div>
+                                                                                <dt className="inline text-gray-500">Últ. modificação: </dt>
+                                                                                <dd className="inline">{ultimaMod[produto.produto_nome] ?? produto.data_receita}</dd>
+                                                                            </div>
+                                                                            <div>
+                                                                                <dt className="inline text-gray-500">Aquisição no período: </dt>
+                                                                                <dd className="inline">{produto.data_aquisicao}</dd>
+                                                                            </div>
+                                                                            <div>
+                                                                                <dt className="inline text-gray-500">Qtd: </dt>
+                                                                                <dd className="inline font-medium text-gray-900">{produto.quantidade}</dd>
+                                                                            </div>
+                                                                        </dl>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        }
+                                                    />
+                                                );
+                                            })()}
                                         </div>
                                     ))}
                                 </div>

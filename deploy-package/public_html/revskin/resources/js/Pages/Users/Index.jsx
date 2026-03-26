@@ -1,6 +1,8 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
+import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
@@ -8,7 +10,20 @@ import Select from '@/Components/Form/Select';
 import MedicoFormFields from '@/Components/MedicoFormFields';
 import Pagination from '@/Components/Pagination';
 
-export default function UsersIndex({ users, clinicas = [] }) {
+export default function UsersIndex({ users, clinicas = [], filters = {} }) {
+    const { props } = usePage();
+    const auth = props.auth || {};
+    const tinyEnabled = auth.tinyEnabled || false;
+    const serverErrors = props.errors || {};
+
+    const [search, setSearch] = useState(filters.search || '');
+    const [roleFilter, setRoleFilter] = useState(() => {
+        const r = filters.role || 'all';
+        if (tinyEnabled && r === 'callcenter') {
+            return 'all';
+        }
+        return r;
+    });
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -16,10 +31,18 @@ export default function UsersIndex({ users, clinicas = [] }) {
 
     const isMedico = (role) => role === 'medico';
 
-    const { props } = usePage();
-    const auth = props.auth || {};
-    const tinyEnabled = auth.tinyEnabled || false;
-    const serverErrors = props.errors || {};
+    const isEditingSelf = Boolean(
+        editingUser &&
+        auth.user?.id != null &&
+        String(editingUser.id) === String(auth.user.id)
+    );
+
+    useEffect(() => {
+        setSearch(filters.search || '');
+        const r = filters.role || 'all';
+        setRoleFilter(tinyEnabled && r === 'callcenter' ? 'all' : r);
+    }, [filters.search, filters.role, tinyEnabled]);
+
     const { data, setData, setError, clearErrors, processing, errors, reset } = useForm({
         name: '',
         email: '',
@@ -164,6 +187,18 @@ export default function UsersIndex({ users, clinicas = [] }) {
         }
     };
 
+    const buildQuery = (extra = {}) => {
+        const q = { ...extra };
+        if (search?.trim()) q.search = search.trim();
+        if (roleFilter && roleFilter !== 'all') q.role = roleFilter;
+        return q;
+    };
+
+    const handleSearch = (e) => {
+        e.preventDefault();
+        router.get('/users', buildQuery(), { preserveState: true });
+    };
+
     const handleToggleStatus = (user) => {
         router.put(`/users/${user.id}`, {
             ...user,
@@ -199,76 +234,151 @@ export default function UsersIndex({ users, clinicas = [] }) {
         }
     };
 
-    const drawerWidth = isMedico(data.role) ? 'w-[900px]' : 'w-[700px]';
+    const drawerWidth = isMedico(data.role)
+        ? 'w-full max-w-[100vw] sm:max-w-[900px] sm:w-[900px]'
+        : 'w-full max-w-[100vw] sm:max-w-[700px] sm:w-[700px]';
 
     return (
         <DashboardLayout>
             <Head title="Usuários" />
 
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Usuários</h1>
-                        <p className="text-gray-600 mt-1">Gerencie administradores e usuários do sistema</p>
-                    </div>
-                    <button
-                        onClick={openCreateDrawer}
-                        className="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Novo Usuário
-                    </button>
+            <div className="py-4 lg:py-6 px-0">
+                <PageHeader
+                    title="Gerenciamento de Usuários"
+                    description="Gerencie administradores e usuários do sistema"
+                    actions={
+                        <button
+                            type="button"
+                            onClick={openCreateDrawer}
+                            className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Novo Usuário
+                        </button>
+                    }
+                />
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome ou e-mail..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full min-w-0 flex-1 sm:min-w-[200px] px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <select
+                            value={roleFilter}
+                            onChange={(e) => setRoleFilter(e.target.value)}
+                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        >
+                            <option value="all">Todos</option>
+                            <option value="admin">Administrador</option>
+                            <option value="medico">Médico</option>
+                            <option value="secretaria">Secretária</option>
+                            {!tinyEnabled && <option value="callcenter">Call Center</option>}
+                        </select>
+                        <button
+                            type="submit"
+                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                        >
+                            Buscar
+                        </button>
+                    </form>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
-                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E-mail</th>
-                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Perfil</th>
-                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                    <ResponsiveEntityList
+                        desktop={
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                                            <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E-mail</th>
+                                            <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Perfil</th>
+                                            <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {(users.data || users).map((user) => (
+                                            <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900">{user.email}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
+                                                        {getRoleLabel(user.role)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        {user.is_active ? 'Ativo' : 'Inativo'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditDrawer(user)}
+                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        title="Editar"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        mobile={
+                            <div className="divide-y divide-gray-200">
                                 {(users.data || users).map((user) => (
-                                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{user.email}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
-                                                {getRoleLabel(user.role)}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                {user.is_active ? 'Ativo' : 'Inativo'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div key={user.id} className="p-4 max-w-full">
+                                        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
                                             <button
+                                                type="button"
+                                                className="w-full text-left p-3 min-h-[44px] hover:bg-gray-50 transition-colors"
                                                 onClick={() => openEditDrawer(user)}
-                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="Editar"
                                             >
-                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
+                                                <div className="font-medium text-gray-900 break-words">{user.name}</div>
+                                                <p className="text-sm text-gray-700 break-all mt-1">{user.email}</p>
+                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
+                                                        {getRoleLabel(user.role)}
+                                                    </span>
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        {user.is_active ? 'Ativo' : 'Inativo'}
+                                                    </span>
+                                                </div>
                                             </button>
-                                        </td>
-                                    </tr>
+                                            <div className="flex flex-wrap items-center justify-end gap-1 px-2 py-2 border-t border-gray-100 bg-gray-50/60">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEditDrawer(user)}
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                                    aria-label="Editar"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            </div>
+                        }
+                    />
                     {users?.links && (
                         <Pagination links={users.links} preserveScroll />
                     )}
@@ -378,7 +488,7 @@ export default function UsersIndex({ users, clinicas = [] }) {
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                {editingUser && !showDeleteConfirm && (
+                                {editingUser && !isEditingSelf && !showDeleteConfirm && (
                                     <button
                                         type="button"
                                         onClick={() => setShowDeleteConfirm(true)}
@@ -391,7 +501,7 @@ export default function UsersIndex({ users, clinicas = [] }) {
                                     </button>
                                 )}
 
-                                {editingUser && showDeleteConfirm && (
+                                {editingUser && !isEditingSelf && showDeleteConfirm && (
                                     <div className="flex items-center gap-3 animate-fade-in">
                                         <span className="text-sm text-gray-700 font-medium">Deseja realmente excluir?</span>
                                         <button type="button" onClick={handleDelete} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg">Sim</button>

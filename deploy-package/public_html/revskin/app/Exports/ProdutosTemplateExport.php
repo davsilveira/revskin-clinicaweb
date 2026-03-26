@@ -10,23 +10,32 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ProdutosTemplateExport implements FromArray, WithHeadings, WithStyles, WithTitle
 {
+    public function __construct(
+        protected bool $includeAnotacoesInternas = false,
+    ) {}
+
     public function array(): array
     {
-        return [
-            ['', '', '', '', '', ''],
-        ];
+        $cols = $this->includeAnotacoesInternas ? 7 : 6;
+
+        return [array_fill(0, $cols, '')];
     }
 
     public function headings(): array
     {
-        return [
+        $headings = [
             'codigo',
             'nome',
-            'descricao',
-            'anotacoes',
+            'descricao_formula',
             'modo_uso',
-            'ativo',
+            'anotacoes_especialista',
         ];
+        if ($this->includeAnotacoesInternas) {
+            $headings[] = 'anotacoes_internas';
+        }
+        $headings[] = 'ativo';
+
+        return $headings;
     }
 
     public function styles(Worksheet $sheet): array

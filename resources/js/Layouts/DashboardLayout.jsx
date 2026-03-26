@@ -10,7 +10,6 @@ import {
     NavIconExport,
     NavIconHome,
     NavIconKarnaugh,
-    NavIconLogo,
     NavIconManual,
     NavIconPacientes,
     NavIconProdutos,
@@ -157,10 +156,16 @@ export default function DashboardLayout({ children }) {
                     }`}
                 >
                     <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <NavIconLogo />
-                        </div>
-                        {showLabels && <span className="text-xl font-bold text-gray-900 truncate">RevSkin</span>}
+                        <img
+                            src="/images/logo.jpeg"
+                            alt="ClincaWeb"
+                            className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
+                        />
+                        {showLabels && (
+                            <span className="text-xl font-semibold text-zinc-600 truncate tracking-tight">
+                                ClincaWeb
+                            </span>
+                        )}
                     </Link>
                 </div>
 
@@ -454,7 +459,7 @@ export default function DashboardLayout({ children }) {
 
             {/* Main Content Area */}
             <div
-                className={`flex-1 min-w-0 overflow-x-hidden transition-all duration-300 ml-0 ${
+                className={`flex-1 min-w-0 overflow-x-clip transition-all duration-300 ml-0 ${
                     sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
                 }`}
             >
@@ -491,16 +496,11 @@ export default function DashboardLayout({ children }) {
                                 onClick={() => setShowUserMenu(!showUserMenu)}
                                 className="flex items-center gap-2 lg:gap-3 px-2 lg:px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
                             >
-                                <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center">
-                                    <span className="text-sm font-medium text-white">
-                                        {auth.user.name.charAt(0).toUpperCase()}
-                                    </span>
-                                </div>
                                 <div className="text-left hidden md:block">
                                     <div className="text-sm font-medium text-gray-900">{auth.user.name}</div>
                                     <div className="text-xs text-gray-500">{getRoleLabel(auth.user.role)}</div>
                                 </div>
-                                <svg className="w-4 h-4 text-gray-500 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>

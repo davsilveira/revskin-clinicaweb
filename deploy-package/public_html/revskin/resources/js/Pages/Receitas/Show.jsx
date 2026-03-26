@@ -383,23 +383,26 @@ const formatDate = (dateString) => {
                                             href={`/receitas/${r.id}`}
                                             className="block p-2 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
                                         >
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="text-sm font-medium text-gray-900">
-                                                        #{r.numero}
-                                                    </span>
-                                                    <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${
-                                                        r.status === 'finalizada' ? 'bg-green-100 text-green-700' :
-                                                        r.status === 'cancelada' ? 'bg-red-100 text-red-700' :
-                                                        'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                        {r.status === 'finalizada' ? 'Finalizada' : 
-                                                         r.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-900">#{r.numero}</span>
+                                                    <span
+                                                        className={`px-1.5 py-0.5 text-xs rounded ${
+                                                            r.status === 'finalizada'
+                                                                ? 'bg-green-100 text-green-700'
+                                                                : r.status === 'cancelada'
+                                                                  ? 'bg-red-100 text-red-700'
+                                                                  : 'bg-gray-100 text-gray-600'
+                                                        }`}
+                                                    >
+                                                        {r.status === 'finalizada'
+                                                            ? 'Finalizada'
+                                                            : r.status === 'cancelada'
+                                                              ? 'Cancelada'
+                                                              : 'Aberta'}
                                                     </span>
                                                 </div>
-                                                <span className="text-xs text-gray-500">
-                                                    {formatDate(r.data_receita)}
-                                                </span>
+                                                <span className="text-xs text-gray-500">{formatDate(r.data_receita)}</span>
                                             </div>
                                             {!isMedico && r.valor_total > 0 && (
                                                 <div className="text-xs text-gray-500 mt-1">

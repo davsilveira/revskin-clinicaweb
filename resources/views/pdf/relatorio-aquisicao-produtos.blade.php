@@ -177,7 +177,7 @@
 
     </div>
     <div class="footer">
-        Gerado em {{ now()->format('d/m/Y H:i') }} | RevSkin - Sistema de Gestão de Receitas
+        Gerado em {{ now()->format('d/m/Y H:i') }} | ClincaWeb - Sistema de Gestão de Receitas
     </div>
 </body>
 </html>

@@ -1,6 +1,8 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
+import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
 import Input from '@/Components/Form/Input';
@@ -33,6 +35,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
         nome: '',
         descricao: '',
         anotacoes: '',
+        anotacoes_internas: '',
         modo_uso: '',
         ativo: true,
     });
@@ -43,6 +46,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
             nome: produto.nome || '',
             descricao: produto.descricao || '',
             anotacoes: produto.anotacoes || '',
+            anotacoes_internas: produto.anotacoes_internas || '',
             modo_uso: produto.modo_uso || '',
             ativo: produto.ativo ?? true,
         });
@@ -150,104 +154,183 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
     return (
         <DashboardLayout>
             <Head title="Produtos" />
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Produtos</h1>
-                        <p className="text-gray-600 mt-1">
+            <div className="py-4 lg:py-6 px-0">
+                <PageHeader
+                    title="Produtos"
+                    subtitle={
+                        <>
                             {(produtos?.total != null || totalGeral != null) && (
-                                <span className="font-medium text-gray-800">
+                                <p className="font-medium text-gray-800">
                                     {produtos?.total ?? 0} / {totalGeral ?? 0} cadastrados
-                                </span>
+                                </p>
                             )}
-                        </p>
-                        {lastSync && (
-                            <p className="text-xs text-gray-400 mt-1">
-                                Última sincronização com Tiny: {new Date(lastSync).toLocaleString('pt-BR')}
-                            </p>
-                        )}
-                    </div>
-                    {isAdmin && (
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setAcoesDrawerOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-100 transition-colors text-sm shadow-sm"
-                            >
-                                + Ações
-                            </button>
-                            <button
-                                onClick={handleSync}
-                                disabled={syncing}
-                                className="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2"
-                            >
-                                <svg className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                {syncing ? 'Sincronizando...' : 'Sincronizar Produtos'}
-                            </button>
-                        </div>
-                    )}
-                </div>
+                            {lastSync && (
+                                <p className="text-xs text-gray-500">
+                                    Última sincronização com Tiny: {new Date(lastSync).toLocaleString('pt-BR')}
+                                </p>
+                            )}
+                        </>
+                    }
+                    actions={
+                        isAdmin ? (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setAcoesDrawerOpen(true)}
+                                    className="w-full sm:w-auto justify-center min-h-[44px] flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-100 transition-colors text-sm shadow-sm"
+                                >
+                                    + Ações
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSync}
+                                    disabled={syncing}
+                                    className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2"
+                                >
+                                    <svg className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    {syncing ? 'Sincronizando...' : 'Sincronizar Produtos'}
+                                </button>
+                            </>
+                        ) : null
+                    }
+                />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-wrap gap-4 items-center">
-                        <input type="text" placeholder="Buscar por código ou nome..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500" />
-                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                        <input
+                            type="text"
+                            placeholder="Buscar por código ou nome..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full min-w-0 flex-1 sm:min-w-[200px] px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        >
                             <option value="all">Todos</option>
                             <option value="1">Ativos</option>
                             <option value="0">Inativos</option>
                             <option value="pendentes">Pendentes</option>
                         </select>
-                        <button type="submit" className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Buscar</button>
+                        <button
+                            type="submit"
+                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                        >
+                            Buscar
+                        </button>
                     </form>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unidade</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preço</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {produtosList.length > 0 ? produtosList.map((produto) => (
-                                <tr key={produto.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 text-sm font-mono text-gray-900">{produto.codigo}</td>
-                                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                                        {produto.nome}
-                                        {!produto.descricao && !produto.modo_uso && (
-                                            <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">Pendente</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{produto.unidade || '-'}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">
-                                        {produto.preco ? `R$ ${parseFloat(produto.preco).toFixed(2)}` : '-'}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 text-xs rounded-full ${produto.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {produto.ativo ? 'Ativo' : 'Inativo'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button
-                                            onClick={() => openEditDrawer(produto)}
-                                            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                            title="Editar"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
-                            )) : <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-500">Nenhum produto encontrado</td></tr>}
-                        </tbody>
-                    </table>
+                    <ResponsiveEntityList
+                        desktop={
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unidade</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preço</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {produtosList.length > 0 ? (
+                                        produtosList.map((produto) => (
+                                            <tr key={produto.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 text-sm font-mono text-gray-900">{produto.codigo}</td>
+                                                <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                                    {produto.nome}
+                                                    {!produto.descricao && !produto.modo_uso && (
+                                                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">Pendente</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">{produto.unidade || '-'}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    {produto.preco ? `R$ ${parseFloat(produto.preco).toFixed(2)}` : '-'}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${produto.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        {produto.ativo ? 'Ativo' : 'Inativo'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditDrawer(produto)}
+                                                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                        title="Editar"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                                Nenhum produto encontrado
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        }
+                        mobile={
+                            <div className="divide-y divide-gray-200">
+                                {produtosList.length > 0 ? (
+                                    produtosList.map((produto) => (
+                                        <div key={produto.id} className="p-4">
+                                            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                                <button
+                                                    type="button"
+                                                    className="w-full text-left p-3 min-h-[44px] hover:bg-gray-50 transition-colors"
+                                                    onClick={() => openEditDrawer(produto)}
+                                                >
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-mono text-gray-500">{produto.codigo}</p>
+                                                            <p className="font-medium text-gray-900 break-words mt-0.5">{produto.nome}</p>
+                                                            {!produto.descricao && !produto.modo_uso && (
+                                                                <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">Pendente</span>
+                                                            )}
+                                                            <p className="text-sm text-gray-600 mt-2">
+                                                                {produto.unidade || '—'} · {produto.preco ? `R$ ${parseFloat(produto.preco).toFixed(2)}` : '—'}
+                                                            </p>
+                                                        </div>
+                                                        <span className={`flex-shrink-0 px-2 py-1 text-xs rounded-full ${produto.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                            {produto.ativo ? 'Ativo' : 'Inativo'}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                                <div className="flex flex-wrap items-center justify-end gap-1 px-2 py-2 border-t border-gray-100 bg-gray-50/60">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditDrawer(produto)}
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                                        aria-label="Editar"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="px-4 py-12 text-center text-gray-500">Nenhum produto encontrado</div>
+                                )}
+                            </div>
+                        }
+                    />
                     {produtos?.links && (
                         <Pagination links={produtos.links} preserveScroll />
                     )}
@@ -289,6 +372,11 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                             <div className="mt-4">
                                 <Input label="Anotações dos Especialistas" value={data.anotacoes} onChange={(e) => setData('anotacoes', e.target.value)} multiline rows={3} placeholder="Dicas sobre o creme: para quem é indicado, outras formas de uso..." />
                             </div>
+                            {isAdmin && (
+                                <div className="mt-4">
+                                    <Input label="Anotações Internas" value={data.anotacoes_internas} onChange={(e) => setData('anotacoes_internas', e.target.value)} multiline rows={3} placeholder="Notas internas da equipe (não exibidas no catálogo)..." />
+                                </div>
+                            )}
                         </div>
 
                         <Select label="Status" value={data.ativo ? '1' : '0'} onChange={(e) => setData('ativo', e.target.value === '1')} options={[{ value: '1', label: 'Ativo' }, { value: '0', label: 'Inativo' }]} />
@@ -302,7 +390,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                 </form>
             </Drawer>
 
-            <Drawer isOpen={acoesDrawerOpen} onClose={() => setAcoesDrawerOpen(false)} title="Outras ações" width="w-[500px]">
+            <Drawer isOpen={acoesDrawerOpen} onClose={() => setAcoesDrawerOpen(false)} title="Outras ações" width="w-full max-w-[100vw] sm:max-w-[500px] sm:w-[500px]">
                 <div className="p-6 space-y-2">
                     {(() => {
                         const importRes = flash?.import_result;

@@ -9,7 +9,6 @@ use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
-use App\Models\ReceitaItem;
 use App\Models\Setting;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -26,13 +25,13 @@ class ReceitaController extends Controller
 
         $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
-                $q->whereHas('paciente', fn($pq) => $pq->where('nome', 'like', "%{$search}%"));
+                $q->whereHas('paciente', fn ($pq) => $pq->where('nome', 'like', "%{$search}%"));
             })
-            ->when($request->paciente_id, fn($q, $id) => $q->where('paciente_id', $id))
-            ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId))
-            ->when($request->status, fn($q, $status) => $q->where('status', $status))
-            ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
-            ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_receita', '<=', $data));
+            ->when($request->paciente_id, fn ($q, $id) => $q->where('paciente_id', $id))
+            ->when($request->medico_id, fn ($q, $medicoId) => $q->where('medico_id', $medicoId))
+            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
+            ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
+            ->when($request->data_fim, fn ($q, $data) => $q->whereDate('data_receita', '<=', $data));
 
         // Filter by user access
         if ($user->isMedico() && $user->medico_id) {
@@ -64,9 +63,9 @@ class ReceitaController extends Controller
 
         if ($request->paciente_id) {
             $paciente = Paciente::find($request->paciente_id);
-            
+
             // Check if user can access this paciente
-            if ($paciente && !$user->canAccessPaciente($paciente)) {
+            if ($paciente && ! $user->canAccessPaciente($paciente)) {
                 abort(403, 'Acesso não autorizado.');
             }
         }
@@ -76,10 +75,11 @@ class ReceitaController extends Controller
             : Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id');
 
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
-        
+
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
+
             return $produto;
         });
 
@@ -94,7 +94,7 @@ class ReceitaController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
-        
+
         $validated = $request->validate([
             'paciente_id' => 'required|exists:pacientes,id',
             'medico_id' => 'required|exists:medicos,id',
@@ -198,6 +198,7 @@ class ReceitaController extends Controller
 
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
+
             return $produto;
         });
 
@@ -212,7 +213,7 @@ class ReceitaController extends Controller
         $receitasAnteriores->each(function ($r) {
             $r->itens->each(function ($item) {
                 $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
-                $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn($d) => $d->format('Y-m-d'))->toArray();
+                $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn ($d) => $d->format('Y-m-d'))->toArray();
             });
         });
 
@@ -243,23 +244,24 @@ class ReceitaController extends Controller
     private function loadAcquisitionDates(Receita $receita): void
     {
         $receita->itens->each(function ($item) use ($receita) {
-            if (!$item->produto_id) {
+            if (! $item->produto_id) {
                 $item->ultima_aquisicao = null;
                 $item->datas_aquisicao = [];
+
                 return;
             }
 
             $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
                 $query->where('produto_id', $item->produto_id)
-                      ->whereHas('receita', function ($q) use ($receita) {
-                          $q->where('paciente_id', $receita->paciente_id);
-                      });
+                    ->whereHas('receita', function ($q) use ($receita) {
+                        $q->where('paciente_id', $receita->paciente_id);
+                    });
             })->orderByDesc('data_aquisicao')->get();
 
             $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
 
             $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
-            $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
+            $item->datas_aquisicao = $datasAquisicao->map(fn ($d) => $d->format('Y-m-d'))->toArray();
         });
     }
 
@@ -311,9 +313,9 @@ class ReceitaController extends Controller
             'valor_frete' => $validated['valor_frete'] ?? 0,
             'status' => $validated['status'] ?? $receita->status,
         ];
-        
+
         // Only allow medico_id update for admin/callcenter
-        if (!$user->isMedico() && $request->has('medico_id')) {
+        if (! $user->isMedico() && $request->has('medico_id')) {
             $updateData['medico_id'] = $request->input('medico_id');
         }
         // For medico, ensure medico_id remains unchanged (already set to their own)
@@ -338,7 +340,7 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        if ($receita->status === 'finalizada' && !$receita->atendimentoCallcenter) {
+        if ($receita->status === 'finalizada' && ! $receita->atendimentoCallcenter) {
             AtendimentoCallcenter::create([
                 'receita_id' => $receita->id,
                 'paciente_id' => $receita->paciente_id,
@@ -412,12 +414,12 @@ class ReceitaController extends Controller
 
         if ($id) {
             $receita = Receita::findOrFail($id);
-            
+
             // Check access
             if ($user->isMedico() && $receita->medico_id != $user->medico_id) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
-            
+
             $receita->update([
                 'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
@@ -445,7 +447,7 @@ class ReceitaController extends Controller
         }
 
         // Sync items if provided
-        if (!empty($validated['itens'])) {
+        if (! empty($validated['itens'])) {
             $receita->itens()->delete();
             foreach ($validated['itens'] as $index => $item) {
                 $receita->itens()->create([
@@ -487,7 +489,8 @@ class ReceitaController extends Controller
 
         $novaReceita->copiarItensDeReceita($receita);
 
-        $url = route('receitas.edit', $novaReceita) . '?duplicada=1';
+        $url = route('receitas.edit', $novaReceita).'?duplicada=1';
+
         return Inertia::location($url);
     }
 
@@ -496,16 +499,28 @@ class ReceitaController extends Controller
      */
     public function pdf(Receita $receita)
     {
-        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens' => fn($q) => $q->where('imprimir', true)->with('produto')]);
+        $receita->load([
+            'paciente',
+            'medico.linkedUser:id,name,medico_id',
+            'medico.clinica',
+            'medico.clinicas' => fn ($q) => $q->orderBy('clinicas.nome'),
+            'itens' => fn ($q) => $q->where('imprimir', true)->with('produto'),
+        ]);
+
+        $clinica = $receita->medico->clinicaParaReceita();
+        $clinicaLogoFullPath = null;
+        if ($clinica?->logo_path) {
+            $fullPath = storage_path('app/public/'.$clinica->logo_path);
+            if (file_exists($fullPath)) {
+                $clinicaLogoFullPath = $fullPath;
+            }
+        }
 
         $pdf = Pdf::loadView('pdf.receita', [
             'receita' => $receita,
+            'clinicaLogoFullPath' => $clinicaLogoFullPath,
         ]);
 
         return $pdf->download("receita-{$receita->numero}.pdf");
     }
 }
-
-
-
-

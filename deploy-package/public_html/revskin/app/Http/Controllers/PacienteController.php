@@ -67,7 +67,7 @@ class PacienteController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Paciente::with(['medico:id', 'medico.linkedUser:id,name,medico_id', 'telefones'])
+        $query = Paciente::with(['medico:id', 'medico.linkedUser:id,name,medico_id', 'telefones', 'createdBy:id,name', 'updatedBy:id,name'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -220,6 +220,10 @@ class PacienteController extends Controller
         unset($validated['telefones']);
 
         $paciente = Paciente::create($validated);
+        $paciente->forceFill([
+            'created_by_user_id' => $user->id,
+            'updated_by_user_id' => $user->id,
+        ])->save();
 
         // Save telefones
         foreach ($telefones as $index => $telefone) {
@@ -233,7 +237,7 @@ class PacienteController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'paciente' => $paciente->fresh(['telefones', 'medico']),
+                'paciente' => $paciente->fresh(['telefones', 'medico', 'createdBy:id,name', 'updatedBy:id,name']),
             ]);
         }
 
@@ -253,7 +257,7 @@ class PacienteController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $paciente->load(['medico:id', 'medico.linkedUser:id,name,medico_id', 'receitas' => function ($q) {
+        $paciente->load(['medico:id', 'medico.linkedUser:id,name,medico_id', 'createdBy:id,name', 'updatedBy:id,name', 'receitas' => function ($q) {
             $q->with('medico:id', 'medico.linkedUser:id,name,medico_id')->orderByDesc('data_receita')->limit(10);
         }]);
 
@@ -275,6 +279,8 @@ class PacienteController extends Controller
         }
 
         $medicos = $this->getMedicosForPacienteForm($user);
+
+        $paciente->loadMissing(['createdBy:id,name', 'updatedBy:id,name']);
 
         return Inertia::render('Pacientes/Form', [
             'paciente' => $paciente,
@@ -352,6 +358,7 @@ class PacienteController extends Controller
         unset($validated['telefones']);
 
         $paciente->update($validated);
+        $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
 
         // Sync telefones
         $paciente->telefones()->delete();
@@ -366,7 +373,7 @@ class PacienteController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'paciente' => $paciente->fresh(['telefones', 'medico']),
+                'paciente' => $paciente->fresh(['telefones', 'medico', 'createdBy:id,name', 'updatedBy:id,name']),
             ]);
         }
 
@@ -496,8 +503,13 @@ class PacienteController extends Controller
             }
             
             $paciente->update($validated);
+            $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
         } else {
             $paciente = Paciente::create($validated);
+            $paciente->forceFill([
+                'created_by_user_id' => $user->id,
+                'updated_by_user_id' => $user->id,
+            ])->save();
         }
 
         // Sync telefones
@@ -512,10 +524,14 @@ class PacienteController extends Controller
             }
         }
 
+        $fresh = $paciente->fresh(['createdBy:id,name', 'updatedBy:id,name']);
+
         return response()->json([
             'success' => true,
             'id' => $paciente->id,
             'saved_at' => now()->toISOString(),
+            'created_by_name' => $fresh->createdBy?->name,
+            'updated_by_name' => $fresh->updatedBy?->name,
         ]);
     }
 
@@ -566,6 +582,10 @@ class PacienteController extends Controller
         $validated['ativo'] = true;
 
         $paciente = Paciente::create($validated);
+        $paciente->forceFill([
+            'created_by_user_id' => $user->id,
+            'updated_by_user_id' => $user->id,
+        ])->save();
 
         return response()->json([
             'success' => true,

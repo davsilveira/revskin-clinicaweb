@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Clinica;
-use App\Models\Medico;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,12 +15,18 @@ class ClinicaController extends Controller
      */
     private function validateCNPJ(?string $cnpj): bool
     {
-        if (!$cnpj) return false;
+        if (! $cnpj) {
+            return false;
+        }
 
         $cnpj = preg_replace('/\D/', '', $cnpj);
 
-        if (strlen($cnpj) !== 14) return false;
-        if (preg_match('/^(\d)\1+$/', $cnpj)) return false;
+        if (strlen($cnpj) !== 14) {
+            return false;
+        }
+        if (preg_match('/^(\d)\1+$/', $cnpj)) {
+            return false;
+        }
 
         $length = strlen($cnpj) - 2;
         $numbers = substr($cnpj, 0, $length);
@@ -30,11 +36,15 @@ class ClinicaController extends Controller
 
         for ($i = $length; $i >= 1; $i--) {
             $sum += $numbers[$length - $i] * $pos--;
-            if ($pos < 2) $pos = 9;
+            if ($pos < 2) {
+                $pos = 9;
+            }
         }
 
         $result = $sum % 11 < 2 ? 0 : 11 - ($sum % 11);
-        if ($result != $digits[0]) return false;
+        if ($result != $digits[0]) {
+            return false;
+        }
 
         $length++;
         $numbers = substr($cnpj, 0, $length);
@@ -43,11 +53,15 @@ class ClinicaController extends Controller
 
         for ($i = $length; $i >= 1; $i--) {
             $sum += $numbers[$length - $i] * $pos--;
-            if ($pos < 2) $pos = 9;
+            if ($pos < 2) {
+                $pos = 9;
+            }
         }
 
         $result = $sum % 11 < 2 ? 0 : 11 - ($sum % 11);
-        if ($result != $digits[1]) return false;
+        if ($result != $digits[1]) {
+            return false;
+        }
 
         return true;
     }
@@ -63,7 +77,7 @@ class ClinicaController extends Controller
                         ->orWhere('cnpj', 'like', "%{$search}%");
                 });
             })
-            ->when($request->has('ativo'), fn($q) => $q->where('ativo', $request->boolean('ativo')));
+            ->when($request->has('ativo'), fn ($q) => $q->where('ativo', $request->boolean('ativo')));
 
         $clinicasQuery = $query->orderBy('nome')
             ->paginate(15)
@@ -72,6 +86,7 @@ class ClinicaController extends Controller
         // Map database fields to frontend fields
         $clinicas = $clinicasQuery->through(function ($clinica) {
             $clinica->telefone = $clinica->telefone1;
+
             return $clinica;
         });
 
@@ -95,7 +110,7 @@ class ClinicaController extends Controller
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'cnpj' => ['nullable', 'string', 'max:18', function ($attribute, $value, $fail) {
-                if ($value && !$this->validateCNPJ($value)) {
+                if ($value && ! $this->validateCNPJ($value)) {
                     $fail('O CNPJ informado é inválido.');
                 }
             }],
@@ -112,10 +127,11 @@ class ClinicaController extends Controller
             'ativo' => 'boolean',
             'medico_ids' => 'nullable|array',
             'medico_ids.*' => 'exists:medicos,id',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
 
         $medicoIds = $validated['medico_ids'] ?? [];
-        unset($validated['medico_ids']);
+        unset($validated['medico_ids'], $validated['logo']);
 
         // Map frontend field to database field
         $clinicaData = $validated;
@@ -124,8 +140,13 @@ class ClinicaController extends Controller
 
         $clinica = Clinica::create($clinicaData);
 
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('clinicas/logos', 'public');
+            $clinica->update(['logo_path' => $path]);
+        }
+
         // Sync medicos
-        if (!empty($medicoIds)) {
+        if (! empty($medicoIds)) {
             $clinica->medicos()->sync($medicoIds);
         }
 
@@ -137,7 +158,7 @@ class ClinicaController extends Controller
     {
         abort_unless(auth()->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
-        $clinica->load(['medicos' => fn($q) => $q->ativo()->with('linkedUser:id,name,medico_id')]);
+        $clinica->load(['medicos' => fn ($q) => $q->ativo()->with('linkedUser:id,name,medico_id')]);
         $clinica->setRelation('medicos', $clinica->medicos->sortBy('nome'));
 
         return Inertia::render('Clinicas/Show', [
@@ -161,7 +182,7 @@ class ClinicaController extends Controller
         $validated = $request->validate([
             'nome' => 'required|string|max:255',
             'cnpj' => ['nullable', 'string', 'max:18', function ($attribute, $value, $fail) {
-                if ($value && !$this->validateCNPJ($value)) {
+                if ($value && ! $this->validateCNPJ($value)) {
                     $fail('O CNPJ informado é inválido.');
                 }
             }],
@@ -178,15 +199,29 @@ class ClinicaController extends Controller
             'ativo' => 'boolean',
             'medico_ids' => 'nullable|array',
             'medico_ids.*' => 'exists:medicos,id',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'remover_logo' => 'sometimes|boolean',
         ]);
 
         $medicoIds = $validated['medico_ids'] ?? [];
-        unset($validated['medico_ids']);
+        unset($validated['medico_ids'], $validated['logo'], $validated['remover_logo']);
 
         // Map frontend field to database field
         $clinicaData = $validated;
         $clinicaData['telefone1'] = $validated['telefone'] ?? null;
         unset($clinicaData['telefone']);
+
+        if ($request->boolean('remover_logo')) {
+            if ($clinica->logo_path) {
+                Storage::disk('public')->delete($clinica->logo_path);
+            }
+            $clinicaData['logo_path'] = null;
+        } elseif ($request->hasFile('logo')) {
+            if ($clinica->logo_path) {
+                Storage::disk('public')->delete($clinica->logo_path);
+            }
+            $clinicaData['logo_path'] = $request->file('logo')->store('clinicas/logos', 'public');
+        }
 
         $clinica->update($clinicaData);
 
@@ -207,13 +242,3 @@ class ClinicaController extends Controller
             ->with('success', 'Clínica desativada com sucesso!');
     }
 }
-
-
-
-
-
-
-
-
-
-

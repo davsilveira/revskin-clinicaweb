@@ -58,6 +58,26 @@ class Medico extends Model
     }
 
     /**
+     * Clínica para cabeçalho da receita (PDF): FK legada ou primeira do vínculo N:N (por nome).
+     */
+    public function clinicaParaReceita(): ?Clinica
+    {
+        if ($this->clinica_id) {
+            if (! $this->relationLoaded('clinica')) {
+                $this->load('clinica');
+            }
+
+            return $this->clinica;
+        }
+
+        if (! $this->relationLoaded('clinicas')) {
+            return $this->clinicas()->orderBy('clinicas.nome')->first();
+        }
+
+        return $this->clinicas->sortBy('nome')->first();
+    }
+
+    /**
      * Get the clinicas (many-to-many).
      */
     public function clinicas(): BelongsToMany
@@ -137,8 +157,9 @@ class Medico extends Model
     {
         $nome = $this->nome ?? '';
         if ($this->crm) {
-            $nome .= ($nome ? ' - ' : '') . "CRM: {$this->crm}";
+            $nome .= ($nome ? ' - ' : '')."CRM: {$this->crm}";
         }
+
         return $nome;
     }
 
@@ -148,8 +169,9 @@ class Medico extends Model
     public function getAssinaturaUrlAttribute(): ?string
     {
         if ($this->assinatura_path) {
-            return asset('storage/' . $this->assinatura_path);
+            return asset('storage/'.$this->assinatura_path);
         }
+
         return null;
     }
 
@@ -158,13 +180,3 @@ class Medico extends Model
      */
     protected $appends = ['assinatura_url', 'nome'];
 }
-
-
-
-
-
-
-
-
-
-

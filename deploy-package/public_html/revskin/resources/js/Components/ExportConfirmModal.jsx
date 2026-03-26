@@ -55,10 +55,11 @@ export default function ExportConfirmModal({
                     </div>
 
                     <p className="text-gray-600 mb-2">
-                        {itemCount} {itemLabel} serão exportados em {formatLabel}.
+                        {itemCount} {itemLabel} serão incluídos no relatório em formato {formatLabel}.
                     </p>
                     <p className="text-gray-600 mb-4">
-                        Será enviado para: <span className="font-medium text-gray-900">{defaultEmail || 'seu email'}</span>
+                        O arquivo será enviado por e-mail para:{' '}
+                        <span className="font-medium text-gray-900">{defaultEmail || 'seu e-mail cadastrado'}</span>
                     </p>
 
                     <div className="mb-6">

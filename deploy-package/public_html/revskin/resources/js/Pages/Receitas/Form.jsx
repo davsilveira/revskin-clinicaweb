@@ -4,10 +4,18 @@ import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
-import ProductCombobox from '@/Components/Receita/ProductCombobox';
+import ReceitaFormItemRow from '@/Components/Receita/ReceitaFormItemRow';
+import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
+import { formatAnotacaoDisplay } from '@/utils/text';
+
+const tippyAquisicaoProps = {
+    appendTo: () => document.body,
+    popperOptions: { strategy: 'fixed' },
+    zIndex: 9999,
+};
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -41,6 +49,52 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
 };
 
+function OutrasReceitaAquisicaoBadge({ item, tippyAquisicaoProps }) {
+    const ultimaAquisicao =
+        item.ultima_aquisicao ||
+        (item.aquisicoes && item.aquisicoes.length > 0 ? item.aquisicoes[item.aquisicoes.length - 1].data_aquisicao : null);
+    const datasAquisicao = item.datas_aquisicao || (item.aquisicoes ? item.aquisicoes.map((a) => a.data_aquisicao) : []);
+    const temHistorico = datasAquisicao.length > 1;
+
+    if (!ultimaAquisicao) return <span className="text-gray-400">—</span>;
+
+    if (temHistorico) {
+        return (
+            <Tippy
+                content={
+                    <div className="text-xs py-1">
+                        <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
+                        <div className="space-y-1">
+                            {datasAquisicao.map((data, idx) => (
+                                <div key={idx} className="text-gray-700">
+                                    {formatDate(data)}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                }
+                placement="top"
+                interactive={true}
+                theme="light-border"
+                {...tippyAquisicaoProps}
+            >
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md inline-flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
+                    <span>{formatDate(ultimaAquisicao)}</span>
+                    <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">+{datasAquisicao.length - 1}</span>
+                </span>
+            </Tippy>
+        );
+    }
+
+    return (
+        <Tippy content={<div className="text-xs text-gray-700">{formatDate(ultimaAquisicao)}</div>} placement="top" theme="light-border" {...tippyAquisicaoProps}>
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md inline-flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
+                <span>{formatDate(ultimaAquisicao)}</span>
+            </span>
+        </Tippy>
+    );
+}
+
 export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false, casoClinico = null }) {
     const { auth, flash } = usePage().props;
     const isMedico = auth.user.role === 'medico';
@@ -53,9 +107,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showDuplicarModal, setShowDuplicarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
-    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [expandedReceitas, setExpandedReceitas] = useState({});
-    const moreMenuRef = useRef(null);
     
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
@@ -225,16 +277,6 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             triggerAutoSave();
         }
     }, [data, canAutoSave, triggerAutoSave]);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
-                setShowMoreMenu(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     useEffect(() => {
         if (flash?.success) {
@@ -452,7 +494,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
 
     return (
         <DashboardLayout>
-            <div className="p-6">
+            <div className="py-4 lg:py-6 px-0">
                 {casoClinico && (
                     <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
                         Caso clínico (debug): <strong>{casoClinico}</strong>
@@ -468,13 +510,13 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         </svg>
                         Voltar para Receitas
                     </Link>
-                    <div className="flex justify-between items-start mt-2">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mt-2">
                         <h1 className="text-2xl font-bold text-gray-900">
                             {!isEditing ? 'Nova Receita' : viewMode ? `Receita #${receita.numero}` : `Editar Receita #${receita.numero}`}
                         </h1>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-2 w-full lg:w-auto lg:justify-end">
                             {!isReadOnly && (isAutoSaving || lastSavedText) && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1 mr-1">
+                                <div className="text-xs text-gray-500 flex items-center gap-1 w-full justify-center sm:w-auto sm:justify-start sm:mr-1 order-first lg:order-none">
                                     {isAutoSaving ? (
                                         <>
                                             <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
@@ -494,108 +536,197 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 </div>
                             )}
 
-                            {isEditing && viewMode && receita.status === 'finalizada' && (
-                                <a
-                                    href={`/receitas/${receita.id}/pdf`}
-                                    target="_blank"
-                                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                    Download PDF
-                                </a>
-                            )}
-
-                            {isEditing && viewMode && canEdit && (
-                                <button
-                                    onClick={() => setViewMode(false)}
-                                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                    Editar Receita
-                                </button>
-                            )}
-
-                            {!isReadOnly && (
-                                <button
-                                    type="button"
-                                    onClick={handleSubmit}
-                                    disabled={processing || data.itens.length === 0}
-                                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
-                                >
-                                    {processing ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            Salvando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Salvar
-                                        </>
-                                    )}
-                                </button>
-                            )}
-
-                            {(isEditing || currentReceitaId) && data.status === 'aberta' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowFinalizarModal(true)}
-                                    disabled={processing || data.itens.length === 0}
-                                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Finalizar
-                                </button>
-                            )}
-
-                            {isEditing && (
-                                <div className="relative" ref={moreMenuRef}>
+                            {/* Mobile: ações principais + "Mais ações" */}
+                            <div className="flex flex-col gap-2 lg:hidden w-full">
+                                {isEditing && viewMode && canEdit && (
                                     <button
                                         type="button"
-                                        onClick={() => setShowMoreMenu(!showMoreMenu)}
-                                        className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                        onClick={() => setViewMode(false)}
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
                                     >
-                                        + Ações
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Editar Receita
                                     </button>
-                                    {showMoreMenu && (
-                                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                )}
+                                {isEditing && viewMode && receita.status === 'finalizada' && (
+                                    <a
+                                        href={`/receitas/${receita.id}/pdf`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                        Download PDF
+                                    </a>
+                                )}
+                                {!isReadOnly && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmit}
+                                        disabled={processing || data.itens.length === 0}
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
+                                    >
+                                        {processing ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                Salvando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Salvar
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                                {(isEditing || currentReceitaId) && data.status === 'aberta' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFinalizarModal(true)}
+                                        disabled={processing || data.itens.length === 0}
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Finalizar
+                                    </button>
+                                )}
+                                {isEditing && (
+                                    <details className="rounded-lg border border-gray-200 bg-gray-50">
+                                        <summary className="min-h-[44px] px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 list-none flex items-center justify-between [&::-webkit-details-marker]:hidden">
+                                            <span>Mais ações</span>
+                                            <svg className="w-4 h-4 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div className="px-2 pb-2 pt-0 flex flex-col gap-2 border-t border-gray-200">
                                             <button
                                                 type="button"
-                                                onClick={() => { setShowDuplicarModal(true); setShowMoreMenu(false); }}
-                                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                onClick={() => setShowDuplicarModal(true)}
+                                                className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
                                             >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
                                                 Duplicar Receita
                                             </button>
                                             {canCancel && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setShowCancelarModal(true); setShowMoreMenu(false); }}
-                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                                    onClick={() => setShowCancelarModal(true)}
+                                                    className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                                                 >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
                                                     Cancelar Receita
                                                 </button>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                    </details>
+                                )}
+                            </div>
+
+                            {/* Desktop: todas as ações em linha */}
+                            <div className="hidden lg:flex lg:flex-row lg:flex-wrap gap-2 lg:justify-end">
+                                {isEditing && viewMode && receita.status === 'finalizada' && (
+                                    <a
+                                        href={`/receitas/${receita.id}/pdf`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                        Download PDF
+                                    </a>
+                                )}
+
+                                {isEditing && viewMode && canEdit && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode(false)}
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Editar Receita
+                                    </button>
+                                )}
+
+                                {!isReadOnly && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmit}
+                                        disabled={processing || data.itens.length === 0}
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
+                                    >
+                                        {processing ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                Salvando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Salvar
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {(isEditing || currentReceitaId) && data.status === 'aberta' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFinalizarModal(true)}
+                                        disabled={processing || data.itens.length === 0}
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Finalizar
+                                    </button>
+                                )}
+
+                                {isEditing && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDuplicarModal(true)}
+                                            className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                            Duplicar Receita
+                                        </button>
+                                        {canCancel && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCancelarModal(true)}
+                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                Cancelar Receita
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -604,33 +735,33 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                     {/* Dados Básicos - Compacto para Edição */}
                     {isEditing && selectedPaciente ? (
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3">
-                            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Paciente:</span>
-                                    <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
+                            <div className="flex flex-col gap-3 text-sm lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-6 lg:gap-y-1">
+                                <div className="flex flex-col gap-1 min-w-0 w-full lg:w-auto lg:flex-row lg:items-center lg:gap-2">
+                                    <span className="text-gray-500 flex-shrink-0">Paciente:</span>
+                                    <span className="font-medium text-gray-900 break-words">{selectedPaciente.nome}</span>
                                     <span className="text-gray-400">({selectedPaciente.cpf})</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Data:</span>
+                                <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto">
+                                    <span className="text-gray-500 flex-shrink-0">Data:</span>
                                     <input
                                         type="date"
                                         value={data.data_receita}
                                         onChange={(e) => setData('data_receita', e.target.value)}
                                         disabled={isReadOnly}
-                                        className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                        className="w-full max-w-full min-w-0 sm:w-auto px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     />
                                 </div>
                                 {!isMedico && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-500">Médico:</span>
+                                    <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
+                                        <span className="text-gray-500 flex-shrink-0">Médico:</span>
                                         {medicos?.length === 1 ? (
-                                            <span className="font-medium text-gray-900">{medicos[0].nome}</span>
+                                            <span className="font-medium text-gray-900 break-words">{medicos[0].nome}</span>
                                         ) : (
                                             <select
                                                 value={data.medico_id}
                                                 onChange={(e) => setData('medico_id', e.target.value)}
                                                 disabled={isReadOnly || medicos?.length === 1}
-                                                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                className="w-full max-w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                             >
                                                 {medicos?.map((medico) => (
                                                     <option key={medico.id} value={medico.id}>{medico.nome}</option>
@@ -640,14 +771,14 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     </div>
                                 )}
                                 {isMedico && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-500">Médico:</span>
-                                        <span className="font-medium text-gray-900">
+                                    <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto">
+                                        <span className="text-gray-500 flex-shrink-0">Médico:</span>
+                                        <span className="font-medium text-gray-900 break-words">
                                             {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
                                         </span>
                                     </div>
                                 )}
-                                <div className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                <div className={`self-start px-2 py-0.5 rounded text-xs font-medium ${
                                     data.status === 'finalizada' ? 'bg-green-100 text-green-700' :
                                     data.status === 'cancelada' ? 'bg-red-100 text-red-700' :
                                     'bg-gray-100 text-gray-600'
@@ -786,8 +917,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             ({data.itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
                                         </span>
                                     </div>
-                                    {/* Cabeçalhos da tabela */}
-                                    <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                    {/* Cabeçalhos da tabela (desktop) */}
+                                    <div className="hidden lg:flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                                         <div className="w-4 flex-shrink-0"></div>
                                         <div className="flex-[3] min-w-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
@@ -809,120 +940,42 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
                                     </div>
                                     <div className="space-y-1 mb-2">
-                                            {data.itens.map((item, index) => {
-                                                if (item.grupo !== 'recomendado') return null;
-                                                
-                                                // Buscar dados de aquisição do item original se disponível
-                                                const itemOriginal = receita?.itens?.find(i => i.id === item.id);
-                                                const ultimaAquisicao = item.ultima_aquisicao || itemOriginal?.ultima_aquisicao;
-                                                const datasAquisicao = item.datas_aquisicao || itemOriginal?.datas_aquisicao || [];
-                                                const temHistorico = datasAquisicao && datasAquisicao.length > 1;
-                                                
-                                                return (
-                                                    <div 
-                                                        key={index} 
-                                                        ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-emerald-50/50' : 'bg-gray-50 opacity-50'}`}
-                                                    >
-                                                        {item.vendido && (
-                                                            <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                                        )}
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={item.imprimir}
-                                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                                                            disabled={isReadOnly}
-                                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-                                                        />
-                                                        <ProductCombobox
-                                                            value={item.produto_id}
-                                                            onChange={(val) => updateItem(index, 'produto_id', val)}
-                                                            produtos={produtos}
-                                                            disabled={isReadOnly}
-                                                            minChars={3}
-                                                            className="flex-[3]"
-                                                        />
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Anotações..."
-                                                            value={item.anotacoes || ''}
-                                                            onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                                                            disabled={isReadOnly}
-                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
-                                                        />
-                                                        {/* Data de Aquisição */}
-                                                        <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
-                                                            {ultimaAquisicao && ultimaAquisicao !== '-' ? (
-                                                                <div className="flex items-center gap-1.5">
-                                                                    {temHistorico && datasAquisicao.length > 1 ? (
-                                                                        <Tippy
-                                                                            content={
-                                                                                <div className="text-xs py-1">
-                                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
-                                                                                    <div className="space-y-1">
-                                                                                        {datasAquisicao.map((data, idx) => (
-                                                                                            <div key={idx} className="text-gray-700">
-                                                                                                {formatDate(data)}
-                                                                                            </div>
-                                                                                        ))}
-                                                                                    </div>
-                                                                                </div>
-                                                                            }
-                                                                            placement="top"
-                                                                            interactive={true}
-                                                                            theme="light-border"
-                                                                        >
-                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatDate(ultimaAquisicao)}</span>
-                                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
-                                                                                    +{datasAquisicao.length - 1}
-                                                                                </span>
-                                                                            </span>
-                                                                        </Tippy>
-                                                                    ) : (
-                                                                        <Tippy
-                                                                            content={
-                                                                                <div className="text-xs text-gray-700">
-                                                                                    {formatDate(ultimaAquisicao)}
-                                                                                </div>
-                                                                            }
-                                                                            placement="top"
-                                                                            theme="light-border"
-                                                                        >
-                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatDate(ultimaAquisicao)}</span>
-                                                                            </span>
-                                                                        </Tippy>
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400">—</span>
-                                                            )}
-                                                        </div>
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            value={item.quantidade}
-                                                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                                            disabled={isReadOnly || !item.imprimir}
-                                                            className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
-                                                        />
-                                                        {!isMedico && (
-                                                            <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                                {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
-                                                            </span>
-                                                        )}
-                                                        {!isReadOnly && (
-                                                            <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
-                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                        {data.itens.map((item, index) => {
+                                            if (item.grupo !== 'recomendado') return null;
+
+                                            const itemOriginal = receita?.itens?.find((i) => i.id === item.id);
+                                            const ultimaAquisicao = item.ultima_aquisicao || itemOriginal?.ultima_aquisicao;
+                                            const datasAquisicao = item.datas_aquisicao || itemOriginal?.datas_aquisicao || [];
+                                            const temHistorico = datasAquisicao && datasAquisicao.length > 1;
+
+                                            return (
+                                                <ReceitaFormItemRow
+                                                    key={index}
+                                                    item={item}
+                                                    index={index}
+                                                    variant="recomendado"
+                                                    produtos={produtos}
+                                                    isReadOnly={isReadOnly}
+                                                    isMedico={isMedico}
+                                                    ultimaAquisicao={ultimaAquisicao}
+                                                    datasAquisicao={datasAquisicao}
+                                                    temHistorico={temHistorico}
+                                                    onUpdateItem={updateItem}
+                                                    onRemoveItem={removeItem}
+                                                    isLastItem={index === data.itens.length - 1}
+                                                    lastItemRef={lastItemRef}
+                                                    formatItemTotal={(it) =>
+                                                        it.imprimir
+                                                            ? new Intl.NumberFormat('pt-BR', {
+                                                                  style: 'currency',
+                                                                  currency: 'BRL',
+                                                              }).format(calcularSubtotalItem(it))
+                                                            : '-'
+                                                    }
+                                                />
+                                            );
+                                        })}
+                                    </div>
                                     </>
                                 )}
                                 
@@ -953,8 +1006,8 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             ({data.itens.filter(i => i.grupo === 'opcional' && i.imprimir).length})
                                         </span>
                                     </div>
-                                    {/* Cabeçalhos da tabela */}
-                                    <div className="flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                    {/* Cabeçalhos da tabela (desktop) */}
+                                    <div className="hidden lg:flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
                                         <div className="w-4 flex-shrink-0"></div>
                                         <div className="flex-[3] min-w-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
@@ -978,119 +1031,41 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     <div className="space-y-1">
                                         {data.itens.map((item, index) => {
                                             if (item.grupo !== 'opcional') return null;
-                                                
-                                                // Buscar dados de aquisição do item original se disponível
-                                                const itemOriginal = receita?.itens?.find(i => i.id === item.id);
-                                                const ultimaAquisicao = item.ultima_aquisicao || itemOriginal?.ultima_aquisicao;
-                                                const datasAquisicao = item.datas_aquisicao || itemOriginal?.datas_aquisicao || [];
-                                                const temHistorico = datasAquisicao && datasAquisicao.length > 1;
-                                                
-                                                return (
-                                                    <div 
-                                                        key={index} 
-                                                        ref={index === data.itens.length - 1 ? lastItemRef : null}
-                                                        className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${item.vendido ? 'bg-green-50 border border-green-200' : item.imprimir ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-50'}`}
-                                                    >
-                                                        {item.vendido && (
-                                                            <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                                        )}
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={item.imprimir}
-                                                            onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                                                            disabled={isReadOnly}
-                                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-                                                        />
-                                                        <ProductCombobox
-                                                            value={item.produto_id}
-                                                            onChange={(val) => updateItem(index, 'produto_id', val)}
-                                                            produtos={produtos}
-                                                            disabled={isReadOnly}
-                                                            minChars={3}
-                                                            className="flex-[3]"
-                                                        />
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Anotações..."
-                                                            value={item.anotacoes || ''}
-                                                            onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                                                            disabled={isReadOnly}
-                                                            className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
-                                                        />
-                                                        {/* Data de Aquisição */}
-                                                        <div className="w-36 flex-shrink-0 flex items-center justify-center gap-1.5">
-                                                            {ultimaAquisicao && ultimaAquisicao !== '-' ? (
-                                                                <div className="flex items-center gap-1.5">
-                                                                    {temHistorico && datasAquisicao.length > 1 ? (
-                                                                        <Tippy
-                                                                            content={
-                                                                                <div className="text-xs py-1">
-                                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
-                                                                                    <div className="space-y-1">
-                                                                                        {datasAquisicao.map((data, idx) => (
-                                                                                            <div key={idx} className="text-gray-700">
-                                                                                                {formatDate(data)}
-                                                                                            </div>
-                                                                                        ))}
-                                                                                    </div>
-                                                                                </div>
-                                                                            }
-                                                                            placement="top"
-                                                                            interactive={true}
-                                                                            theme="light-border"
-                                                                        >
-                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatDate(ultimaAquisicao)}</span>
-                                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
-                                                                                    +{datasAquisicao.length - 1}
-                                                                                </span>
-                                                                            </span>
-                                                                        </Tippy>
-                                                                    ) : (
-                                                                        <Tippy
-                                                                            content={
-                                                                                <div className="text-xs text-gray-700">
-                                                                                    {formatDate(ultimaAquisicao)}
-                                                                                </div>
-                                                                            }
-                                                                            placement="top"
-                                                                            theme="light-border"
-                                                                        >
-                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                <span>{formatDate(ultimaAquisicao)}</span>
-                                                                            </span>
-                                                                        </Tippy>
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400">—</span>
-                                                            )}
-                                                        </div>
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            value={item.quantidade}
-                                                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                                                            disabled={isReadOnly || !item.imprimir}
-                                                            className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
-                                                        />
-                                                        {!isMedico && (
-                                                            <span className={`w-20 flex-shrink-0 text-right text-sm font-medium ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                                {item.imprimir ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotalItem(item)) : '-'}
-                                                            </span>
-                                                        )}
-                                                        {!isReadOnly && (
-                                                            <button type="button" onClick={() => removeItem(index)} className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded">
-                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+
+                                            const itemOriginal = receita?.itens?.find((i) => i.id === item.id);
+                                            const ultimaAquisicao = item.ultima_aquisicao || itemOriginal?.ultima_aquisicao;
+                                            const datasAquisicao = item.datas_aquisicao || itemOriginal?.datas_aquisicao || [];
+                                            const temHistorico = datasAquisicao && datasAquisicao.length > 1;
+
+                                            return (
+                                                <ReceitaFormItemRow
+                                                    key={index}
+                                                    item={item}
+                                                    index={index}
+                                                    variant="opcional"
+                                                    produtos={produtos}
+                                                    isReadOnly={isReadOnly}
+                                                    isMedico={isMedico}
+                                                    ultimaAquisicao={ultimaAquisicao}
+                                                    datasAquisicao={datasAquisicao}
+                                                    temHistorico={temHistorico}
+                                                    onUpdateItem={updateItem}
+                                                    onRemoveItem={removeItem}
+                                                    isLastItem={index === data.itens.length - 1}
+                                                    lastItemRef={lastItemRef}
+                                                    formatItemTotal={(it) =>
+                                                        it.imprimir
+                                                            ? new Intl.NumberFormat('pt-BR', {
+                                                                  style: 'currency',
+                                                                  currency: 'BRL',
+                                                              }).format(calcularSubtotalItem(it))
+                                                            : '-'
+                                                    }
+                                                />
+                                            );
+                                        })}
                                     </div>
+                                </div>
                                 )}
                         </div>
 
@@ -1192,7 +1167,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     onChange={(e) => setData('anotacoes', e.target.value)}
                                     disabled={isReadOnly}
                                     rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    className="w-full min-h-32 lg:min-h-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     placeholder="Observações internas (não aparecem no PDF)..."
                                 />
                             </div>
@@ -1203,7 +1178,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     onChange={(e) => setData('anotacoes_paciente', e.target.value)}
                                     disabled={isReadOnly}
                                     rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    className="w-full min-h-32 lg:min-h-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     placeholder="Instruções que aparecerão no PDF..."
                                 />
                             </div>
@@ -1220,45 +1195,50 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                             {receitasAnteriores.map((r) => (
                                 <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden">
                                     {/* Accordion Header */}
-                                    <div 
-                                        className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                                    <div
+                                        className="flex flex-col gap-3 p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors lg:flex-row lg:items-center lg:justify-between"
                                         onClick={() => toggleReceitaExpanded(r.id)}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <svg 
-                                                className={`w-4 h-4 text-gray-500 transition-transform ${expandedReceitas[r.id] ? 'rotate-90' : ''}`} 
-                                                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                        <div className="flex items-start gap-3 min-w-0">
+                                            <svg
+                                                className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 mt-0.5 ${expandedReceitas[r.id] ? 'rotate-90' : ''}`}
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
                                             >
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
-                                            <span className="text-base font-medium text-gray-900">
-                                                {r.numero}
-                                            </span>
-                                            <span className="text-sm text-gray-500">
-                                                {new Date(r.data_receita).toLocaleDateString('pt-BR')}
-                                            </span>
-                                            {r.medico && (
-                                                <span className="text-sm text-gray-500">• {r.medico.nome}</span>
-                                            )}
+                                            <div className="flex flex-col gap-1 min-w-0 lg:flex-row lg:flex-wrap lg:items-baseline lg:gap-x-3 lg:gap-y-0">
+                                                <span className="text-base font-medium text-gray-900">{r.numero}</span>
+                                                <span className="text-sm text-gray-500">{new Date(r.data_receita).toLocaleDateString('pt-BR')}</span>
+                                                {r.medico && (
+                                                    <span className="text-sm text-gray-600 break-words" title={r.medico.nome}>
+                                                        {r.medico.nome}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-2 pl-7 lg:pl-0">
                                             {!isMedico && r.valor_total > 0 && (
                                                 <span className="text-sm font-medium text-gray-700">
                                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(r.valor_total)}
                                                 </span>
                                             )}
-                                            <span className={`px-2 py-0.5 text-sm rounded ${
-                                                r.status === 'finalizada' ? 'bg-green-100 text-green-700' :
-                                                r.status === 'cancelada' ? 'bg-red-100 text-red-700' :
-                                                'bg-gray-100 text-gray-600'
-                                            }`}>
-                                                {r.status === 'finalizada' ? 'Finalizada' : 
-                                                 r.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
+                                            <span
+                                                className={`px-2 py-0.5 text-sm rounded ${
+                                                    r.status === 'finalizada'
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : r.status === 'cancelada'
+                                                          ? 'bg-red-100 text-red-700'
+                                                          : 'bg-gray-100 text-gray-600'
+                                                }`}
+                                            >
+                                                {r.status === 'finalizada' ? 'Finalizada' : r.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                             </span>
                                             <Link
                                                 href={`/receitas/${r.id}`}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="p-1 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                                 title="Ver receita"
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1269,7 +1249,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             <Link
                                                 href={`/receitas/${r.id}/edit`}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                                                 title="Editar receita"
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1288,109 +1268,106 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     {r.anotacoes && (
                                                         <div className="mb-1">
                                                             <span className="font-medium text-gray-700">Anotações Internas:</span>
-                                                            <span className="text-gray-600 ml-1">{r.anotacoes}</span>
+                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes)}</span>
                                                         </div>
                                                     )}
                                                     {r.anotacoes_paciente && (
                                                         <div>
                                                             <span className="font-medium text-gray-700">Anotações Paciente:</span>
-                                                            <span className="text-gray-600 ml-1">{r.anotacoes_paciente}</span>
+                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes_paciente)}</span>
                                                         </div>
                                                     )}
                                                 </div>
                                             )}
                                             
                                             {/* Produtos */}
-                                            {r.itens && r.itens.filter(item => item.imprimir).length > 0 ? (
+                                            {r.itens && r.itens.filter((item) => item.imprimir).length > 0 ? (
                                                 <div className="space-y-1">
-                                                    <div className="text-sm font-medium text-gray-700 mb-2">Produtos ({r.itens.filter(item => item.imprimir).length})</div>
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-sm">
-                                                            <thead className="bg-gray-50">
-                                                                <tr>
-                                                                    <th className="text-left px-2 py-1 font-medium text-gray-600">Tipo</th>
-                                                                    <th className="text-left px-2 py-1 font-medium text-gray-600">Produto</th>
-                                                                    <th className="text-center px-2 py-1 font-medium text-gray-600">Qtd</th>
-                                                                    {!isMedico && <th className="text-right px-2 py-1 font-medium text-gray-600">Valor</th>}
-                                                                    <th className="text-left px-2 py-1 font-medium text-gray-600">Última Aquisição</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {r.itens.filter(item => item.imprimir).map((item, idx) => (
-                                                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                                        <td className="px-2 py-1 text-gray-600">
-                                                                            {formatLocalUso(item.local_uso || item.produto?.local_uso)}
-                                                                        </td>
-                                                                        <td className="px-2 py-1 text-gray-900">
-                                                                            {item.produto?.nome || 'Produto não encontrado'}
-                                                                        </td>
-                                                                        <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
-                                                                        {!isMedico && (
-                                                                            <td className="px-2 py-1 text-right text-gray-600">
-                                                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_unitario * item.quantidade)}
-                                                                            </td>
-                                                                        )}
-                                                                        <td className="px-2 py-1 text-gray-500">
-                                                                            {(() => {
-                                                                                const ultimaAquisicao = item.ultima_aquisicao || (item.aquisicoes && item.aquisicoes.length > 0 
-                                                                                    ? item.aquisicoes[item.aquisicoes.length - 1].data_aquisicao 
-                                                                                    : null);
-                                                                                const datasAquisicao = item.datas_aquisicao || (item.aquisicoes ? item.aquisicoes.map(a => a.data_aquisicao) : []);
-                                                                                const temHistorico = datasAquisicao.length > 1;
-                                                                                
-                                                                                if (!ultimaAquisicao) return <span className="text-gray-400">—</span>;
-                                                                                
-                                                                                if (temHistorico) {
-                                                                                    return (
-                                                                                        <Tippy
-                                                                                            content={
-                                                                                                <div className="text-xs py-1">
-                                                                                                    <div className="font-medium mb-2 text-gray-900">Últimas aquisições</div>
-                                                                                                    <div className="space-y-1">
-                                                                                                        {datasAquisicao.map((data, idx) => (
-                                                                                                            <div key={idx} className="text-gray-700">
-                                                                                                                {formatDate(data)}
-                                                                                                            </div>
-                                                                                                        ))}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            }
-                                                                                            placement="top"
-                                                                                            interactive={true}
-                                                                                            theme="light-border"
-                                                                                        >
-                                                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1.5 cursor-help hover:bg-gray-200 transition-colors">
-                                                                                                <span>{formatDate(ultimaAquisicao)}</span>
-                                                                                                <span className="px-1 py-0 bg-gray-200 text-gray-600 text-[10px] font-medium rounded leading-none">
-                                                                                                    +{datasAquisicao.length - 1}
-                                                                                                </span>
-                                                                                            </span>
-                                                                                        </Tippy>
-                                                                                    );
-                                                                                }
-                                                                                
-                                                                                return (
-                                                                                    <Tippy
-                                                                                        content={
-                                                                                            <div className="text-xs text-gray-700">
-                                                                                                {formatDate(ultimaAquisicao)}
-                                                                                            </div>
-                                                                                        }
-                                                                                        placement="top"
-                                                                                        theme="light-border"
-                                                                                    >
-                                                                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-md flex items-center gap-1 cursor-help hover:bg-gray-200 transition-colors inline-flex">
-                                                                                            <span>{formatDate(ultimaAquisicao)}</span>
-                                                                                        </span>
-                                                                                    </Tippy>
-                                                                                );
-                                                                            })()}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
+                                                    <div className="text-sm font-medium text-gray-700 mb-2">
+                                                        Produtos ({r.itens.filter((item) => item.imprimir).length})
                                                     </div>
+                                                    <ResponsiveEntityList
+                                                        desktop={
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-sm">
+                                                                    <thead className="bg-gray-50">
+                                                                        <tr>
+                                                                            <th className="text-left px-2 py-1 font-medium text-gray-600">Tipo</th>
+                                                                            <th className="text-left px-2 py-1 font-medium text-gray-600">Produto</th>
+                                                                            <th className="text-center px-2 py-1 font-medium text-gray-600">Qtd</th>
+                                                                            {!isMedico && (
+                                                                                <th className="text-right px-2 py-1 font-medium text-gray-600">Valor</th>
+                                                                            )}
+                                                                            <th className="text-left px-2 py-1 font-medium text-gray-600">Última Aquisição</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {r.itens
+                                                                            .filter((item) => item.imprimir)
+                                                                            .map((item, idx) => (
+                                                                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                                                    <td className="px-2 py-1 text-gray-600">
+                                                                                        {formatLocalUso(item.local_uso || item.produto?.local_uso)}
+                                                                                    </td>
+                                                                                    <td className="px-2 py-1 text-gray-900">
+                                                                                        {item.produto?.nome || 'Produto não encontrado'}
+                                                                                    </td>
+                                                                                    <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
+                                                                                    {!isMedico && (
+                                                                                        <td className="px-2 py-1 text-right text-gray-600">
+                                                                                            {new Intl.NumberFormat('pt-BR', {
+                                                                                                style: 'currency',
+                                                                                                currency: 'BRL',
+                                                                                            }).format(item.valor_unitario * item.quantidade)}
+                                                                                        </td>
+                                                                                    )}
+                                                                                    <td className="px-2 py-1 text-gray-500">
+                                                                                        <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        }
+                                                        mobile={
+                                                            <div className="space-y-2">
+                                                                {r.itens
+                                                                    .filter((item) => item.imprimir)
+                                                                    .map((item, idx) => (
+                                                                        <div key={idx} className="rounded-lg border border-gray-200 p-3 text-sm max-w-full">
+                                                                            <div className="font-medium text-gray-900 break-words">
+                                                                                {item.produto?.nome || 'Produto não encontrado'}
+                                                                            </div>
+                                                                            <div className="text-gray-600 mt-1">
+                                                                                {formatLocalUso(item.local_uso || item.produto?.local_uso)}
+                                                                            </div>
+                                                                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-sm">
+                                                                                <div>
+                                                                                    <span className="text-gray-500">Qtd</span>{' '}
+                                                                                    <span className="font-medium text-gray-800">{item.quantidade}</span>
+                                                                                </div>
+                                                                                {!isMedico && (
+                                                                                    <div className="text-right">
+                                                                                        <span className="text-gray-500">Valor</span>{' '}
+                                                                                        <span className="font-medium text-gray-800">
+                                                                                            {new Intl.NumberFormat('pt-BR', {
+                                                                                                style: 'currency',
+                                                                                                currency: 'BRL',
+                                                                                            }).format(item.valor_unitario * item.quantidade)}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                                                                                <span className="text-gray-500 shrink-0">Aquisição</span>
+                                                                                <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                            </div>
+                                                        }
+                                                    />
                                                 </div>
                                             ) : (
                                                 <p className="text-sm text-gray-500">Nenhum produto nesta receita.</p>

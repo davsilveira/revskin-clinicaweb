@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import { validateCPF } from '@/utils/validations';
 import debounce from 'lodash/debounce';
@@ -349,22 +350,20 @@ export default function AssistenteReceitaIndex({
 
     return (
         <DashboardLayout>
-            <div className="p-6 max-w-4xl mx-auto">
-                <div className="mb-6">
-                    <Link
-                        href="/receitas"
-                        className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                        Voltar para Receitas
-                    </Link>
-                    <h1 className="text-2xl font-bold text-gray-900 mt-2">Assistente de Receitas</h1>
-                    <p className="text-gray-600 mt-1">
-                        Selecione as condições clínicas para gerar uma receita automaticamente
-                    </p>
-                </div>
+            <div className="py-4 lg:py-6 px-0 max-w-4xl mx-auto">
+                <Link
+                    href="/receitas"
+                    className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm mb-4"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Voltar para Receitas
+                </Link>
+                <PageHeader
+                    title="Assistente de Receitas"
+                    description="Selecione as condições clínicas para gerar uma receita automaticamente"
+                />
 
                 {/* Progress Steps */}
                 <div className="flex items-center justify-center mb-8">
@@ -742,17 +741,17 @@ export default function AssistenteReceitaIndex({
 
                         <div className="space-y-6 mb-6">
                             {/* Gravidez */}
-                            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-3 border-b border-gray-100">
                                 <label className="text-sm font-medium text-gray-700">
                                     Gravidez
                                 </label>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {['Sim', 'Não'].map((option) => (
                                         <button
                                             key={option}
                                             type="button"
                                             onClick={() => updateCondicao('gravidez', option)}
-                                            className={`py-2 px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
+                                            className={`min-h-[44px] py-2 px-4 sm:px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
                                                 condicoes.gravidez === option
                                                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
@@ -765,17 +764,17 @@ export default function AssistenteReceitaIndex({
                             </div>
 
                             {/* Rosácea */}
-                            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-3 border-b border-gray-100">
                                 <label className="text-sm font-medium text-gray-700">
                                     Rosácea
                                 </label>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {['Sim', 'Não'].map((option) => (
                                         <button
                                             key={option}
                                             type="button"
                                             onClick={() => updateCondicao('rosacea', option)}
-                                            className={`py-2 px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
+                                            className={`min-h-[44px] py-2 px-4 sm:px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
                                                 condicoes.rosacea === option
                                                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
@@ -855,17 +854,17 @@ export default function AssistenteReceitaIndex({
                                 {/* Intensidades em lista */}
                                 <div className="space-y-3">
                                     {['manchas', 'rugas', 'acne', 'flacidez'].map((field) => (
-                                        <div key={field} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                                            <label className="text-sm font-medium text-gray-600 min-w-[100px]">
+                                        <div key={field} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-3 border-b border-gray-100 last:border-0">
+                                            <label className="text-sm font-medium text-gray-600 min-w-0 sm:min-w-[100px]">
                                                 {condicaoLabels[field]}
                                             </label>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                                                 {intensidadeOpcoes.map((value) => (
                                                     <button
                                                         key={value}
                                                         type="button"
                                                         onClick={() => updateCondicao(field, value)}
-                                                        className={`py-2 px-4 text-sm rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                                                        className={`min-h-[44px] py-2 px-3 sm:px-4 text-sm rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
                                                             condicoes[field] === value
                                                                 ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-medium'
                                                                 : 'border-gray-200 hover:border-gray-300 text-gray-600'
@@ -881,17 +880,19 @@ export default function AssistenteReceitaIndex({
                             </div>
                         </div>
 
-                        <div className="flex justify-between pt-4 border-t border-gray-200">
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-stretch pt-4 border-t border-gray-200">
                             <button
+                                type="button"
                                 onClick={() => setStep(1)}
-                                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                className="min-h-[44px] w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                             >
                                 Voltar
                             </button>
                             <button
+                                type="button"
                                 onClick={processarCondicoes}
                                 disabled={!condicoes.tipo_pele || !condicoes.gravidez || !condicoes.rosacea || loading}
-                                className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                className="min-h-[44px] w-full sm:w-auto px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
                                 {loading ? (
                                     <>

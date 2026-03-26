@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PageHeader from '@/Components/PageHeader';
 import TinySettings from '@/Pages/Settings/Integrations/Tiny';
 import RdStationSettings from '@/Pages/Settings/Integrations/RdStation';
 import Toast from '@/Components/Toast';
@@ -21,19 +22,15 @@ export default function SettingsIndex({ tiny, rdstation }) {
             <Head title="Configuracoes" />
 
             <DashboardLayout>
-                <div className="space-y-6 p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Configuracoes</h1>
-                            <p className="mt-1 text-sm text-gray-600">
-                                Gerencie as integracoes e configuracoes do sistema.
-                            </p>
-                        </div>
-                    </div>
+                <div className="space-y-4 lg:space-y-6 py-4 lg:py-6 px-0">
+                    <PageHeader
+                        title="Configuracoes"
+                        description="Gerencie as integracoes e configuracoes do sistema."
+                    />
 
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <div className="border-b border-gray-200 px-6">
-                            <nav className="flex flex-wrap gap-2 py-4">
+                        <div className="border-b border-gray-200 px-4 sm:px-5">
+                            <nav className="flex flex-wrap gap-2 py-3">
                                 {enabledTabs.map((tab) => (
                                     <button
                                         key={tab.key}
@@ -51,7 +48,7 @@ export default function SettingsIndex({ tiny, rdstation }) {
                             </nav>
                         </div>
 
-                        <div className="p-6">
+                        <div className="p-4 sm:p-5">
                             {activeTab === 'tiny' && (
                                 <TinySettings
                                     settings={tiny?.settings || {}}

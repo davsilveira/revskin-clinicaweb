@@ -4,7 +4,9 @@ namespace App\Jobs;
 
 use App\Models\Paciente;
 use App\Models\Setting;
+use App\Services\TinyContatoMapper;
 use App\Services\TinyErpClient;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,6 +20,7 @@ class SyncClienteTinyJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 120;
 
     public function __construct(
@@ -29,22 +32,24 @@ class SyncClienteTinyJob implements ShouldQueue
     public function handle(): void
     {
         // Verificar se integração está habilitada
-        if (!Setting::get('tiny_enabled', false)) {
+        if (! Setting::get('tiny_enabled', false)) {
             Log::info('Tiny ERP: Sincronização de cliente desabilitada', [
                 'paciente_id' => $this->paciente->id,
             ]);
+
             return;
         }
 
         // Verificar campos obrigatórios
-        if (!$this->validarCamposObrigatorios()) {
+        if (! $this->validarCamposObrigatorios()) {
             Log::warning('Tiny ERP: Paciente não possui campos obrigatórios para sincronização', [
                 'paciente_id' => $this->paciente->id,
             ]);
+
             return;
         }
 
-        $client = new TinyErpClient();
+        $client = new TinyErpClient;
         $paciente = $this->paciente->fresh();
 
         if ($paciente->tiny_id) {
@@ -52,17 +57,21 @@ class SyncClienteTinyJob implements ShouldQueue
 
             if ($result['status'] === 'success') {
                 $contatoTiny = $result['data'] ?? [];
-                $dataAtualizacaoTiny = $contatoTiny['dataAtualizacao'] ?? $contatoTiny['data_criacao'] ?? null;
+                $dataTiny = TinyContatoMapper::parseDataAtualizacao(
+                    TinyContatoMapper::contatoDataAtualizacaoRaw($contatoTiny)
+                );
 
-                if ($dataAtualizacaoTiny && $paciente->updated_at) {
-                    $dataTiny = \Carbon\Carbon::parse($dataAtualizacaoTiny);
-                    if ($paciente->updated_at->lte($dataTiny)) {
-                        Log::info('Tiny ERP: Dados do Tiny são mais recentes, não atualizando', [
-                            'paciente_id' => $paciente->id,
-                            'tiny_id' => $paciente->tiny_id,
-                        ]);
-                        return;
-                    }
+                if ($dataTiny && $paciente->updated_at && $paciente->updated_at->lte($dataTiny)) {
+                    $paciente->update([
+                        'tiny_updated_at' => $dataTiny,
+                        'tiny_sync_at' => now(),
+                    ]);
+                    Log::info('Tiny ERP: Dados do Tiny são mais recentes, não atualizando', [
+                        'paciente_id' => $paciente->id,
+                        'tiny_id' => $paciente->tiny_id,
+                    ]);
+
+                    return;
                 }
 
                 $result = $client->atualizarContato((int) $paciente->tiny_id, $this->prepararDadosContato());
@@ -75,13 +84,20 @@ class SyncClienteTinyJob implements ShouldQueue
 
         if ($result['status'] === 'success') {
             $data = $result['data'] ?? [];
-            $tinyId = $data['id'] ?? null;
+            $tinyId = $data['id'] ?? $paciente->tiny_id;
 
             if ($tinyId) {
+                $tinyId = (string) $tinyId;
+                $ref = $client->obterContato((int) $tinyId);
+                $tinyUpdated = Carbon::now();
+                if ($ref['status'] === 'success' && is_array($ref['data'] ?? null)) {
+                    $tinyUpdated = TinyContatoMapper::tinUpdatedAtFromContato($ref['data']);
+                }
+
                 $paciente->update([
                     'tiny_id' => $tinyId,
                     'tiny_sync_at' => now(),
-                    'tiny_updated_at' => now(),
+                    'tiny_updated_at' => $tinyUpdated,
                 ]);
 
                 Log::info('Tiny ERP: Cliente sincronizado com sucesso', [

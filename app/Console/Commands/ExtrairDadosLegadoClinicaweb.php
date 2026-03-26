@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Produto;
+use App\Support\LegadoProdutoDescricaoParser;
 use Illuminate\Console\Command;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -25,8 +26,9 @@ class ExtrairDadosLegadoClinicaweb extends Command
 
         $this->info('=== Extração de Dados Legado Clinicaweb ===');
 
-        if (!file_exists($clinicawebPath)) {
+        if (! file_exists($clinicawebPath)) {
             $this->error("Arquivo não encontrado: {$clinicawebPath}");
+
             return 1;
         }
 
@@ -50,9 +52,9 @@ class ExtrairDadosLegadoClinicaweb extends Command
 
             $codigoBase = $this->mapeamentoLegadoParaBase[$codigoLegado] ?? $codigoLegado;
 
-            if (!$produtosBase->has($codigoBase)) {
+            if (! $produtosBase->has($codigoBase)) {
                 $produto = Produto::where('codigo', $codigoBase)
-                    ->orWhere('codigo', 'like', $codigoLegado . ' %')
+                    ->orWhere('codigo', 'like', $codigoLegado.' %')
                     ->first();
                 if ($produto) {
                     $codigoBase = $produto->codigo;
@@ -60,17 +62,19 @@ class ExtrairDadosLegadoClinicaweb extends Command
                 }
             }
 
-            if (!$produtosBase->has($codigoBase)) {
+            if (! $produtosBase->has($codigoBase)) {
                 $naoEncontrados[] = ['legado' => $codigoLegado, 'base' => $codigoBase];
+
                 continue;
             }
 
             if ($descricaoBruta === '') {
                 $semDescricao++;
+
                 continue;
             }
 
-            $parsed = $this->parsearDescricao($descricaoBruta);
+            $parsed = LegadoProdutoDescricaoParser::parse($descricaoBruta);
             $dadosExtraidos[] = [
                 'codigo_legado' => $codigoLegado,
                 'codigo_base' => $codigoBase,
@@ -86,15 +90,15 @@ class ExtrairDadosLegadoClinicaweb extends Command
 
         $this->newLine();
         $this->info('=== Resumo ===');
-        $this->line('Produtos com dados extraídos: ' . count($dadosExtraidos));
-        $this->line('Produtos na base sem descrição no legado: ' . $semDescricao);
-        if (!empty($naoEncontrados)) {
-            $this->warn('Produtos no legado não encontrados na base: ' . count($naoEncontrados));
+        $this->line('Produtos com dados extraídos: '.count($dadosExtraidos));
+        $this->line('Produtos na base sem descrição no legado: '.$semDescricao);
+        if (! empty($naoEncontrados)) {
+            $this->warn('Produtos no legado não encontrados na base: '.count($naoEncontrados));
             foreach (array_slice($naoEncontrados, 0, 10) as $n) {
                 $this->line("  - {$n['legado']} (base esperada: {$n['base']})");
             }
             if (count($naoEncontrados) > 10) {
-                $this->line('  ... e mais ' . (count($naoEncontrados) - 10));
+                $this->line('  ... e mais '.(count($naoEncontrados) - 10));
             }
         }
 
@@ -107,7 +111,7 @@ class ExtrairDadosLegadoClinicaweb extends Command
 
     protected function carregarMapeamento(string $path): void
     {
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             return;
         }
 
@@ -133,97 +137,15 @@ class ExtrairDadosLegadoClinicaweb extends Command
         }
     }
 
-    protected function parsearDescricao(string $texto): array
-    {
-        $linhas = preg_split('/\r\n|\r|\n/', $texto);
-        $linhas = array_map('trim', $linhas);
-        $linhas = array_values(array_filter($linhas, fn($l) => $l !== ''));
-
-        if (empty($linhas)) {
-            return ['nome' => '', 'formula' => '', 'modo_uso' => ''];
-        }
-
-        $nome = $linhas[0];
-        $formula = '';
-        $modoUso = '';
-        $inicioModoUso = null;
-
-        for ($i = 1; $i < count($linhas); $i++) {
-            $linha = $linhas[$i];
-            $linhaLower = mb_strtolower($linha);
-
-            if ($inicioModoUso === null && $this->ehInicioModoUso($linha, $linhaLower)) {
-                $inicioModoUso = $i;
-            }
-
-            if ($inicioModoUso !== null) {
-                $modoUso .= ($modoUso ? "\n" : '') . $linha;
-            } else {
-                $formula .= ($formula ? "\n" : '') . $linha;
-            }
-        }
-
-        return [
-            'nome' => $nome,
-            'formula' => trim($formula),
-            'modo_uso' => trim($modoUso),
-        ];
-    }
-
-    /**
-     * Detecta se a linha inicia a seção "Modo de uso".
-     */
-    protected function ehInicioModoUso(string $linha, string $linhaLower): bool
-    {
-        if ($linha === '') {
-            return false;
-        }
-
-        // Contém "Uso:" ou "Uso :" (indica instruções de uso)
-        if (preg_match('/\buso\s*:/u', $linhaLower)) {
-            return true;
-        }
-        // "Uso como" ou "Uso para" (ex: "1. Uso como Máscara:", "2. Uso para Limpeza:")
-        if (str_contains($linhaLower, 'uso como') || str_contains($linhaLower, 'uso para')) {
-            return true;
-        }
-        // "Modo de uso"
-        if (str_contains($linhaLower, 'modo de uso')) {
-            return true;
-        }
-        // Início com "Inicie" (ex: "Inicie o uso...", "Inicie alternando...")
-        if (str_starts_with($linhaLower, 'inicie ')) {
-            return true;
-        }
-        // "Deixe agir" (ex: "Deixe agir por 15 min...")
-        if (str_starts_with($linhaLower, 'deixe agir')) {
-            return true;
-        }
-        // "Nas primeiras" (ex: "Nas primeiras 2 semanas...")
-        if (str_starts_with($linhaLower, 'nas primeiras')) {
-            return true;
-        }
-        // Lista numerada de uso (ex: "1. Uso como...", "2. Uso para...")
-        if (preg_match('/^\d+\.\s*(uso|aplique|aplicar|espalhe)/iu', $linha)) {
-            return true;
-        }
-        // Comandos de aplicação no início da linha
-        if (preg_match('/^(aplique|aplicar|usar|utilize|utilizar|espalhe)\b/u', $linhaLower)) {
-            return true;
-        }
-
-        return false;
-    }
-
     protected function escreverCsv(string $path, array $dados): void
     {
         $dir = dirname($path);
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
         $fp = fopen($path, 'w');
-        fprintf($fp, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF));
 
         $headers = ['codigo_legado', 'codigo_base', 'nome_atual', 'nome_extraido', 'formula_extraida', 'modo_uso_extraido', 'na_base'];
         fputcsv($fp, $headers, ';');
