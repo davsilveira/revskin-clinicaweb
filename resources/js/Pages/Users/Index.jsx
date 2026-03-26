@@ -1,5 +1,5 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -10,7 +10,20 @@ import Select from '@/Components/Form/Select';
 import MedicoFormFields from '@/Components/MedicoFormFields';
 import Pagination from '@/Components/Pagination';
 
-export default function UsersIndex({ users, clinicas = [] }) {
+export default function UsersIndex({ users, clinicas = [], filters = {} }) {
+    const { props } = usePage();
+    const auth = props.auth || {};
+    const tinyEnabled = auth.tinyEnabled || false;
+    const serverErrors = props.errors || {};
+
+    const [search, setSearch] = useState(filters.search || '');
+    const [roleFilter, setRoleFilter] = useState(() => {
+        const r = filters.role || 'all';
+        if (tinyEnabled && r === 'callcenter') {
+            return 'all';
+        }
+        return r;
+    });
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -18,10 +31,18 @@ export default function UsersIndex({ users, clinicas = [] }) {
 
     const isMedico = (role) => role === 'medico';
 
-    const { props } = usePage();
-    const auth = props.auth || {};
-    const tinyEnabled = auth.tinyEnabled || false;
-    const serverErrors = props.errors || {};
+    const isEditingSelf = Boolean(
+        editingUser &&
+        auth.user?.id != null &&
+        String(editingUser.id) === String(auth.user.id)
+    );
+
+    useEffect(() => {
+        setSearch(filters.search || '');
+        const r = filters.role || 'all';
+        setRoleFilter(tinyEnabled && r === 'callcenter' ? 'all' : r);
+    }, [filters.search, filters.role, tinyEnabled]);
+
     const { data, setData, setError, clearErrors, processing, errors, reset } = useForm({
         name: '',
         email: '',
@@ -166,6 +187,18 @@ export default function UsersIndex({ users, clinicas = [] }) {
         }
     };
 
+    const buildQuery = (extra = {}) => {
+        const q = { ...extra };
+        if (search?.trim()) q.search = search.trim();
+        if (roleFilter && roleFilter !== 'all') q.role = roleFilter;
+        return q;
+    };
+
+    const handleSearch = (e) => {
+        e.preventDefault();
+        router.get('/users', buildQuery(), { preserveState: true });
+    };
+
     const handleToggleStatus = (user) => {
         router.put(`/users/${user.id}`, {
             ...user,
@@ -226,6 +259,35 @@ export default function UsersIndex({ users, clinicas = [] }) {
                         </button>
                     }
                 />
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome ou e-mail..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full min-w-0 flex-1 sm:min-w-[200px] px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <select
+                            value={roleFilter}
+                            onChange={(e) => setRoleFilter(e.target.value)}
+                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        >
+                            <option value="all">Todos</option>
+                            <option value="admin">Administrador</option>
+                            <option value="medico">Médico</option>
+                            <option value="secretaria">Secretária</option>
+                            {!tinyEnabled && <option value="callcenter">Call Center</option>}
+                        </select>
+                        <button
+                            type="submit"
+                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                        >
+                            Buscar
+                        </button>
+                    </form>
+                </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <ResponsiveEntityList
@@ -426,7 +488,7 @@ export default function UsersIndex({ users, clinicas = [] }) {
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                {editingUser && !showDeleteConfirm && (
+                                {editingUser && !isEditingSelf && !showDeleteConfirm && (
                                     <button
                                         type="button"
                                         onClick={() => setShowDeleteConfirm(true)}
@@ -439,7 +501,7 @@ export default function UsersIndex({ users, clinicas = [] }) {
                                     </button>
                                 )}
 
-                                {editingUser && showDeleteConfirm && (
+                                {editingUser && !isEditingSelf && showDeleteConfirm && (
                                     <div className="flex items-center gap-3 animate-fade-in">
                                         <span className="text-sm text-gray-700 font-medium">Deseja realmente excluir?</span>
                                         <button type="button" onClick={handleDelete} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg">Sim</button>

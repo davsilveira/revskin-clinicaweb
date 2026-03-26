@@ -20,22 +20,52 @@ class UserController extends Controller
     /**
      * Display a listing of users
      */
-    public function index()
+    public function index(Request $request)
     {
         if (auth()->user()->role !== 'admin') {
             abort(403, 'Acesso não autorizado.');
         }
 
+        $search = $request->search;
+        if (in_array($search, ['undefined', 'null', ''], true)) {
+            $search = null;
+        }
+        if (is_string($search)) {
+            $search = trim($search);
+            if ($search === '') {
+                $search = null;
+            }
+        }
+
+        $allowedRoles = array_keys(User::getRoles());
+        $role = $request->input('role');
+        if (! is_string($role) || ! in_array($role, $allowedRoles, true)) {
+            $role = null;
+        }
+
         $users = User::with(['clinica:id,nome', 'medico.linkedUser:id,name,medico_id', 'medico.enderecos', 'medico.clinicas'])
+            ->when($search, function ($q, string $s) {
+                $q->where(function ($query) use ($s) {
+                    $query->where('name', 'like', "%{$s}%")
+                        ->orWhere('email', 'like', "%{$s}%");
+                });
+            })
+            ->when($role, fn ($q) => $q->where('role', $role))
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();
 
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 
+        $filters = array_filter([
+            'search' => $search,
+            'role' => $role,
+        ], fn ($v) => $v !== null && $v !== '');
+
         return Inertia::render('Users/Index', [
             'users' => $users,
             'clinicas' => $clinicas,
+            'filters' => $filters,
         ]);
     }
 
