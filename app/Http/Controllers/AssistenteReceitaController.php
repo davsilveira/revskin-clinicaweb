@@ -78,18 +78,19 @@ class AssistenteReceitaController extends Controller
         
         if ($user->isAdmin()) {
             $medicos = Medico::where('ativo', true)
-                ->join('users', 'users.medico_id', '=', 'medicos.id')
-                ->orderBy('users.name')
+                ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+                ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
                 ->select('medicos.id', 'medicos.crm')
                 ->get()
                 ->load('linkedUser:id,name,medico_id')
                 ->map(fn ($m) => [
                     'id' => $m->id,
-                    'label' => "{$m->nome} (CRM: {$m->crm})"
+                    'label' => ($m->nome ?? $m->apelido ?? 'Médico') . " (CRM: {$m->crm})"
                 ]);
         }
 
         $initialPaciente = null;
+        $initialPacienteMedicoId = null;
         if ($pacienteId = $request->query('paciente_id')) {
             $paciente = Paciente::find($pacienteId);
             if ($paciente && $user->canAccessPaciente($paciente)) {
@@ -98,6 +99,7 @@ class AssistenteReceitaController extends Controller
                     'nome' => $paciente->nome,
                     'cpf' => $paciente->cpf,
                 ];
+                $initialPacienteMedicoId = $paciente->medico_id;
             }
         }
 
@@ -109,6 +111,7 @@ class AssistenteReceitaController extends Controller
             'currentMedicoId' => $currentMedicoId,
             'isAdmin' => $user->isAdmin(),
             'initialPaciente' => $initialPaciente,
+            'initialPacienteMedicoId' => $initialPacienteMedicoId,
         ]);
     }
 
@@ -201,18 +204,21 @@ class AssistenteReceitaController extends Controller
             $produtosSugeridos = $this->processarMetodoLegado($validated, $codigoKarnaugh);
         }
 
-        // Determinar médico: do request, do usuário, ou primeiro ativo
-        $medicoId = $validated['medico_id'] ?? $user->medico_id;
-        
+        // Determinar médico: request → paciente.medico_id → user.medico_id
+        $paciente = Paciente::find($validated['paciente_id']);
+        $medicoId = $validated['medico_id']
+            ?? $paciente?->medico_id
+            ?? $user->medico_id;
+
         if (!$medicoId) {
-            // Fallback: usar primeiro médico ativo
-            $medico = Medico::where('ativo', true)->first();
-            if (!$medico) {
-                return response()->json([
-                    'error' => 'Nenhum médico cadastrado. Por favor, cadastre um médico primeiro.',
-                ], 422);
-            }
-            $medicoId = $medico->id;
+            return response()->json([
+                'error' => 'Nenhum médico vinculado ao paciente. Selecione um médico primeiro.',
+            ], 422);
+        }
+
+        // Se o paciente não tinha médico vinculado, salvar o vínculo para futuro
+        if ($paciente && !$paciente->medico_id) {
+            $paciente->update(['medico_id' => $medicoId]);
         }
 
         // Criar receita diretamente com todos os produtos (recomendados e opcionais)
@@ -431,18 +437,20 @@ class AssistenteReceitaController extends Controller
             'itens.*.valor_unitario' => 'nullable|numeric|min:0',
         ]);
 
-        // Determinar médico: do request, do usuário, ou primeiro ativo
-        $medicoId = $validated['medico_id'] ?? $user->medico_id;
-        
+        // Determinar médico: request → paciente.medico_id → user.medico_id
+        $paciente = Paciente::find($validated['paciente_id']);
+        $medicoId = $validated['medico_id']
+            ?? $paciente?->medico_id
+            ?? $user->medico_id;
+
         if (!$medicoId) {
-            // Fallback: usar primeiro médico ativo
-            $medico = Medico::where('ativo', true)->first();
-            if (!$medico) {
-                return response()->json([
-                    'error' => 'Nenhum médico cadastrado. Por favor, cadastre um médico primeiro.',
-                ], 422);
-            }
-            $medicoId = $medico->id;
+            return response()->json([
+                'error' => 'Nenhum médico vinculado ao paciente. Selecione um médico primeiro.',
+            ], 422);
+        }
+
+        if ($paciente && !$paciente->medico_id) {
+            $paciente->update(['medico_id' => $medicoId]);
         }
 
         $receita = Receita::create([

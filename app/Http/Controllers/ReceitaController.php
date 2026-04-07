@@ -43,9 +43,9 @@ class ReceitaController extends Controller
             ->withQueryString();
 
         $medicos = Medico::ativo()
-            ->join('users', 'users.medico_id', '=', 'medicos.id')
-            ->orderBy('users.name')
-            ->select('medicos.id')
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
 
@@ -72,7 +72,7 @@ class ReceitaController extends Controller
 
         $medicos = $user->isMedico() && $user->medico_id
             ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
-            : Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id');
+            : Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
 
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
 
@@ -189,9 +189,9 @@ class ReceitaController extends Controller
         $this->loadAcquisitionDates($receita);
 
         $medicos = Medico::ativo()
-            ->join('users', 'users.medico_id', '=', 'medicos.id')
-            ->orderBy('users.name')
-            ->select('medicos.id')
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
@@ -301,8 +301,7 @@ class ReceitaController extends Controller
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
 
-        // If user is medico, ensure they cannot change medico_id
-        // For admin/callcenter, allow medico_id to be updated if provided
+        // medico_id não pode ser alterado após a receita existir (inclusive ADM)
         $updateData = [
             'data_receita' => $validated['data_receita'],
             'anotacoes' => $validated['anotacoes'] ?? null,
@@ -313,12 +312,6 @@ class ReceitaController extends Controller
             'valor_frete' => $validated['valor_frete'] ?? 0,
             'status' => $validated['status'] ?? $receita->status,
         ];
-
-        // Only allow medico_id update for admin/callcenter
-        if (! $user->isMedico() && $request->has('medico_id')) {
-            $updateData['medico_id'] = $request->input('medico_id');
-        }
-        // For medico, ensure medico_id remains unchanged (already set to their own)
 
         $receita->update($updateData);
 
@@ -421,7 +414,6 @@ class ReceitaController extends Controller
             }
 
             $receita->update([
-                'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
                 'anotacoes' => $validated['anotacoes'] ?? null,
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,

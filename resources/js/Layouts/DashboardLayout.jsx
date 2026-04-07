@@ -1,4 +1,5 @@
 import { Link, usePage, router } from '@inertiajs/react';
+import { publicAsset } from '@/utils/publicAsset';
 import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -24,7 +25,7 @@ const LG_MEDIA = '(min-width: 1024px)';
 
 export default function DashboardLayout({ children }) {
     const page = usePage();
-    const { auth } = page.props;
+    const { auth, assetVersion } = page.props;
     const { url } = page;
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showProfileDrawer, setShowProfileDrawer] = useState(false);
@@ -157,7 +158,7 @@ export default function DashboardLayout({ children }) {
                 >
                     <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
                         <img
-                            src="/images/logo.jpeg"
+                            src={publicAsset('/images/logo.jpeg', assetVersion)}
                             alt="ClincaWeb"
                             className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
                         />

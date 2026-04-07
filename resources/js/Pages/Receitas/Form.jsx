@@ -2,6 +2,7 @@ import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
 import ReceitaFormItemRow from '@/Components/Receita/ReceitaFormItemRow';
@@ -95,7 +96,11 @@ function OutrasReceitaAquisicaoBadge({ item, tippyAquisicaoProps }) {
     );
 }
 
-export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false, casoClinico = null }) {
+export default function ReceitaFormPage(props) {
+    return <ReceitaFormInner key={props.receita?.id ?? 'new'} {...props} />;
+}
+
+function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false, casoClinico = null }) {
     const { auth, flash } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [toast, setToast] = useState(null);
@@ -176,8 +181,75 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     const { 
         lastSavedText, 
         isSaving: isAutoSaving, 
+        hasUnsavedChanges,
         triggerAutoSave,
+        saveNow,
+        cancelAutoSave,
     } = useAutoSave(performAutoSave, 2000, canAutoSave);
+
+    // Unsaved changes modal state
+    const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+    const [savingBeforeLeave, setSavingBeforeLeave] = useState(false);
+    const pendingVisitRef = useRef(null);
+
+    // Intercept Inertia navigation to warn about unsaved changes
+    useEffect(() => {
+        if (isReadOnly) return;
+
+        const removeListener = router.on('before', (event) => {
+            if (!hasUnsavedChanges) return;
+            // Don't intercept form submissions (same-page autosave, finalizar, etc.)
+            if (event.detail?.visit?.method !== 'get') return;
+
+            event.preventDefault();
+            pendingVisitRef.current = event.detail.visit;
+            setShowUnsavedModal(true);
+        });
+
+        return removeListener;
+    }, [hasUnsavedChanges, isReadOnly]);
+
+    // Browser tab/close protection
+    useEffect(() => {
+        if (isReadOnly || !hasUnsavedChanges) return;
+
+        const handler = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [hasUnsavedChanges, isReadOnly]);
+
+    const handleUnsavedCancel = () => {
+        setShowUnsavedModal(false);
+        pendingVisitRef.current = null;
+    };
+
+    const handleUnsavedDiscard = () => {
+        setShowUnsavedModal(false);
+        cancelAutoSave();
+        const visit = pendingVisitRef.current;
+        pendingVisitRef.current = null;
+        if (visit) {
+            router.visit(visit.url, { ...visit, onBefore: undefined });
+        }
+    };
+
+    const handleUnsavedSave = async () => {
+        setSavingBeforeLeave(true);
+        try {
+            await saveNow();
+            const visit = pendingVisitRef.current;
+            pendingVisitRef.current = null;
+            setShowUnsavedModal(false);
+            if (visit) {
+                router.visit(visit.url, { ...visit, onBefore: undefined });
+            }
+        } catch {
+            setSavingBeforeLeave(false);
+        }
+    };
 
     // Função para buscar dados de aquisição de um produto para o paciente
     const buscarDadosAquisicao = useCallback((produtoId, pacienteId) => {
@@ -751,33 +823,14 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         className="w-full max-w-full min-w-0 sm:w-auto px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     />
                                 </div>
-                                {!isMedico && (
-                                    <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
-                                        <span className="text-gray-500 flex-shrink-0">Médico:</span>
-                                        {medicos?.length === 1 ? (
-                                            <span className="font-medium text-gray-900 break-words">{medicos[0].nome}</span>
-                                        ) : (
-                                            <select
-                                                value={data.medico_id}
-                                                onChange={(e) => setData('medico_id', e.target.value)}
-                                                disabled={isReadOnly || medicos?.length === 1}
-                                                className="w-full max-w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                            >
-                                                {medicos?.map((medico) => (
-                                                    <option key={medico.id} value={medico.id}>{medico.nome}</option>
-                                                ))}
-                                            </select>
-                                        )}
-                                    </div>
-                                )}
-                                {isMedico && (
-                                    <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto">
-                                        <span className="text-gray-500 flex-shrink-0">Médico:</span>
-                                        <span className="font-medium text-gray-900 break-words">
-                                            {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
-                                        </span>
-                                    </div>
-                                )}
+                                <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
+                                    <span className="text-gray-500 flex-shrink-0">Médico:</span>
+                                    <span className="font-medium text-gray-900 break-words">
+                                        {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                            || receita?.medico?.nome
+                                            || '-'}
+                                    </span>
+                                </div>
                                 <div className={`self-start px-2 py-0.5 rounded text-xs font-medium ${
                                     data.status === 'finalizada' ? 'bg-green-100 text-green-700' :
                                     data.status === 'cancelada' ? 'bg-red-100 text-red-700' :
@@ -856,8 +909,17 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
 
-                                {/* Medico */}
-                                {!isMedico && (
+                                {/* Medico — só alterável em nova receita */}
+                                {isEditing ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
+                                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                            {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                || receita?.medico?.nome
+                                                || '-'}
+                                        </div>
+                                    </div>
+                                ) : !isMedico ? (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
                                         <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
@@ -867,12 +929,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
                                         </select>
                                     </div>
-                                )}
-                                {isMedico && (
+                                ) : (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
                                         <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                                            {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
+                                            {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome || '-'}
                                         </div>
                                     </div>
                                 )}
@@ -1502,6 +1563,13 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                     onClose={() => setToast(null)}
                 />
             )}
+            <UnsavedChangesModal
+                open={showUnsavedModal}
+                onCancel={handleUnsavedCancel}
+                onDiscard={handleUnsavedDiscard}
+                onSave={handleUnsavedSave}
+                saving={savingBeforeLeave}
+            />
         </DashboardLayout>
     );
 }

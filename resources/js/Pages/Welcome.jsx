@@ -1,7 +1,9 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { publicAsset } from '@/utils/publicAsset';
 
 export default function Welcome() {
+    const { assetVersion } = usePage().props;
     const { data, setData, post, processing, errors } = useForm({
         email: '',
         password: '',
@@ -19,16 +21,14 @@ export default function Welcome() {
         <>
             <Head title="Login" />
 
-            <div className="min-h-screen flex">
-                {/* Lado Esquerdo - Imagem */}
-                <div className="hidden lg:flex lg:w-1/2 relative">
-                    <img
-                        src="/images/login-bg.png"
-                        alt="Background"
-                        className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    {/* Overlay opcional para melhorar legibilidade se adicionar texto */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 to-transparent" />
+            <div className="min-h-screen flex items-stretch">
+                <div
+                    className="login-hero-panel w-full lg:w-1/2"
+                    style={{
+                        backgroundImage: `url('${publicAsset('/images/login-bg.png', assetVersion)}')`,
+                    }}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 to-transparent pointer-events-none" />
                 </div>
 
                 {/* Lado Direito - Login */}
@@ -38,7 +38,7 @@ export default function Welcome() {
                         <div className="text-center mb-8">
                             <div className="inline-flex items-center justify-center mb-4">
                                 <img
-                                    src="/images/logo.jpeg"
+                                    src={publicAsset('/images/logo.jpeg', assetVersion)}
                                     alt="ClincaWeb"
                                     className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-zinc-200/90"
                                 />

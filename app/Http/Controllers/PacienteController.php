@@ -124,21 +124,17 @@ class PacienteController extends Controller
      */
     private function getMedicosForPacienteForm($user): \Illuminate\Support\Collection
     {
+        $query = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+
         if ($user->isSecretaria() && $user->clinica_id) {
             $ids = $user->getMedicoIdsDaClinica();
-            return Medico::ativo()->whereIn('medicos.id', $ids)
-                ->join('users', 'users.medico_id', '=', 'medicos.id')
-                ->orderBy('users.name')
-                ->select('medicos.id')
-                ->get()
-                ->load('linkedUser:id,name,medico_id');
+            $query->whereIn('medicos.id', $ids);
         }
-        return Medico::ativo()
-            ->join('users', 'users.medico_id', '=', 'medicos.id')
-            ->orderBy('users.name')
-            ->select('medicos.id')
-            ->get()
-            ->load('linkedUser:id,name,medico_id');
+
+        return $query->get()->load('linkedUser:id,name,medico_id');
     }
 
     /**

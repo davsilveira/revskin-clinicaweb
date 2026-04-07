@@ -47,7 +47,7 @@ class HandleInertiaRequests extends Middleware
             $medico = Medico::select([
                 'id', 'crm', 'especialidade', 'telefone1', 'telefone2',
                 'email1', 'cep', 'endereco', 'numero', 'complemento', 'bairro',
-                'cidade', 'uf', 'rodape_receita', 'assinatura_path'
+                'cidade', 'uf', 'rodape_receita', 'assinatura_path',
             ])->with(['enderecos', 'linkedUser:id,name,medico_id'])->find($user->medico_id);
         }
 
@@ -64,6 +64,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'assetVersion' => fn () => $this->resolveAssetVersion(),
             'auth' => [
                 'user' => $user ? [
                     'id' => $user->id,
@@ -88,5 +89,22 @@ class HandleInertiaRequests extends Middleware
             ],
         ];
     }
-}
 
+    /**
+     * Query string para cache bust de arquivos em /public (imagens, etc.).
+     */
+    protected function resolveAssetVersion(): string
+    {
+        $v = config('app.asset_version');
+        if (is_string($v) && $v !== '') {
+            return $v;
+        }
+
+        $manifest = public_path('build/manifest.json');
+        if (is_file($manifest)) {
+            return (string) filemtime($manifest);
+        }
+
+        return '1';
+    }
+}

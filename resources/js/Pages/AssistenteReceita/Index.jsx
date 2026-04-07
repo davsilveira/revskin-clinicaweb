@@ -14,8 +14,11 @@ export default function AssistenteReceitaIndex({
     currentMedicoId = null,
     isAdmin = false,
     initialPaciente = null,
+    initialPacienteMedicoId = null,
 }) {
-    const [step, setStep] = useState(1);
+    // If patient already has a linked medico, skip step 1 entirely
+    const canSkipStep1 = !!(initialPaciente && initialPacienteMedicoId);
+    const [step, setStep] = useState(canSkipStep1 ? 2 : 1);
     const [loading, setLoading] = useState(false);
 
     // Patient search
@@ -50,8 +53,11 @@ export default function AssistenteReceitaIndex({
         pais: 'Brasil',
     });
     
-    // Médico selection (for admin)
-    const [selectedMedicoId, setSelectedMedicoId] = useState(currentMedicoId || (medicos.length > 0 ? medicos[0].id : null));
+    // Médico: use patient's linked medico if available, otherwise user's own medico_id.
+    // For admin without linked medico on patient: don't pre-select (force explicit choice).
+    const resolvedMedicoId = initialPacienteMedicoId || currentMedicoId || null;
+    const [selectedMedicoId, setSelectedMedicoId] = useState(resolvedMedicoId);
+    const medicoIsLocked = !!initialPacienteMedicoId || !isAdmin;
 
     // Clinical conditions
     const [condicoes, setCondicoes] = useState({
@@ -399,19 +405,26 @@ export default function AssistenteReceitaIndex({
                         {isAdmin && medicos.length > 0 && (
                             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                 <label className="block text-sm font-medium text-blue-800 mb-2">
-                                    Médico Responsável
+                                    Médico Responsável {!medicoIsLocked && <span className="text-red-500">*</span>}
                                 </label>
-                                <select
-                                    value={selectedMedicoId || ''}
-                                    onChange={(e) => setSelectedMedicoId(Number(e.target.value))}
-                                    className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                                >
-                                    {medicos.map((medico) => (
-                                        <option key={medico.id} value={medico.id}>
-                                            {medico.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                {medicoIsLocked ? (
+                                    <div className="w-full px-4 py-3 border border-blue-200 rounded-lg bg-blue-100/50 text-gray-700">
+                                        {medicos.find(m => m.id === selectedMedicoId)?.label || 'Médico vinculado'}
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedMedicoId || ''}
+                                        onChange={(e) => setSelectedMedicoId(e.target.value ? Number(e.target.value) : null)}
+                                        className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                    >
+                                        <option value="">Selecione um médico...</option>
+                                        {medicos.map((medico) => (
+                                            <option key={medico.id} value={medico.id}>
+                                                {medico.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                             </div>
                         )}
                         
@@ -700,7 +713,7 @@ export default function AssistenteReceitaIndex({
                             )}
                             <button
                                 onClick={handleProximo}
-                                disabled={(!selectedPaciente && !showCreateForm) || (isAdmin && !selectedMedicoId) || creatingPaciente}
+                                disabled={(!selectedPaciente && !showCreateForm) || !selectedMedicoId || creatingPaciente}
                                 className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {creatingPaciente ? (
@@ -728,9 +741,24 @@ export default function AssistenteReceitaIndex({
                 {step === 2 && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-2">Avaliação Clínica</h2>
-                        <p className="text-gray-500 mb-6">
+                        <p className="text-gray-500 mb-4">
                             Informe as condições clínicas do paciente para sugestão de tratamento
                         </p>
+
+                        {selectedPaciente && (
+                            <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <div className="min-w-0">
+                                    <span className="text-sm text-gray-500">Paciente: </span>
+                                    <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
+                                    {selectedPaciente.cpf && (
+                                        <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
