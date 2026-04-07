@@ -350,6 +350,11 @@ class PacienteController extends Controller
             $validated['medico_id'] = $user->medico_id;
         }
 
+        // Médico responsável não pode ser trocado após já vinculado (inclusive ADM); só permite definir se ainda for null
+        if ($paciente->medico_id !== null) {
+            unset($validated['medico_id']);
+        }
+
         $telefones = $validated['telefones'] ?? [];
         unset($validated['telefones']);
 
@@ -496,6 +501,10 @@ class PacienteController extends Controller
             // Check access
             if (!$user->canAccessPaciente($paciente)) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+
+            if ($paciente->medico_id !== null) {
+                unset($validated['medico_id']);
             }
             
             $paciente->update($validated);

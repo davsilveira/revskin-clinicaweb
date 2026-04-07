@@ -174,6 +174,11 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
             // Update URL to edit mode without full page reload
             window.history.replaceState({}, '', `/receitas/${result.id}/edit`);
         }
+        setToast({
+            message: 'Alterações salvas automaticamente',
+            type: 'success',
+            key: Date.now(),
+        });
         return result;
     }, [data, currentReceitaId]);
 
@@ -251,42 +256,7 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
         }
     };
 
-    // Função para buscar dados de aquisição de um produto para o paciente
-    const buscarDadosAquisicao = useCallback((produtoId, pacienteId) => {
-        if (!produtoId || !pacienteId) return { ultima_aquisicao: null, datas_aquisicao: [] };
-
-        // Buscar nas receitas anteriores já carregadas
-        const receitasComProduto = receitasAnteriores.filter(r => 
-            r.itens?.some(i => i.produto_id === produtoId)
-        );
-        
-        if (receitasComProduto.length > 0) {
-            const todasAquisicoes = [];
-            receitasComProduto.forEach(r => {
-                r.itens?.forEach(i => {
-                    if (i.produto_id === produtoId) {
-                        if (i.datas_aquisicao && i.datas_aquisicao.length > 0) {
-                            todasAquisicoes.push(...i.datas_aquisicao);
-                        } else if (i.ultima_aquisicao) {
-                            todasAquisicoes.push(i.ultima_aquisicao);
-                        }
-                    }
-                });
-            });
-            
-            const datasUnicas = [...new Set(todasAquisicoes)].sort().reverse();
-            if (datasUnicas.length > 0) {
-                return {
-                    ultima_aquisicao: datasUnicas[0],
-                    datas_aquisicao: datasUnicas,
-                };
-            }
-        }
-
-        return { ultima_aquisicao: null, datas_aquisicao: [] };
-    }, [receitasAnteriores]);
-
-    // Atualizar dados de aquisição quando receita mudar, paciente mudar ou receitas anteriores mudarem
+    // Atualizar dados de aquisição quando receita mudar ou paciente mudar (só linha atual; sem cruzar outras receitas)
     const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
     
     useEffect(() => {
@@ -310,16 +280,6 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                         datas_aquisicao: itemOriginal.datas_aquisicao || [],
                     };
                 }
-                
-                // Se não tem no original, buscar nas receitas anteriores
-                const dadosAquisicao = buscarDadosAquisicao(item.produto_id, pacienteId);
-                if (dadosAquisicao.ultima_aquisicao) {
-                    return {
-                        ...item,
-                        ultima_aquisicao: dadosAquisicao.ultima_aquisicao,
-                        datas_aquisicao: dadosAquisicao.datas_aquisicao,
-                    };
-                }
             }
             
             return item;
@@ -337,7 +297,7 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
             setData('itens', newItens);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [receita?.id, pacienteId, receitasAnteriores.length]);
+        }, [receita?.id, pacienteId]);
 
     // Trigger autosave when data changes
     useEffect(() => {
@@ -451,28 +411,19 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
             if (produto) {
                 newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
-                
-                // Buscar aquisições deste produto para este paciente
-                const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
-                if (pacienteId) {
-                    const dadosAquisicao = buscarDadosAquisicao(produto.id, pacienteId);
-                    if (dadosAquisicao.ultima_aquisicao) {
-                        newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                        newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao;
-                    }
-                }
+                newItens[index].ultima_aquisicao = null;
+                newItens[index].datas_aquisicao = [];
             }
         }
 
-        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, buscar
+        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, usar só a linha já persistida desta receita
         if (field === 'imprimir' && value === true && currentItem.produto_id && !currentItem.ultima_aquisicao) {
-            const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
-            if (pacienteId) {
-                const dadosAquisicao = buscarDadosAquisicao(currentItem.produto_id, pacienteId);
-                if (dadosAquisicao.ultima_aquisicao) {
-                    newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                    newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao;
-                }
+            const itemOriginal = receita?.itens?.find(
+                (i) => i.id === currentItem.id && String(i.produto_id) === String(currentItem.produto_id)
+            );
+            if (itemOriginal && (itemOriginal.ultima_aquisicao || itemOriginal.datas_aquisicao?.length > 0)) {
+                newItens[index].ultima_aquisicao = itemOriginal.ultima_aquisicao || null;
+                newItens[index].datas_aquisicao = itemOriginal.datas_aquisicao || [];
             }
         }
 
@@ -831,7 +782,7 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                             || '-'}
                                     </span>
                                 </div>
-                                <div className={`self-start px-2 py-0.5 rounded text-xs font-medium ${
+                                <div className={`inline-flex items-center shrink-0 px-2 py-0.5 rounded text-xs font-medium leading-tight ${
                                     data.status === 'finalizada' ? 'bg-green-100 text-green-700' :
                                     data.status === 'cancelada' ? 'bg-red-100 text-red-700' :
                                     'bg-gray-100 text-gray-600'
@@ -1558,6 +1509,7 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
             </div>
             {toast && (
                 <Toast
+                    key={toast.key ?? `${toast.type}-${toast.message}`}
                     message={toast.message}
                     type={toast.type}
                     onClose={() => setToast(null)}

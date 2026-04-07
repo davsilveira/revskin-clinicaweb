@@ -298,6 +298,17 @@ class ImportarDadosLegado extends Command
                 ? User::find($this->getMapping('users', $item['legado_id']))
                 : null;
 
+            // Vários users legado (ex.: usernames distintos) para o mesmo médico → um único User no novo sistema
+            if (! $existente && ($item['role'] ?? '') === 'medico' && ! empty($item['legado_medico_ids'])) {
+                $medicoIdNovo = $this->getMapping('medicos', $item['legado_medico_ids'][0]);
+                if ($medicoIdNovo) {
+                    $existente = User::query()
+                        ->where('role', 'medico')
+                        ->where('medico_id', $medicoIdNovo)
+                        ->first();
+                }
+            }
+
             if (! $existente && ! empty($item['email'])) {
                 $existente = User::where('email', $item['email'])->first();
             }

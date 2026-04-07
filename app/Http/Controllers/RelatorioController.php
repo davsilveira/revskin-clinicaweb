@@ -333,14 +333,9 @@ class RelatorioController extends Controller
                 if ($pacienteIds) {
                     $q->whereIn('paciente_id', $pacienteIds);
                 }
-                
-                if ($request->data_inicio) {
-                    $q->whereDate('data_receita', '>=', $request->data_inicio);
-                }
-                
-                if ($request->data_fim) {
-                    $q->whereDate('data_receita', '<=', $request->data_fim);
-                }
+
+                // Período do relatório: data da **aquisição** (filtros abaixo em receita_item_aquisicoes).
+                // Não filtrar aqui por data_receita, senão compras no período somem quando a receita é mais antiga.
             })
             ->when($request->data_inicio, function($q, $data) {
                 $q->whereDate('data_aquisicao', '>=', $data);
@@ -377,14 +372,8 @@ class RelatorioController extends Controller
                 if ($pacienteIds) {
                     $q->whereIn('paciente_id', $pacienteIds);
                 }
-                
-                if ($request->data_inicio) {
-                    $q->whereDate('data_receita', '>=', $request->data_inicio);
-                }
-                
-                if ($request->data_fim) {
-                    $q->whereDate('data_receita', '<=', $request->data_fim);
-                }
+
+                // Mesma regra: período por data_aquisicao do item (where abaixo), não por data_receita.
             })
             ->when($request->data_inicio, function($q, $data) {
                 $q->whereDate('data_aquisicao', '>=', $data);
@@ -520,14 +509,23 @@ class RelatorioController extends Controller
             }
         }
         
-        // Converter arrays associativos em arrays indexados e ordenar por nome do paciente
+        // Converter arrays associativos em arrays indexados e ordenar pelo primeiro nome, depois nome completo
         $resultado = collect($agrupadoPorPaciente)
             ->map(function($pacienteData) {
                 $pacienteData['produtos'] = array_values($pacienteData['produtos']);
                 unset($pacienteData['receitas_unicas']);
                 return $pacienteData;
             })
-            ->sortBy('paciente.nome')
+            ->sortBy(function (array $pacienteData) {
+                $nome = trim((string) ($pacienteData['paciente']['nome'] ?? ''));
+                $primeiro = '';
+                if ($nome !== '') {
+                    $partes = preg_split('/\s+/u', $nome, 2, PREG_SPLIT_NO_EMPTY);
+                    $primeiro = $partes[0] ?? '';
+                }
+
+                return mb_strtolower($primeiro, 'UTF-8')."\0".mb_strtolower($nome, 'UTF-8');
+            })
             ->values()
             ->toArray();
         

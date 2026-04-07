@@ -211,10 +211,7 @@ class ReceitaController extends Controller
             ->get();
 
         $receitasAnteriores->each(function ($r) {
-            $r->itens->each(function ($item) {
-                $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
-                $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn ($d) => $d->format('Y-m-d'))->toArray();
-            });
+            $this->applyAcquisitionDatesToItens($r->itens);
         });
 
         $user = $request->user();
@@ -243,7 +240,18 @@ class ReceitaController extends Controller
 
     private function loadAcquisitionDates(Receita $receita): void
     {
-        $receita->itens->each(function ($item) use ($receita) {
+        $this->applyAcquisitionDatesToItens($receita->itens);
+    }
+
+    /**
+     * Datas de aquisição por linha da receita (alinhado ao legado): só registos em
+     * receita_item_aquisicoes deste receita_item + receita_itens.data_aquisicao.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\ReceitaItem>  $itens
+     */
+    private function applyAcquisitionDatesToItens($itens): void
+    {
+        $itens->each(function ($item) {
             if (! $item->produto_id) {
                 $item->ultima_aquisicao = null;
                 $item->datas_aquisicao = [];
@@ -251,17 +259,18 @@ class ReceitaController extends Controller
                 return;
             }
 
-            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
-                $query->where('produto_id', $item->produto_id)
-                    ->whereHas('receita', function ($q) use ($receita) {
-                        $q->where('paciente_id', $receita->paciente_id);
-                    });
-            })->orderByDesc('data_aquisicao')->get();
+            $aquisicoes = $item->relationLoaded('aquisicoes')
+                ? $item->aquisicoes->sortByDesc('data_aquisicao')->values()
+                : $item->aquisicoes()->orderByDesc('data_aquisicao')->get();
 
-            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
+            $datasStrings = $aquisicoes->pluck('data_aquisicao')->filter()->map(fn ($d) => $d->format('Y-m-d'));
+            if ($item->data_aquisicao) {
+                $datasStrings->push($item->data_aquisicao->format('Y-m-d'));
+            }
+            $datasUnicas = $datasStrings->unique()->sortDesc()->values();
 
-            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
-            $item->datas_aquisicao = $datasAquisicao->map(fn ($d) => $d->format('Y-m-d'))->toArray();
+            $item->ultima_aquisicao = $datasUnicas->isNotEmpty() ? $datasUnicas->first() : null;
+            $item->datas_aquisicao = $datasUnicas->all();
         });
     }
 

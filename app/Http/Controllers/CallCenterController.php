@@ -67,28 +67,28 @@ class CallCenterController extends Controller
             'acompanhamentos.usuario',
         ]);
 
-        // Format acquisition dates for each item
-        // Buscar aquisições por produto_id e paciente_id (histórico completo do produto com o paciente)
+        // Datas de aquisição por linha (só deste receita_item + receita_itens.data_aquisicao)
         if ($atendimento->receita && $atendimento->receita->itens) {
-            $atendimento->receita->itens->each(function ($item) use ($atendimento) {
-                if (!$item->produto_id) {
+            $atendimento->receita->itens->each(function ($item) {
+                if (! $item->produto_id) {
                     $item->ultima_aquisicao = null;
                     $item->datas_aquisicao = [];
+
                     return;
                 }
-                
-                // Buscar todas as aquisições deste produto para este paciente em todas as receitas
-                $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($atendimento, $item) {
-                    $query->where('produto_id', $item->produto_id)
-                          ->whereHas('receita', function ($q) use ($atendimento) {
-                              $q->where('paciente_id', $atendimento->paciente_id);
-                          });
-                })->orderByDesc('data_aquisicao')->get();
 
-                $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
-                
-                $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
-                $item->datas_aquisicao = $datasAquisicao->map(fn($d) => $d->format('Y-m-d'))->toArray();
+                $aquisicoes = $item->relationLoaded('aquisicoes')
+                    ? $item->aquisicoes->sortByDesc('data_aquisicao')->values()
+                    : $item->aquisicoes()->orderByDesc('data_aquisicao')->get();
+
+                $datasStrings = $aquisicoes->pluck('data_aquisicao')->filter()->map(fn ($d) => $d->format('Y-m-d'));
+                if ($item->data_aquisicao) {
+                    $datasStrings->push($item->data_aquisicao->format('Y-m-d'));
+                }
+                $datasUnicas = $datasStrings->unique()->sortDesc()->values();
+
+                $item->ultima_aquisicao = $datasUnicas->isNotEmpty() ? $datasUnicas->first() : null;
+                $item->datas_aquisicao = $datasUnicas->all();
             });
         }
 

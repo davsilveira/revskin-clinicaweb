@@ -4,10 +4,11 @@ namespace App\Exports;
 
 use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithCustomStartCell;
 use Maatwebsite\Excel\Concerns\WithTitle;
 
-class AquisicaoProdutosExport implements FromArray, WithCustomStartCell, WithTitle
+class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomStartCell, WithTitle
 {
     protected array $dados;
     protected string $dataInicio;

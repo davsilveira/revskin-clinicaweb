@@ -173,6 +173,9 @@ export default function PatientDrawer({
 
     const isBrazil = data.pais === 'Brasil';
 
+    const persistedPacienteId = currentPacienteId ?? paciente?.id ?? null;
+    const medicoLocked = Boolean(persistedPacienteId && data.medico_id);
+
     // Autosave function
     const performAutoSave = useCallback(async () => {
         if (isSavingRef.current) return;
@@ -659,24 +662,42 @@ export default function PatientDrawer({
                             <h3 className="text-sm font-medium text-gray-900 mb-4">Médico Responsável {medicoRequired && <span className="text-red-500">*</span>}</h3>
                             {medicos?.length > 0 ? (
                                 <div>
-                                    <Select
-                                        label=""
-                                        value={data.medico_id ? String(data.medico_id) : ''}
-                                        onChange={(e) => {
-                                            setData('medico_id', e.target.value ? Number(e.target.value) : '');
-                                            setFieldErrors(prev => ({ ...prev, medico_id: null }));
-                                        }}
-                                        options={[
-                                            { value: '', label: 'Selecione o médico' },
-                                            ...medicos.map((m) => ({ value: String(m.id), label: m.nome || m.linked_user?.name || `Médico ${m.id}` })),
-                                        ]}
-                                        error={fieldErrors.medico_id || errors.medico_id}
-                                    />
+                                    {medicoLocked ? (
+                                        <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                            {medicos.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                || selectedMedico?.nome
+                                                || paciente?.medico?.nome
+                                                || '—'}
+                                        </div>
+                                    ) : (
+                                        <Select
+                                            label=""
+                                            value={data.medico_id ? String(data.medico_id) : ''}
+                                            onChange={(e) => {
+                                                setData('medico_id', e.target.value ? Number(e.target.value) : '');
+                                                setFieldErrors(prev => ({ ...prev, medico_id: null }));
+                                            }}
+                                            options={[
+                                                { value: '', label: 'Selecione o médico' },
+                                                ...medicos.map((m) => ({ value: String(m.id), label: m.nome || m.linked_user?.name || `Médico ${m.id}` })),
+                                            ]}
+                                            error={fieldErrors.medico_id || errors.medico_id}
+                                        />
+                                    )}
                                 </div>
                             ) : (
                                 <div>
                                     <div className="relative">
-                                        {selectedMedico ? (
+                                        {medicoLocked && (selectedMedico || data.medico_id) ? (
+                                            <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3">
+                                                <div className="font-medium text-gray-900">
+                                                    {selectedMedico?.nome || paciente?.medico?.nome || '—'}
+                                                </div>
+                                                {(selectedMedico?.crm || paciente?.medico?.crm) && (
+                                                    <div className="text-sm text-gray-500">CRM: {selectedMedico?.crm || paciente?.medico?.crm}</div>
+                                                )}
+                                            </div>
+                                        ) : selectedMedico ? (
                                             <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                                                 <div>
                                                     <div className="font-medium text-gray-900">{selectedMedico.nome}</div>

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\MedicoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -113,10 +114,15 @@ class UserController extends Controller
             'role.in' => 'O perfil selecionado é inválido.',
             'crm.required' => 'O CRM é obrigatório.',
             'uf_crm.required' => 'A UF do CRM é obrigatória.',
-            'celular.required' => 'O celular é obrigatório.',
         ];
 
-        $validated = $request->validate($userRules, $messages);
+        if ($isMedico) {
+            $validator = Validator::make($request->all(), $userRules, $messages);
+            $validator->after(fn ($v) => MedicoService::validateTelefoneOuCelular($v));
+            $validated = $validator->validate();
+        } else {
+            $validated = $request->validate($userRules, $messages);
+        }
 
         if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
             return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();
@@ -197,10 +203,15 @@ class UserController extends Controller
             'role.in' => 'O perfil selecionado é inválido.',
             'crm.required' => 'O CRM é obrigatório.',
             'uf_crm.required' => 'A UF do CRM é obrigatória.',
-            'celular.required' => 'O celular é obrigatório.',
         ];
 
-        $validated = $request->validate($userRules, $messages);
+        if ($isMedico) {
+            $validator = Validator::make($request->all(), $userRules, $messages);
+            $validator->after(fn ($v) => MedicoService::validateTelefoneOuCelular($v));
+            $validated = $validator->validate();
+        } else {
+            $validated = $request->validate($userRules, $messages);
+        }
 
         if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
             return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();

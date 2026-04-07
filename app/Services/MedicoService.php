@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Medico;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Validator;
 
 class MedicoService
 {
@@ -24,7 +25,7 @@ class MedicoService
             'clinica_ids.*' => 'exists:clinicas,id',
             'email' => 'required|email|max:255',
             'telefone' => 'nullable|string|max:20',
-            'celular' => 'required|string|max:20',
+            'celular' => 'nullable|string|max:20',
             'rodape_receita' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
@@ -40,6 +41,21 @@ class MedicoService
             'enderecos.*.cidade' => 'nullable|string|max:255',
             'enderecos.*.uf' => 'nullable|string|max:2',
         ];
+    }
+
+    /**
+     * Exige pelo menos um contacto com DDD (mínimo 10 dígitos) em telefone ou celular.
+     */
+    public static function validateTelefoneOuCelular(Validator $validator): void
+    {
+        $data = $validator->getData();
+        $tel = preg_replace('/\D+/', '', (string) ($data['telefone'] ?? ''));
+        $cel = preg_replace('/\D+/', '', (string) ($data['celular'] ?? ''));
+        if (strlen($tel) < 10 && strlen($cel) < 10) {
+            $msg = 'Informe telefone ou celular com DDD (mínimo 10 dígitos).';
+            $validator->errors()->add('telefone', $msg);
+            $validator->errors()->add('celular', $msg);
+        }
     }
 
     /**

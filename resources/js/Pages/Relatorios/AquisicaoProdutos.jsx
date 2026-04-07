@@ -401,6 +401,9 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                 </button>
                             </div>
                         </div>
+                        <p className="text-xs text-gray-500 mb-4">
+                            O período considera a <span className="font-medium text-gray-600">data de aquisição</span> do produto, não a data da receita.
+                        </p>
 
                         {/* Mais Filtros */}
                         <div className="pt-4">

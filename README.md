@@ -342,6 +342,7 @@ php artisan migration:extrair-legado
 - `users.json` — Usuários com roles mapeadas (admin/medico/secretaria)
 - `pacientes.json` — Pacientes com telefones classificados (celular/fixo)
 - `receitas.json` — Receitas com itens e códigos de produtos corrigidos
+- `itemAquisicoesLegado.json` — Ligações CC → linha de receita (datas alinhadas a `dta_ult_aquisicao` da linha; ver observações abaixo)
 - `resumo-extracao.json` — Resumo com contagens e estatísticas
 
 **Transformações aplicadas automaticamente:**
@@ -352,6 +353,7 @@ php artisan migration:extrair-legado
 - Datas no formato `dd/mm/yyyy` convertidas para `yyyy-mm-dd`
 - Telefones classificados: números começando com `9` (após DDD) são identificados como celular
 - Campos `fone1`/`fone2`/`fone3` mapeados para campo principal + repeater
+- **Usuários médico:** o campo `nome` no JSON passa a seguir o **nome do cadastro de médico** (`nome_legado` em `medicos.json`) quando há um único `legado_medico_id`, para evitar grafias divergentes entre contas legado
 
 ### Etapa 2: Importação
 
@@ -399,6 +401,9 @@ O comando de importação é **idempotente** — pode ser executado múltiplas v
 - **Senhas:** As senhas originais são preservadas quando possível (bcrypt compatível)
 - **Endereços de médicos:** Importados como repeater (campo dinâmico), incluindo endereço principal e endereço da clínica quando disponível
 - **Telefones de pacientes:** Telefones extras são importados no repeater de telefones
+- **Vários logins legado para o mesmo médico:** na importação, se já existir um `User` com `role = medico` e o mesmo `medico_id`, novos `legado_id` de médico são mapeados para esse utilizador (evita duas contas "Angela" no gerenciamento de usuários). O `id-mapping.json` guarda cada `legado_id` → o mesmo `users.id`
+- **Reimportação limpa:** para corrigir dados já migrados, pode apagar receitas/pacientes/clínicas/utilizadores (respeitando FKs), remover ou regenerar `id-mapping.json` e rodar extração + importação de novo
+- **Datas de aquisição na receita (coerente com o legado):** na extração, cada linha em `itemAquisicoesLegado.json` só é gerada quando existe **correspondência explícita** entre a data do registo de aquisição (CC) e `dta_ult_aquisicao` **dessa** linha de `receita_item` no dump — não há fallback para “primeira linha com o mesmo produto”. Vários candidatos com a mesma data → linha ignorada (ambíguo). Na app, o tooltip junta apenas `receita_item_aquisicoes` **da mesma linha** + `receita_itens.data_aquisicao`, **sem** cruzar outras receitas do paciente pelo mesmo produto. Após alterar a extração, é preciso **re-executar** `migration:extrair-legado` e reimportar (ou fluxo de limpeza + import) para limpar `receita_item_aquisicoes` antigos
 
 ## 🚀 Production Deployment
 

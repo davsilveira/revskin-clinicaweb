@@ -74,6 +74,11 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         setEditingUser(user);
         setShowDeleteConfirm(false);
         const medico = user.medico;
+        const rawEnderecos = medico?.enderecos || [];
+        const enderecoUf = (rawEnderecos[0]?.uf || '').trim().toUpperCase();
+        const ufCrmFromMedico = (medico?.uf_crm || '').trim();
+        const uf_crm =
+            ufCrmFromMedico || (enderecoUf.length === 2 ? enderecoUf : '');
         setData({
             name: user.name,
             email: user.email,
@@ -82,7 +87,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
             clinica_id: user.clinica_id ? String(user.clinica_id) : '',
             is_active: user.is_active,
             crm: medico?.crm || '',
-            uf_crm: medico?.uf_crm || '',
+            uf_crm,
             especialidade: medico?.especialidade || '',
             telefone: medico?.telefone1 || '',
             celular: medico?.telefone2 || '',
@@ -90,7 +95,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
             assinatura: null,
             remover_assinatura: false,
             ativo: medico?.ativo ?? true,
-            enderecos: medico?.enderecos?.map(e => ({
+            enderecos: rawEnderecos.map(e => ({
                 nome: e.nome || '',
                 cep: e.cep || '',
                 endereco: e.endereco || '',
@@ -124,7 +129,13 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         const errs = {};
         if (!data.crm?.trim()) errs.crm = 'O CRM é obrigatório.';
         if (!data.uf_crm?.trim()) errs.uf_crm = 'A UF do CRM é obrigatória.';
-        if (!data.celular?.replace(/\D/g, '')) errs.celular = 'O celular é obrigatório.';
+        const telDigits = (data.telefone || '').replace(/\D/g, '');
+        const celDigits = (data.celular || '').replace(/\D/g, '');
+        if (telDigits.length < 10 && celDigits.length < 10) {
+            const msg = 'Informe telefone ou celular com DDD (mínimo 10 dígitos).';
+            errs.telefone = msg;
+            errs.celular = msg;
+        }
         return errs;
     };
 
@@ -400,10 +411,11 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                     value={data.role}
                                     onChange={(e) => {
                                         const newRole = e.target.value;
-                                        setData({
+                                        setData((prev) => ({
+                                            ...prev,
                                             role: newRole,
-                                            clinica_id: newRole === 'secretaria' ? data.clinica_id : '',
-                                        });
+                                            clinica_id: newRole === 'secretaria' ? prev.clinica_id : '',
+                                        }));
                                     }}
                                     error={errors.role}
                                     required

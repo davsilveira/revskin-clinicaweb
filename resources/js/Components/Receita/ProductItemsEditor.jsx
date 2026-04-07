@@ -123,58 +123,28 @@ export default function ProductItemsEditor({
             if (produto) {
                 newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
-                
-                // Buscar dados de aquisição se disponíveis
-                if (itensComAquisicoes[currentItem.id]) {
-                    const dadosAquisicao = itensComAquisicoes[currentItem.id];
-                    newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                    newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
-                }
+                newItens[index].ultima_aquisicao = null;
+                newItens[index].datas_aquisicao = [];
             }
         }
 
-        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, buscar
+        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição: só mesma linha (id + produto)
         if (field === 'imprimir' && value === true && currentItem.produto_id && !currentItem.ultima_aquisicao) {
-            // Primeiro tentar buscar pelo ID do item nos itensComAquisicoes
             const itemId = currentItem.id;
             if (itemId && itensComAquisicoes[itemId]) {
                 const dadosAquisicao = itensComAquisicoes[itemId];
                 newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
                 newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
             } else if (itensOriginais.length > 0) {
-                // Buscar nos itens originais por produto_id
-                const itemOriginal = itensOriginais.find(i => 
-                    i.produto_id === currentItem.produto_id && 
-                    (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
+                const itemOriginal = itensOriginais.find(
+                    (i) =>
+                        i.id === currentItem.id &&
+                        String(i.produto_id) === String(currentItem.produto_id) &&
+                        (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
                 );
-                
                 if (itemOriginal) {
                     newItens[index].ultima_aquisicao = itemOriginal.ultima_aquisicao;
                     newItens[index].datas_aquisicao = itemOriginal.datas_aquisicao || [];
-                }
-            } else {
-                // Buscar em todos os itens atuais que têm o mesmo produto_id e já têm dados de aquisição
-                const itensComMesmoProduto = itens.filter(i => 
-                    i.produto_id === currentItem.produto_id && 
-                    (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
-                );
-                
-                if (itensComMesmoProduto.length > 0) {
-                    const primeiroItem = itensComMesmoProduto[0];
-                    newItens[index].ultima_aquisicao = primeiroItem.ultima_aquisicao;
-                    newItens[index].datas_aquisicao = primeiroItem.datas_aquisicao || [];
-                } else {
-                    // Tentar buscar nos itensComAquisicoes por produto_id
-                    const itemComAquisicao = Object.entries(itensComAquisicoes).find(([key, _]) => {
-                        const originalItem = itens.find(i => i.id === parseInt(key));
-                        return originalItem && originalItem.produto_id === currentItem.produto_id;
-                    });
-                    
-                    if (itemComAquisicao) {
-                        const [, dadosAquisicao] = itemComAquisicao;
-                        newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                        newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
-                    }
                 }
             }
         }

@@ -176,7 +176,7 @@ class ExtrairDadosLegado extends Command
         $this->line("   {$this->count($medicos)} médicos extraídos");
 
         $this->info('4/8 Extraindo usuários...');
-        $users = $this->extrairUsers();
+        $users = $this->extrairUsers($medicos);
         $this->line("   {$this->count($users)} usuários extraídos");
 
         $this->info('5/8 Extraindo pacientes...');
@@ -682,8 +682,20 @@ class ExtrairDadosLegado extends Command
         return $medicos;
     }
 
-    private function extrairUsers(): array
+    /**
+     * @param  array<int, array<string, mixed>>  $medicos  saída de extrairMedicos() para nome canónico por legado_id
+     */
+    private function extrairUsers(array $medicos = []): array
     {
+        $nomeMedicoPorLegadoId = [];
+        foreach ($medicos as $m) {
+            $lid = $m['legado_id'] ?? null;
+            if ($lid === null || $lid === '') {
+                continue;
+            }
+            $nomeMedicoPorLegadoId[(int) $lid] = $m['nome_legado'] ?? '';
+        }
+
         // Build lookup indices
         $rolesById = [];
         foreach ($this->dadosBrutos['role'] ?? [] as $row) {
@@ -730,9 +742,21 @@ class ExtrairDadosLegado extends Command
                 $avisos[] = 'Usuário desativado no sistema antigo';
             }
 
+            $nomeUser = $this->colStr($row, $c, 'nome');
+            if ($newRole === 'medico' && \count($medicoIds) === 1) {
+                $mid = (int) $medicoIds[0];
+                $nomeMedico = $nomeMedicoPorLegadoId[$mid] ?? '';
+                if ($nomeMedico !== '' && $nomeMedico !== $nomeUser) {
+                    $avisos[] = 'Nome no user legado ('.$nomeUser.') substituído pelo cadastro de médico ('.$nomeMedico.').';
+                    $nomeUser = $nomeMedico;
+                } elseif ($nomeMedico !== '') {
+                    $nomeUser = $nomeMedico;
+                }
+            }
+
             $users[] = [
                 'legado_id' => $userId,
-                'nome' => $this->colStr($row, $c, 'nome'),
+                'nome' => $nomeUser,
                 'email' => $email,
                 'username' => $this->colStr($row, $c, 'username'),
                 'role' => $newRole,
@@ -1025,6 +1049,8 @@ class ExtrairDadosLegado extends Command
         $skippedSemReceita = 0;
         $skippedSemItem = 0;
         $skippedSemData = 0;
+        $skippedNoLegacyLineMatch = 0;
+        $skippedAmbiguousMultiLine = 0;
 
         $ap = self::COLS_AQUISICAO_PRODUTO;
         $aq = self::COLS_AQUISICAO;
@@ -1101,7 +1127,7 @@ class ExtrairDadosLegado extends Command
                 }
             }
 
-            $escolhido = null;
+            $matches = [];
             foreach ($filtradas as $cand) {
                 $itemRow = $itensById[$cand['item_id']] ?? null;
                 if (! $itemRow) {
@@ -1109,13 +1135,23 @@ class ExtrairDadosLegado extends Command
                 }
                 $dtaUlt = $this->normalizarData($this->colStr($itemRow, $ic, 'dta_ult_aquisicao'));
                 if ($dtaUlt === $dataFinal) {
-                    $escolhido = $cand;
-                    break;
+                    $matches[] = $cand;
                 }
             }
-            if ($escolhido === null) {
-                $escolhido = $filtradas[0];
+
+            if (\count($matches) === 0) {
+                $skippedNoLegacyLineMatch++;
+
+                continue;
             }
+
+            if (\count($matches) > 1) {
+                $skippedAmbiguousMultiLine++;
+
+                continue;
+            }
+
+            $escolhido = $matches[0];
 
             $out[] = [
                 'legado_receita_item_id' => (int) $escolhido['item_id'],
@@ -1136,12 +1172,15 @@ class ExtrairDadosLegado extends Command
             $deduped[] = $row;
         }
 
-        if ($skippedSemAtendimento + $skippedSemReceita + $skippedSemItem + $skippedSemData > 0) {
+        if ($skippedSemAtendimento + $skippedSemReceita + $skippedSemItem + $skippedSemData
+            + $skippedNoLegacyLineMatch + $skippedAmbiguousMultiLine > 0) {
             $this->warn(
                 'Item aquisições: sem atendimento='.$skippedSemAtendimento
                 .', sem receita (CC)='.$skippedSemReceita
                 .', sem linha receita/produto='.$skippedSemItem
                 .', sem data='.$skippedSemData
+                .', sem linha com dta_ult_aquisicao = data CC='.$skippedNoLegacyLineMatch
+                .', múltiplas linhas candidatas (ambíguo)='.$skippedAmbiguousMultiLine
             );
         }
 
