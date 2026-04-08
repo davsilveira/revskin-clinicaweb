@@ -6,6 +6,7 @@ import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Pagination from '@/Components/Pagination';
 import ExportConfirmModal from '@/Components/ExportConfirmModal';
 import Toast from '@/Components/Toast';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function ReceitasMedico({ medicos, dados, filters }) {
     const { auth, flash } = usePage().props || {};
@@ -139,7 +140,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                 <option value="">Todos os médicos</option>
                                 {medicos?.map((medico) => (
                                     <option key={medico.id} value={medico.id}>
-                                        {medico.nome}
+                                        {nomeExibicaoSemTitulo(medico.nome)}
                                     </option>
                                 ))}
                             </select>
@@ -295,7 +296,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                             </Link>
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                            {receita.medico?.nome || '-'}
+                                                            {nomeExibicaoSemTitulo(receita.medico?.nome) || '-'}
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                             {receita.paciente?.nome || '-'}
@@ -360,9 +361,9 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                     </div>
                                                     <p
                                                         className="text-sm text-gray-800 mt-2 truncate"
-                                                        title={receita.medico?.nome || ''}
+                                                        title={nomeExibicaoSemTitulo(receita.medico?.nome) || ''}
                                                     >
-                                                        {receita.medico?.nome || '—'}
+                                                        {nomeExibicaoSemTitulo(receita.medico?.nome) || '—'}
                                                     </p>
                                                     <p className="text-sm text-gray-600 mt-1 break-words">{receita.paciente?.nome || '—'}</p>
                                                     <p className="text-sm text-gray-500 mt-2">

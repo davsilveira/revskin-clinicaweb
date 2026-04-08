@@ -58,9 +58,6 @@ export default function Dashboard() {
                     <h1 className="text-3xl font-bold mb-2">
                         Olá, {auth.user.name}!
                     </h1>
-                    <p className="text-emerald-100 text-lg">
-                        Bem-vindo ao painel de controle
-                    </p>
                 </div>
 
                 {/* Quick Actions */}

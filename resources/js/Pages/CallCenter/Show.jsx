@@ -5,6 +5,7 @@ import ProductItemsEditor from '@/Components/Receita/ProductItemsEditor';
 import AcompanhamentoSection from '@/Components/CallCenter/AcompanhamentoSection';
 import PatientDrawer from '@/Components/PatientDrawer';
 import useAutoSave from '@/hooks/useAutoSave';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function CallCenterShow({ atendimento, statusOptions, produtos }) {
     const isFirstRender = useRef(true);
@@ -245,7 +246,9 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                 </div>
                                 <div>
                                     <span className="text-gray-500">Médico:</span>
-                                    <p className="font-medium text-gray-900">{atendimento.medico?.nome || '-'}</p>
+                                    <p className="font-medium text-gray-900">
+                                        {nomeExibicaoSemTitulo(atendimento.medico?.nome) || '-'}
+                                    </p>
                                 </div>
                                 
                                 {/* Telefones */}

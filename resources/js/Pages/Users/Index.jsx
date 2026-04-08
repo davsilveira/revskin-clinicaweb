@@ -1,14 +1,48 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
+import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
+import cloneDeep from 'lodash/cloneDeep';
+import isEqual from 'lodash/isEqual';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MedicoFormFields from '@/Components/MedicoFormFields';
 import Pagination from '@/Components/Pagination';
+
+function userFormComparable(d) {
+    return {
+        name: d.name ?? '',
+        email: d.email ?? '',
+        password: d.password ?? '',
+        role: d.role,
+        clinica_id: d.clinica_id ?? '',
+        is_active: d.is_active,
+        crm: d.crm ?? '',
+        uf_crm: d.uf_crm ?? '',
+        especialidade: d.especialidade ?? '',
+        telefone: d.telefone ?? '',
+        celular: d.celular ?? '',
+        clinica_ids: [...(d.clinica_ids || [])].slice().sort((a, b) => a - b),
+        assinatura: d.assinatura ? 1 : 0,
+        remover_assinatura: !!d.remover_assinatura,
+        ativo: d.ativo,
+        enderecos: (d.enderecos || []).map((e) => ({
+            nome: e.nome ?? '',
+            cep: e.cep ?? '',
+            endereco: e.endereco ?? '',
+            numero: e.numero ?? '',
+            complemento: e.complemento ?? '',
+            bairro: e.bairro ?? '',
+            cidade: e.cidade ?? '',
+            uf: e.uf ?? '',
+        })),
+    };
+}
 
 export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     const { props } = usePage();
@@ -42,6 +76,8 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         const r = filters.role || 'all';
         setRoleFilter(tinyEnabled && r === 'callcenter' ? 'all' : r);
     }, [filters.search, filters.role, tinyEnabled]);
+
+    const [formBaseline, setFormBaseline] = useState(null);
 
     const { data, setData, setError, clearErrors, processing, errors, reset } = useForm({
         name: '',
@@ -109,12 +145,20 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         setDrawerOpen(true);
     };
 
-    const closeDrawer = () => {
+    const forceCloseDrawer = () => {
         setDrawerOpen(false);
         setEditingUser(null);
         setShowDeleteConfirm(false);
         reset();
     };
+
+    useEffect(() => {
+        if (!drawerOpen) {
+            setFormBaseline(null);
+            return;
+        }
+        setFormBaseline(cloneDeep(userFormComparable(data)));
+    }, [drawerOpen, editingUser?.id]);
 
     const validateBaseFields = () => {
         const errs = {};
@@ -149,49 +193,94 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         return true;
     }, [data, editingUser]);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-
-        clearErrors();
-        const baseErrs = validateBaseFields();
-        if (Object.keys(baseErrs).length > 0) {
-            setError(baseErrs);
-            return;
-        }
-
-        let submitData = { ...data };
-        if (isMedico(data.role)) {
-            submitData.enderecos = (data.enderecos || []).filter(ev => ev.nome && ev.nome.trim());
-            submitData.email = data.email;
-
-            const medicoErrs = validateMedicoFields();
-            if (Object.keys(medicoErrs).length > 0) {
-                setError(medicoErrs);
+    const trySaveUser = useCallback(
+        ({ onSuccess, onError, onInvalid }) => {
+            clearErrors();
+            const baseErrs = validateBaseFields();
+            if (Object.keys(baseErrs).length > 0) {
+                setError(baseErrs);
+                onInvalid?.();
                 return;
             }
-        }
 
-        const options = {
-            forceFormData: isMedico(data.role),
-            preserveScroll: true,
+            let submitData = { ...data };
+            if (isMedico(data.role)) {
+                submitData.enderecos = (data.enderecos || []).filter((ev) => ev.nome && ev.nome.trim());
+                submitData.email = data.email;
+
+                const medicoErrs = validateMedicoFields();
+                if (Object.keys(medicoErrs).length > 0) {
+                    setError(medicoErrs);
+                    onInvalid?.();
+                    return;
+                }
+            }
+
+            const options = {
+                forceFormData: isMedico(data.role),
+                preserveScroll: true,
+                onSuccess,
+                onError,
+            };
+
+            if (editingUser) {
+                router.put(`/users/${editingUser.id}`, submitData, options);
+            } else {
+                router.post('/users', submitData, options);
+            }
+        },
+        [data, editingUser, clearErrors, setError]
+    );
+
+    const isDirty = useMemo(() => {
+        if (!drawerOpen || !formBaseline) return false;
+        return !isEqual(userFormComparable(data), formBaseline);
+    }, [drawerOpen, formBaseline, data]);
+
+    const saveBeforeClose = useCallback(
+        () =>
+            new Promise((resolve) => {
+                trySaveUser({
+                    onSuccess: () => resolve(true),
+                    onError: () => resolve(false),
+                    onInvalid: () => resolve(false),
+                });
+            }),
+        [trySaveUser]
+    );
+
+    const {
+        requestClose,
+        showUnsavedModal,
+        savingBeforeLeave,
+        handleUnsavedCancel,
+        handleUnsavedDiscard,
+        handleUnsavedSave,
+    } = useDrawerUnsavedChanges({
+        isOpen: drawerOpen,
+        isDirty,
+        onConfirmClose: forceCloseDrawer,
+        saveBeforeClose,
+    });
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        trySaveUser({
             onSuccess: () => {
-                closeDrawer();
-                setToast({ message: editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!', type: 'success' });
+                forceCloseDrawer();
+                setToast({
+                    message: editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!',
+                    type: 'success',
+                });
             },
-        };
-
-        if (editingUser) {
-            router.put(`/users/${editingUser.id}`, submitData, options);
-        } else {
-            router.post('/users', submitData, options);
-        }
+        });
     };
 
     const handleDelete = () => {
         if (editingUser) {
             router.delete(`/users/${editingUser.id}`, {
                 onSuccess: () => {
-                    closeDrawer();
+                    forceCloseDrawer();
                     setToast({ message: 'Usuário excluído com sucesso!', type: 'success' });
                 },
             });
@@ -398,7 +487,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
 
             <Drawer
                 isOpen={drawerOpen}
-                onClose={closeDrawer}
+                onClose={requestClose}
                 title={editingUser ? 'Editar Usuário' : 'Novo Usuário'}
                 width={drawerWidth}
             >
@@ -523,7 +612,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             </div>
 
                             <div className="flex items-center gap-3">
-                                <button type="button" onClick={closeDrawer} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50">
+                                <button type="button" onClick={requestClose} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50">
                                     Cancelar
                                 </button>
                                 <button type="submit" disabled={!isFormValid || processing} className="px-8 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -534,6 +623,14 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                     </div>
                 </form>
             </Drawer>
+
+            <UnsavedChangesModal
+                open={showUnsavedModal}
+                onCancel={handleUnsavedCancel}
+                onDiscard={handleUnsavedDiscard}
+                onSave={handleUnsavedSave}
+                saving={savingBeforeLeave}
+            />
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </DashboardLayout>

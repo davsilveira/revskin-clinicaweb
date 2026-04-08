@@ -486,8 +486,7 @@ export default function DashboardLayout({ children }) {
                                 )}
                             </button>
                             <h2 className="text-base lg:text-lg font-semibold text-gray-900 truncate min-w-0">
-                                <span className="lg:hidden">Olá, {auth.user.name}</span>
-                                <span className="hidden lg:inline">Bem-vindo, {auth.user.name}!</span>
+                                Olá, {auth.user.name}
                             </h2>
                         </div>
 

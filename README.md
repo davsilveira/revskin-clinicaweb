@@ -397,7 +397,11 @@ O comando de importação é **idempotente** — pode ser executado múltiplas v
 ### Observações importantes
 
 - **Acesso de usuários legados:** A maioria dos usuários antigos não possuía email. Foram criados com emails placeholder (`@legado.revskin.com.br`). Para acessar o sistema, precisam utilizar o fluxo de recuperação de senha com um email real
-- **Itens de receita sem produto:** Itens cujo produto não existe no novo sistema são automaticamente ignorados (não causam erro)
+- **Itens de receita sem produto:** Itens cujo produto não existe no novo sistema são automaticamente ignorados (não causam erro). Para **listar** esses itens a partir da extração (CSV com códigos legado/mapeados e tentativa na base — mesma lógica da importação), use:
+  ```bash
+  php artisan migration:relatorio-itens-sem-produto-na-base
+  ```
+  Opções: `--source` (diretório com `receitas.json`), `--output` (caminho do CSV), `--mapeamento-codigos` (markdown de mapeamento). Sem `--output`, o ficheiro é gravado em `storage/app/private/migration-backups/relatorio-itens-sem-produto-*.csv` (UTF-8 com BOM para Excel).
 - **Senhas:** As senhas originais são preservadas quando possível (bcrypt compatível)
 - **Endereços de médicos:** Importados como repeater (campo dinâmico), incluindo endereço principal e endereço da clínica quando disponível
 - **Telefones de pacientes:** Telefones extras são importados no repeater de telefones

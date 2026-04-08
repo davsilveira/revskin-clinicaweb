@@ -6,6 +6,7 @@ import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import ExportConfirmModal from '@/Components/ExportConfirmModal';
 import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados, filters, isAdmin, isMedico }) {
     const { auth, flash } = usePage().props || {};
@@ -440,7 +441,7 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                             key={medico.id}
                                                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm"
                                                         >
-                                                            <span>{medico.nome}</span>
+                                                            <span>{nomeExibicaoSemTitulo(medico.nome)}</span>
                                                             {medico.crm && <span className="text-blue-600 text-xs">CRM: {medico.crm}</span>}
                                                             <button
                                                                 type="button"
@@ -482,7 +483,9 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                                 onClick={() => addMedico(medico)}
                                                                 className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                                             >
-                                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                                <div className="font-medium text-gray-900">
+                                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                                </div>
                                                                 <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
                                                             </button>
                                                         ))}
@@ -673,7 +676,7 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                 <div className="p-6 space-y-6">
                                     {dados.pacientes?.map((pacienteData, index) => (
                                         <div key={pacienteData.paciente.id} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-                                            {/* Cabeçalho do Paciente: Nome, CPF, Dra. (só admin) */}
+                                            {/* Cabeçalho do Paciente: Nome, CPF, médico (só admin) */}
                                             <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                                     <h3 className="text-lg font-semibold text-gray-900">
@@ -686,7 +689,7 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                     )}
                                                     {isAdmin && pacienteData.paciente.medico_nome && (
                                                         <span className="text-sm text-gray-600">
-                                                            Dra. {pacienteData.paciente.medico_nome}
+                                                            {nomeExibicaoSemTitulo(pacienteData.paciente.medico_nome)}
                                                         </span>
                                                     )}
                                                 </div>

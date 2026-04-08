@@ -4,6 +4,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const { auth } = usePage().props;
@@ -307,7 +308,7 @@ const formatDate = (dateString) => {
                                 <div>
                                     <label className="text-xs text-gray-500">Médico</label>
                                     <p className="font-medium text-gray-900">
-                                        {receita.medico?.nome || '-'}
+                                        {nomeExibicaoSemTitulo(receita.medico?.nome) || '-'}
                                     </p>
                                     {receita.medico?.crm && (
                                         <p className="text-xs text-gray-500">
@@ -334,6 +335,12 @@ const formatDate = (dateString) => {
                                         </svg>
                                         Download PDF
                                     </a>
+                                )}
+
+                                {receita.status === 'aberta' && (
+                                    <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                                        O PDF fica disponível após <span className="font-medium">finalizar</span> a receita (botão na edição). Depois, use <span className="font-medium">Download PDF</span>.
+                                    </p>
                                 )}
 
                                 {receita.status === 'aberta' && (

@@ -1,13 +1,50 @@
 import { useForm, router } from '@inertiajs/react';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import Drawer from '@/Components/Drawer';
 import Input from '@/Components/Form/Input';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
 import { validateCPF } from '@/utils/validations';
 import useAutoSave from '@/hooks/useAutoSave';
+import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
 import countries from '@/utils/countries';
 import debounce from 'lodash/debounce';
+import cloneDeep from 'lodash/cloneDeep';
+import isEqual from 'lodash/isEqual';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+
+const INITIAL_PACIENTE_FORM = {
+    nome: '',
+    cpf: '',
+    data_nascimento: '',
+    sexo: '',
+    email1: '',
+    celular: '',
+    cep: '',
+    endereco: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
+    pais: 'Brasil',
+    anotacoes: '',
+    ativo: true,
+    medico_id: '',
+    telefones: [],
+};
+
+function normalizePatientData(d) {
+    return {
+        ...d,
+        medico_id: d.medico_id === '' || d.medico_id == null ? '' : String(d.medico_id),
+        telefones: (d.telefones || []).map((t) => ({
+            numero: String(t.numero || '').trim(),
+            tipo: t.tipo || '',
+        })),
+    };
+}
 
 /**
  * PatientDrawer - Drawer reutilizável para edição de pacientes
@@ -42,26 +79,7 @@ export default function PatientDrawer({
     const isFirstRender = useRef(true);
     const [fieldErrors, setFieldErrors] = useState({});
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
-        nome: '',
-        cpf: '',
-        data_nascimento: '',
-        sexo: '',
-        email1: '',
-        celular: '',
-        cep: '',
-        endereco: '',
-        numero: '',
-        complemento: '',
-        bairro: '',
-        cidade: '',
-        uf: '',
-        pais: 'Brasil',
-        anotacoes: '',
-        ativo: true,
-        medico_id: '',
-        telefones: [],
-    });
+    const { data, setData, post, put, processing, errors, reset } = useForm({ ...INITIAL_PACIENTE_FORM });
 
     // Medico search states (for admin)
     const [searchMedico, setSearchMedico] = useState('');
@@ -70,6 +88,7 @@ export default function PatientDrawer({
     const [selectedMedico, setSelectedMedico] = useState(null);
     const [loadingMedicos, setLoadingMedicos] = useState(false);
     const [auditNames, setAuditNames] = useState({ created: null, updated: null });
+    const [formBaseline, setFormBaseline] = useState(null);
 
     // Initialize form data when paciente changes
     useEffect(() => {
@@ -81,7 +100,7 @@ export default function PatientDrawer({
                     created: paciente.created_by?.name ?? paciente.createdBy?.name ?? null,
                     updated: paciente.updated_by?.name ?? paciente.updatedBy?.name ?? null,
                 });
-                setData({
+                const initial = {
                     nome: paciente.nome || '',
                     cpf: paciente.cpf || '',
                     data_nascimento: paciente.data_nascimento ? paciente.data_nascimento.split('T')[0] : '',
@@ -100,18 +119,23 @@ export default function PatientDrawer({
                     ativo: paciente.ativo ?? true,
                     medico_id: paciente.medico_id || '',
                     telefones: paciente.telefones?.map(t => ({ numero: t.numero, tipo: t.tipo })) || [],
-                });
+                };
+                setData(initial);
+                setFormBaseline(cloneDeep(normalizePatientData(initial)));
             } else {
                 reset();
                 setCurrentPacienteId(null);
                 setSelectedMedico(null);
                 setAuditNames({ created: null, updated: null });
+                setFormBaseline(cloneDeep(normalizePatientData(INITIAL_PACIENTE_FORM)));
             }
             setShowDeleteConfirm(false);
             setCpfError(null);
             setFieldErrors({});
             setSearchMedico('');
             isFirstRender.current = true;
+        } else {
+            setFormBaseline(null);
         }
     }, [isOpen, paciente]);
 
@@ -234,6 +258,8 @@ export default function PatientDrawer({
             }));
         }
 
+        setFormBaseline(cloneDeep(normalizePatientData(data)));
+
         return result;
     }, [data, currentPacienteId, medicoRequired, showMedico]);
 
@@ -250,12 +276,12 @@ export default function PatientDrawer({
         return true;
     }, [enableAutoSave, isOpen, data, medicoRequired, showMedico]);
 
-    const { 
+    const {
         lastSaved,
-        lastSavedText, 
-        isSaving: isAutoSaving, 
-        triggerAutoSave, 
-        cancelAutoSave 
+        lastSavedText,
+        isSaving: isAutoSaving,
+        triggerAutoSave,
+        cancelAutoSave,
     } = useAutoSave(performAutoSave, 2000, canAutoSave());
 
     // Trigger autosave when data changes
@@ -269,35 +295,30 @@ export default function PatientDrawer({
         }
     }, [data, isOpen, enableAutoSave, canAutoSave, triggerAutoSave]);
 
-    const handleClose = () => {
+    const forceClose = useCallback(() => {
         cancelAutoSave();
         onClose?.();
         if (lastSaved) {
             router.reload({ only: ['pacientes'] });
         }
-    };
+    }, [cancelAutoSave, onClose, lastSaved]);
 
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = useRef(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        
-        // Cancelar autosave pendente antes de validar
+    const persistPatient = useCallback(async () => {
         cancelAutoSave();
         isSavingRef.current = true;
-        
-        // Limpar erros anteriores
+
         setCpfError(null);
         const newErrors = {};
         let hasErrors = false;
-        
-        // Validar campos obrigatórios
+
         if (!data.nome || data.nome.trim().length < 2) {
             newErrors.nome = 'O nome completo é obrigatório.';
             hasErrors = true;
         }
-        
+
         if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
             setCpfError('CPF é obrigatório.');
             newErrors.cpf = 'CPF é obrigatório.';
@@ -307,17 +328,17 @@ export default function PatientDrawer({
             newErrors.cpf = 'CPF inválido.';
             hasErrors = true;
         }
-        
+
         if (!data.data_nascimento) {
             newErrors.data_nascimento = 'Data de nascimento é obrigatória.';
             hasErrors = true;
         }
-        
+
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
             newErrors.celular = 'Celular é obrigatório.';
             hasErrors = true;
         }
-        
+
         if (!data.email1 || !data.email1.trim()) {
             newErrors.email1 = 'E-mail é obrigatório.';
             hasErrors = true;
@@ -328,27 +349,27 @@ export default function PatientDrawer({
         }
         if (hasErrors) {
             setFieldErrors(newErrors);
-            return;
+            isSavingRef.current = false;
+            return false;
         }
-        
+
         setFieldErrors({});
         setIsSaving(true);
 
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            const telefonesValidos = data.telefones.filter(t => t.numero && t.numero.trim());
-            
-            // Use currentPacienteId if autosave already created the patient
+            const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
+
             const existingId = paciente?.id || currentPacienteId;
             const url = existingId ? `/pacientes/${existingId}` : '/pacientes';
             const method = existingId ? 'PUT' : 'POST';
-            
+
             const response = await fetch(url, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
+                    Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 credentials: 'same-origin',
@@ -361,37 +382,76 @@ export default function PatientDrawer({
             if (response.ok) {
                 setFieldErrors({});
                 setCpfError(null);
+                setFormBaseline(cloneDeep(normalizePatientData(data)));
                 onSave?.();
-            } else {
-                // Se for erro 419 (CSRF token mismatch), recarregar a página para obter novo token
-                if (response.status === 419) {
-                    window.location.reload();
-                    return;
-                }
+                return true;
+            }
 
-                const errorData = await response.json();
-                console.error('Error saving patient:', errorData);
-                
-                // Processar erros de validação do backend
-                if (response.status === 422 && errorData.errors) {
-                    const backendErrors = {};
-                    Object.keys(errorData.errors).forEach(key => {
-                        backendErrors[key] = errorData.errors[key][0];
-                    });
-                    setFieldErrors(backendErrors);
-                    
-                    // Tratar erro de CPF separadamente
-                    if (backendErrors.cpf) {
-                        setCpfError(backendErrors.cpf);
-                    }
+            if (response.status === 419) {
+                window.location.reload();
+                return false;
+            }
+
+            const errorData = await response.json();
+            console.error('Error saving patient:', errorData);
+
+            if (response.status === 422 && errorData.errors) {
+                const backendErrors = {};
+                Object.keys(errorData.errors).forEach((key) => {
+                    backendErrors[key] = errorData.errors[key][0];
+                });
+                setFieldErrors(backendErrors);
+                if (backendErrors.cpf) {
+                    setCpfError(backendErrors.cpf);
                 }
             }
-    } catch (error) {
-                console.error('Error saving patient:', error);
-            } finally {
-                setIsSaving(false);
-                isSavingRef.current = false;
-            }
+            return false;
+        } catch (error) {
+            console.error('Error saving patient:', error);
+            return false;
+        } finally {
+            setIsSaving(false);
+            isSavingRef.current = false;
+        }
+    }, [data, paciente?.id, currentPacienteId, medicoRequired, showMedico, onSave, cancelAutoSave]);
+
+    const saveBeforeClose = useCallback(async () => persistPatient(), [persistPatient]);
+
+    const isDirty = useMemo(() => {
+        if (!isOpen || !formBaseline) return false;
+        return !isEqual(normalizePatientData(data), formBaseline);
+    }, [isOpen, formBaseline, data]);
+
+    /** Mesmas regras que persistPatient / canAutoSave: só habilita Salvar com obrigatórios válidos (como Usuários). */
+    const isManualSaveValid = useMemo(() => {
+        if (!isOpen) return false;
+        if (!data.nome || data.nome.trim().length < 2) return false;
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
+        if (!validateCPF(data.cpf)) return false;
+        if (!data.data_nascimento) return false;
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
+        if (!data.email1 || !data.email1.trim()) return false;
+        if (medicoRequired && showMedico && !data.medico_id) return false;
+        return true;
+    }, [isOpen, data, medicoRequired, showMedico]);
+
+    const {
+        requestClose,
+        showUnsavedModal,
+        savingBeforeLeave,
+        handleUnsavedCancel,
+        handleUnsavedDiscard,
+        handleUnsavedSave,
+    } = useDrawerUnsavedChanges({
+        isOpen,
+        isDirty,
+        onConfirmClose: forceClose,
+        saveBeforeClose,
+    });
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        await persistPatient();
     };
 
     const handleDelete = () => {
@@ -399,7 +459,7 @@ export default function PatientDrawer({
             router.delete(`/pacientes/${paciente.id}`, {
                 onSuccess: () => {
                     onSave?.();
-                    handleClose();
+                    forceClose();
                 },
             });
         }
@@ -430,9 +490,10 @@ export default function PatientDrawer({
     }, [data.cep]);
 
     return (
+        <>
         <Drawer
             isOpen={isOpen}
-            onClose={handleClose}
+            onClose={requestClose}
             title={paciente ? 'Editar Paciente' : 'Novo Paciente'}
         >
             <form onSubmit={handleSubmit} className="flex flex-col h-full">
@@ -664,10 +725,11 @@ export default function PatientDrawer({
                                 <div>
                                     {medicoLocked ? (
                                         <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                                            {medicos.find((m) => String(m.id) === String(data.medico_id))?.nome
-                                                || selectedMedico?.nome
-                                                || paciente?.medico?.nome
-                                                || '—'}
+                                            {nomeExibicaoSemTitulo(
+                                                medicos.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                    || selectedMedico?.nome
+                                                    || paciente?.medico?.nome
+                                            ) || '—'}
                                         </div>
                                     ) : (
                                         <Select
@@ -679,7 +741,11 @@ export default function PatientDrawer({
                                             }}
                                             options={[
                                                 { value: '', label: 'Selecione o médico' },
-                                                ...medicos.map((m) => ({ value: String(m.id), label: m.nome || m.linked_user?.name || `Médico ${m.id}` })),
+                                                ...medicos.map((m) => ({
+                                                    value: String(m.id),
+                                                    label:
+                                                        nomeExibicaoSemTitulo(m.nome || m.linked_user?.name) || `Médico ${m.id}`,
+                                                })),
                                             ]}
                                             error={fieldErrors.medico_id || errors.medico_id}
                                         />
@@ -691,7 +757,9 @@ export default function PatientDrawer({
                                         {medicoLocked && (selectedMedico || data.medico_id) ? (
                                             <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3">
                                                 <div className="font-medium text-gray-900">
-                                                    {selectedMedico?.nome || paciente?.medico?.nome || '—'}
+                                                    {nomeExibicaoSemTitulo(
+                                                        selectedMedico?.nome || paciente?.medico?.nome
+                                                    ) || '—'}
                                                 </div>
                                                 {(selectedMedico?.crm || paciente?.medico?.crm) && (
                                                     <div className="text-sm text-gray-500">CRM: {selectedMedico?.crm || paciente?.medico?.crm}</div>
@@ -700,7 +768,9 @@ export default function PatientDrawer({
                                         ) : selectedMedico ? (
                                             <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                                                 <div>
-                                                    <div className="font-medium text-gray-900">{selectedMedico.nome}</div>
+                                                    <div className="font-medium text-gray-900">
+                                                        {nomeExibicaoSemTitulo(selectedMedico.nome)}
+                                                    </div>
                                                     {selectedMedico.crm && <div className="text-sm text-gray-500">CRM: {selectedMedico.crm}</div>}
                                                 </div>
                                                 <button
@@ -745,7 +815,9 @@ export default function PatientDrawer({
                                                                 onClick={() => selectMedico(medico)}
                                                                 className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                                             >
-                                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                                <div className="font-medium text-gray-900">
+                                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                                </div>
                                                                 <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
                                                             </button>
                                                         ))}
@@ -844,10 +916,14 @@ export default function PatientDrawer({
                                     ) : null}
                                 </div>
                             )}
-                            <button type="button" onClick={handleClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            <button type="button" onClick={requestClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancelar
                             </button>
-                            <button type="submit" disabled={isSaving} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                            <button
+                                type="submit"
+                                disabled={isSaving || !isManualSaveValid}
+                                className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 {isSaving ? 'Salvando...' : 'Salvar'}
                             </button>
                         </div>
@@ -855,5 +931,13 @@ export default function PatientDrawer({
                 </div>
             </form>
         </Drawer>
+        <UnsavedChangesModal
+            open={showUnsavedModal}
+            onCancel={handleUnsavedCancel}
+            onDiscard={handleUnsavedDiscard}
+            onSave={handleUnsavedSave}
+            saving={savingBeforeLeave}
+        />
+        </>
     );
 }

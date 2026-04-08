@@ -1,10 +1,14 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
+import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
+import cloneDeep from 'lodash/cloneDeep';
+import isEqual from 'lodash/isEqual';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import Checkbox from '@/Components/Form/Checkbox';
@@ -40,6 +44,8 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
         ativo: true,
     });
 
+    const [formBaseline, setFormBaseline] = useState(null);
+
     const openEditDrawer = (produto) => {
         setEditingProduto(produto);
         setData({
@@ -53,16 +59,58 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
         setDrawerOpen(true);
     };
 
-    const closeDrawer = () => {
+    useEffect(() => {
+        if (drawerOpen && editingProduto) {
+            setFormBaseline(cloneDeep(data));
+        }
+        if (!drawerOpen) {
+            setFormBaseline(null);
+        }
+    }, [drawerOpen, editingProduto?.id]);
+
+    const forceCloseDrawer = () => {
         setDrawerOpen(false);
         setEditingProduto(null);
     };
+
+    const isDirty = useMemo(() => {
+        if (!drawerOpen || !formBaseline || !editingProduto) return false;
+        return !isEqual(data, formBaseline);
+    }, [drawerOpen, formBaseline, editingProduto, data]);
+
+    const saveBeforeClose = useCallback(() => {
+        if (!editingProduto) return Promise.resolve(false);
+        return new Promise((resolve) => {
+            put(`/produtos/${editingProduto.id}`, {
+                preserveScroll: true,
+                onSuccess: () => resolve(true),
+                onError: () => resolve(false),
+            });
+        });
+    }, [editingProduto, put]);
+
+    const {
+        requestClose,
+        showUnsavedModal,
+        savingBeforeLeave,
+        handleUnsavedCancel,
+        handleUnsavedDiscard,
+        handleUnsavedSave,
+    } = useDrawerUnsavedChanges({
+        isOpen: drawerOpen,
+        isDirty,
+        onConfirmClose: forceCloseDrawer,
+        saveBeforeClose,
+    });
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (editingProduto) {
             put(`/produtos/${editingProduto.id}`, {
-                onSuccess: () => { closeDrawer(); setToast({ message: 'Produto atualizado!', type: 'success' }); },
+                onSuccess: () => {
+                    forceCloseDrawer();
+                    setToast({ message: 'Produto atualizado!', type: 'success' });
+                },
             });
         }
     };
@@ -337,7 +385,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                 </div>
             </div>
 
-            <Drawer isOpen={drawerOpen} onClose={closeDrawer} title="Editar Produto" size="lg">
+            <Drawer isOpen={drawerOpen} onClose={requestClose} title="Editar Produto" size="lg">
                 <form onSubmit={handleSubmit} className="flex flex-col h-full">
                     <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
@@ -383,7 +431,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                     </div>
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
                         <div className="flex items-center justify-end gap-3">
-                            <button type="button" onClick={closeDrawer} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
+                            <button type="button" onClick={requestClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
                             <button type="submit" disabled={processing} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{processing ? 'Salvando...' : 'Salvar'}</button>
                         </div>
                     </div>
@@ -538,6 +586,14 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                     })()}
                 </div>
             </Drawer>
+
+            <UnsavedChangesModal
+                open={showUnsavedModal}
+                onCancel={handleUnsavedCancel}
+                onDiscard={handleUnsavedDiscard}
+                onSave={handleUnsavedSave}
+                saving={savingBeforeLeave}
+            />
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </DashboardLayout>

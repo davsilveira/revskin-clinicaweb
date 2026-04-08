@@ -11,6 +11,7 @@ import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
 import { formatAnotacaoDisplay } from '@/utils/text';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 const tippyAquisicaoProps = {
     appendTo: () => document.body,
@@ -777,9 +778,10 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                 <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
                                     <span className="text-gray-500 flex-shrink-0">Médico:</span>
                                     <span className="font-medium text-gray-900 break-words">
-                                        {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
-                                            || receita?.medico?.nome
-                                            || '-'}
+                                        {nomeExibicaoSemTitulo(
+                                            medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                || receita?.medico?.nome
+                                        ) || '-'}
                                     </span>
                                 </div>
                                 <div className={`inline-flex items-center shrink-0 px-2 py-0.5 rounded text-xs font-medium leading-tight ${
@@ -791,6 +793,13 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                      data.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                 </div>
                             </div>
+                            {viewMode && data.status === 'aberta' && (
+                                <p className="mt-3 text-sm text-gray-600 border-t border-gray-100 pt-3">
+                                    <span className="font-medium text-gray-800">PDF da receita:</span>{' '}
+                                    use o botão <span className="font-medium">Finalizar</span> acima. Depois, o botão{' '}
+                                    <span className="font-medium">Download PDF</span> aparece aqui e no topo quando a receita estiver finalizada.
+                                </p>
+                            )}
                         </div>
                     ) : (
                         /* Form completo para Nova Receita */
@@ -877,7 +886,11 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                             disabled={isReadOnly || medicos?.length === 1}>
                                             <option value="">Selecione</option>
-                                            {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
+                                            {medicos?.map((medico) => (
+                                                <option key={medico.id} value={medico.id}>
+                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                 ) : (
@@ -1224,8 +1237,11 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                                 <span className="text-base font-medium text-gray-900">{r.numero}</span>
                                                 <span className="text-sm text-gray-500">{new Date(r.data_receita).toLocaleDateString('pt-BR')}</span>
                                                 {r.medico && (
-                                                    <span className="text-sm text-gray-600 break-words" title={r.medico.nome}>
-                                                        {r.medico.nome}
+                                                    <span
+                                                        className="text-sm text-gray-600 break-words"
+                                                        title={nomeExibicaoSemTitulo(r.medico.nome)}
+                                                    >
+                                                        {nomeExibicaoSemTitulo(r.medico.nome)}
                                                     </span>
                                                 )}
                                             </div>

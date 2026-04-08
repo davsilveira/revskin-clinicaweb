@@ -7,6 +7,7 @@ import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Checkbox from '@/Components/Form/Checkbox';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin = false }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -254,9 +255,13 @@ export default function MedicosIndex({ medicos, clinicas = [], filters, isAdmin 
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
                                             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                                                <span className="text-sm font-medium text-blue-700">{medico.nome?.charAt(0)}</span>
+                                                <span className="text-sm font-medium text-blue-700">
+                                                    {nomeExibicaoSemTitulo(medico.nome)?.charAt(0) || '?'}
+                                                </span>
                                             </div>
-                                            <div className="text-sm font-medium text-gray-900">{medico.nome}</div>
+                                            <div className="text-sm font-medium text-gray-900">
+                                                {nomeExibicaoSemTitulo(medico.nome)}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{medico.crm ? `${medico.crm}/${medico.uf_crm}` : '-'}</td>

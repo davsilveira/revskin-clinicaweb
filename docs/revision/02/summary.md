@@ -23,7 +23,7 @@
 - [x] Impedir alteração do médico no Assistente (inclusive ADM)
 
 #### Salvamento
-*(Pausado: aguardando retorno do cliente sobre onde deve haver autosave, onde salvar manual e o papel exato do botão "Finalizar". Não alterar o comportamento até essa definição.)*
+*(Pausado: aguardando retorno do cliente sobre onde deve haver autosave, onde salvar manual e o papel exato do botão "Finalizar". Não alterar o comportamento até essa definição. Documentação do manual neste bloco também aguarda o cliente.)*
 
 - [ ] Padronizar comportamento:
   - [ ] Definir onde salva automático
@@ -76,19 +76,15 @@
 
 - [ ] Simplificar numeração:
   - [ ] De: `1460-0003`
-  - [ ] Para: `1, 2, 3...`
-- [ ] Definir fluxo de envio ao call center:
-  - [ ] Envio automático ao finalizar?
-  - [ ] Opção de cancelar envio
-  - [ ] Possibilidade de reenviar depois
+  - [ ] Para: `1, 2, 3...` *(pendente confirmação do cliente — impacto legal/operacional)*
+
+- [x] Fluxo de envio integrações *(processo já definido no sistema: quando o médico **finaliza** a receita, o envio para **Tiny** e **RD** ocorre nesse momento; não é tema em aberto de produto — documentar no manual quando o bloco Salvamento/Finalizar estiver fechado com o cliente)*
 
 ---
 
 ### 🖨️ Impressão
 
-- [ ] Definir claramente:
-  - [ ] Onde clicar para imprimir receita
-  - [ ] Em qual etapa isso acontece
+- [x] Deixar explícito na UI *(receita em modo visualização **aberta**): texto orientando que o **PDF / Download PDF** fica disponível após **finalizar**, e onde usar o botão na visualização finalizada*
 
 ---
 
@@ -105,35 +101,36 @@
 
 ### 🧹 Padronização
 
-- [ ] Remover "Dr." / "Dra." dos nomes
+- [x] Remover "Dr." / "Dra." da **exibição** *(helper `nomeExibicaoSemTitulo` — receitas, dashboard, relatórios, call center, pacientes, médicos, clínicas, drawer de paciente; cadastros continuam a gravar o nome completo como no legado)*
+
 - [ ] Padronizar listas:
-  - [ ] Evitar duplicidade
+  - [ ] Evitar duplicidade *(itens CC / médicos duplicados tratados noutros ciclos; rever se necessário)*
   - [ ] Garantir consistência entre telas
 
 ---
 
 ### 🎨 Interface
 
-- [ ] Remover "Bem-vindo" do topo
-- [ ] Manter apenas aviso verde na tela inicial
+- [x] Remover "Bem-vindo" do topo *(mantido “Olá, {nome}” / saudação simples; aviso verde na home preservado)*
 
 ---
 
 ## 📚 Documentação (Manual)
 
-*(Itens abaixo dependem da definição do cliente sobre salvamento / Finalizar — alinhar depois do retorno.)*
+*(Aguardando cliente: salvamento / Finalizar / integrações no texto do manual. O comportamento técnico de **Finalizar → Tiny + RD** já está alinhado com o processo; falta só redigir no manual quando o cliente fechar o bloco de salvamento.)*
 
 - [ ] Documentar:
   - [ ] Onde salva automático
   - [ ] Onde precisa salvar manualmente
   - [ ] Diferença entre "Salvar" e "Finalizar"
   - [ ] Comportamento do Assistente
-  - [ ] Fluxo de envio ao Call Center
+  - [ ] Integrações ao finalizar (Tiny / RD) e relação com Call Center *(conteúdo pendente; regra de negócio já aplicada no sistema)*
 
 ---
 
 ## 📌 Observações
 
+- **Migração — itens de receita sem produto na base:** comando Artisan `migration:relatorio-itens-sem-produto-na-base` + documentação no README; gera CSV para apoio a cadastro no Tiny / atualização do mapeamento (não altera a regra de “ignorar item sem produto” na importação).
 - Sistema atual possui inconsistência entre telas (Assistente vs Receita)
 - Fluxo precisa ser mais previsível (menos decisões do usuário)
 - Reduzir cliques e etapas redundantes é essencial
@@ -145,9 +142,20 @@
 
 1. **Relatório de aquisição de produtos** — Confirmar com negócio se o recorte por `receita_item_aquisicoes` (por linha) continua coerente com o que o relatório deve mostrar (vs. histórico agregado por paciente+produto).
 2. **Salvamento / Finalizar** — Retomar quando houver retorno do cliente (itens em *Prioridade Alta → Salvamento* e *Documentação*).
-3. **Média prioridade** — Numeração de receitas, fluxo Call Center, impressão, permissões médico, padronização de nomes/listas, UI “Bem-vindo”.
-4. **Produtos legado sem Tiny** — Decidir política (SKU catch-all, só log, cadastro Tiny) para linhas ignoradas na migração.
+3. **Média prioridade** — Numeração de receitas *(cliente)*; permissões médico; consistência extra entre listas se necessário.
+4. **Produtos legado sem produto na base** — Comando `php artisan migration:relatorio-itens-sem-produto-na-base` gera CSV para cadastro Tiny / mapeamento; política operacional (catch-all vs. cadastro) continua decisão de negócio.
 5. **Excel relatório** — Fechar item “evitar corte de texto” (wrap) se ainda necessário após autosize.
+
+---
+
+## ✅ Validação manual (após deploy / `npm run build`)
+
+Use esta checklist para marcar os itens `[x]` acima à medida que validar.
+
+1. **Relatório itens sem produto:** na máquina com `receitas.json` atualizado e base com produtos, executar `php artisan migration:relatorio-itens-sem-produto-na-base`. Confirmar que gera CSV em `storage/app/private/migration-backups/` e que colunas (IDs legado, códigos, `codigo_tentado_na_base`) fazem sentido abrindo no Excel/LibreOffice.
+2. **Home / layout:** abrir dashboard — não deve aparecer “Bem-vindo ao painel”; deve manter saudação tipo “Olá, …” e o aviso verde existente.
+3. **Dr./Dra. só na exibição:** abrir lista de médicos, ficha paciente (médico responsável e tabela de receitas), detalhe Call Center, relatórios *Aquisição de produtos* (cabeçalho do paciente e filtros de médico), *Receitas por médico*, edição de clínica (chips/lista de médicos), drawer de paciente (médico responsável) — nomes sem prefixo “Dr.”/“Dra.” onde antes apareciam na UI; formulário de cadastro de médico pode continuar a mostrar o nome completo ao editar.
+4. **PDF / impressão:** abrir uma receita **aberta** em visualização (`/receitas/{id}`) e em edição com `viewMode` — deve haver texto claro de que o PDF só após **finalizar**; numa receita **finalizada**, o botão **Download PDF** deve continuar visível e funcional.
 
 ---
 
