@@ -13,6 +13,7 @@ import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
 import { formatAnotacaoDisplay } from '@/utils/text';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
 
 const tippyAquisicaoProps = {
     appendTo: () => document.body,
@@ -545,6 +546,12 @@ function ReceitaFormInner({
     const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao;
     const canCancel = isEditing && receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada');
 
+    const pacienteCabecalho = receita?.paciente || selectedPaciente;
+    const codigoRegistroPaciente =
+        pacienteCabecalho?.codigo != null && String(pacienteCabecalho.codigo).trim() !== ''
+            ? String(pacienteCabecalho.codigo).trim()
+            : '';
+
     return (
         <DashboardLayout>
             <div className="py-4 lg:py-6 px-0">
@@ -564,9 +571,27 @@ function ReceitaFormInner({
                         Voltar para Receitas
                     </Link>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mt-2">
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            {!isEditing ? 'Nova Receita' : viewMode ? `Receita #${receita.numero}` : `Editar Receita #${receita.numero}`}
-                        </h1>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">
+                                {!isEditing ? 'Nova Receita' : viewMode ? 'Receita' : 'Editar Receita'}
+                            </h1>
+                            {isEditing && (
+                                <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+                                    {codigoRegistroPaciente !== '' && (
+                                        <div>
+                                            <span className="text-gray-500">Nº registro </span>
+                                            <span className="font-semibold text-gray-900 tabular-nums">{codigoRegistroPaciente}</span>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <span className="text-gray-500">Sequência </span>
+                                        <span className="font-semibold text-gray-900 tabular-nums">
+                                            {sequenciaNumeroReceita(receita.numero)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex flex-col gap-2 w-full lg:w-auto lg:justify-end">
                             {!isReadOnly && (isAutoSaving || lastSavedText) && (
                                 <div className="text-xs text-gray-500 flex items-center gap-1 w-full justify-center sm:w-auto sm:justify-start sm:mr-1 order-first lg:order-none">
@@ -1271,7 +1296,9 @@ function ReceitaFormInner({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
                                             <div className="flex flex-col gap-1 min-w-0 lg:flex-row lg:flex-wrap lg:items-baseline lg:gap-x-3 lg:gap-y-0">
-                                                <span className="text-base font-medium text-gray-900">{r.numero}</span>
+                                                <span className="text-base font-medium text-gray-900 tabular-nums">
+                                                    {sequenciaNumeroReceita(r.numero)}
+                                                </span>
                                                 <span className="text-sm text-gray-500">{new Date(r.data_receita).toLocaleDateString('pt-BR')}</span>
                                                 {r.medico && (
                                                     <span

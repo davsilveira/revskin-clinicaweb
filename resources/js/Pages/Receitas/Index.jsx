@@ -5,15 +5,7 @@ import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import PatientDrawer from '@/Components/PatientDrawer';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
-
-/** Ex.: "3751-0002" → "2" (sequência da receita no paciente, sem zeros à esquerda). */
-function sequenciaNumeroReceita(numero) {
-    if (numero == null || numero === '') return '—';
-    const parts = String(numero).split('-');
-    const last = parts[parts.length - 1];
-    const n = parseInt(last, 10);
-    return Number.isNaN(n) ? String(numero) : String(n);
-}
+import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
 
 export default function ReceitasIndex({
     receitas,
