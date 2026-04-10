@@ -1,5 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
@@ -12,6 +13,35 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     const [toast, setToast] = useState(null);
     const [search, setSearch] = useState(filters?.search || '');
     const [status, setStatus] = useState(filters?.ativo ?? '1');
+    const skipNextPacientesFetch = useRef(true);
+
+    const runPacientesQuery = useMemo(
+        () =>
+            debounce((term, ativo) => {
+                const params = { ativo };
+                const t = term?.trim();
+                if (t) {
+                    params.search = t;
+                }
+                router.get('/pacientes', params, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['pacientes', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextPacientesFetch.current) {
+            skipNextPacientesFetch.current = false;
+            return;
+        }
+        runPacientesQuery(search, status);
+    }, [search, status, runPacientesQuery]);
+
+    useEffect(() => () => runPacientesQuery.cancel(), [runPacientesQuery]);
 
     const openCreateDrawer = () => {
         setEditingPaciente(null);
@@ -32,17 +62,12 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
         const msg = editingPaciente ? 'Paciente atualizado com sucesso!' : 'Paciente cadastrado com sucesso!';
         closeDrawer();
         setToast({ message: msg, type: 'success' });
-        router.visit('/pacientes', {
-            only: ['pacientes'],
+        const qs = typeof window !== 'undefined' ? window.location.search : '';
+        router.visit(`/pacientes${qs}`, {
+            only: ['pacientes', 'filters'],
             preserveState: true,
             preserveScroll: true,
         });
-    };
-
-    const handleSearch = (e) => {
-        e.preventDefault();
-        const params = { search, ativo: status };
-        router.get('/pacientes', params, { preserveState: true });
     };
 
     const pacientesList = pacientes?.data || pacientes || [];
@@ -86,13 +111,14 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                         <input
                             type="text"
-                            placeholder="Buscar por nome, CPF ou Nº registro..."
+                            placeholder="Buscar por nome, CPF ou Nº registro…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            autoComplete="off"
                         />
                         <select
                             value={status}
@@ -103,13 +129,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                             <option value="1">Ativos</option>
                             <option value="0">Inativos</option>
                         </select>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
