@@ -554,22 +554,6 @@ export default function PatientDrawer({
                             ]}
                         />
                         <Input
-                            label="Nº Registro"
-                            value={data.codigo}
-                            onChange={(e) => {
-                                setData('codigo', e.target.value);
-                                setFieldErrors((prev) => ({ ...prev, codigo: null }));
-                            }}
-                            error={fieldErrors.codigo || errors.codigo}
-                            placeholder="Opcional"
-                        />
-                        <Input
-                            label="Indicado por"
-                            value={data.indicado_por}
-                            onChange={(e) => setData('indicado_por', e.target.value)}
-                            placeholder="Opcional"
-                        />
-                        <Input
                             label="E-mail"
                             type="email"
                             value={data.email1}
@@ -868,6 +852,27 @@ export default function PatientDrawer({
                             multiline
                             rows={3}
                         />
+                    </div>
+
+                    <div className="border-t pt-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Input
+                                label="Nº Registro"
+                                value={data.codigo}
+                                onChange={(e) => {
+                                    setData('codigo', e.target.value);
+                                    setFieldErrors((prev) => ({ ...prev, codigo: null }));
+                                }}
+                                error={fieldErrors.codigo || errors.codigo}
+                                placeholder="Opcional"
+                            />
+                            <Input
+                                label="Indicado por"
+                                value={data.indicado_por}
+                                onChange={(e) => setData('indicado_por', e.target.value)}
+                                placeholder="Opcional"
+                            />
+                        </div>
                     </div>
 
                     {/* Status (edit only) */}
