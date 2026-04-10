@@ -6,13 +6,19 @@ use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithCustomStartCell;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
-class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomStartCell, WithTitle
+class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomStartCell, WithEvents, WithTitle
 {
     protected array $dados;
+
     protected string $dataInicio;
+
     protected string $dataFim;
+
     protected bool $isAdmin;
 
     public function __construct(array $dados, string $dataInicio, string $dataFim, bool $isAdmin = false)
@@ -31,7 +37,7 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
         $porProduto = [];
         foreach ($produtos as $p) {
             $nome = $p['produto_nome'];
-            if (!isset($porProduto[$nome])) {
+            if (! isset($porProduto[$nome])) {
                 $porProduto[$nome] = $p['data_receita'];
             } else {
                 try {
@@ -47,6 +53,7 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
                 }
             }
         }
+
         return $porProduto;
     }
 
@@ -57,8 +64,9 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
         }
         $digits = preg_replace('/\D/', '', $cpf);
         if (strlen($digits) === 11) {
-            return substr($digits, 0, 3) . '.' . substr($digits, 3, 3) . '.' . substr($digits, 6, 3) . '-' . substr($digits, 9, 2);
+            return substr($digits, 0, 3).'.'.substr($digits, 3, 3).'.'.substr($digits, 6, 3).'-'.substr($digits, 9, 2);
         }
+
         return $cpf;
     }
 
@@ -70,7 +78,7 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
         $dataFimFormatada = Carbon::parse($this->dataFim)->format('d/m/Y');
 
         $rows[] = ['Relatório de Aquisição de Produtos'];
-        $rows[] = ['Período:', $dataInicioFormatada . ' a ' . $dataFimFormatada];
+        $rows[] = ['Período:', $dataInicioFormatada.' a '.$dataFimFormatada];
         $rows[] = [];
 
         foreach ($this->dados['pacientes'] as $pacienteData) {
@@ -79,10 +87,10 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
 
             $pacienteRow = [strtoupper($pacienteData['paciente']['nome'])];
             if ($cpf) {
-                $pacienteRow[] = 'CPF: ' . $cpf;
+                $pacienteRow[] = 'CPF: '.$cpf;
             }
             if ($medicoNome) {
-                $pacienteRow[] = 'Dra. ' . $medicoNome;
+                $pacienteRow[] = $medicoNome;
             }
             $rows[] = $pacienteRow;
 
@@ -112,5 +120,22 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
     public function title(): string
     {
         return 'Aquisição de Produtos';
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $lastRow = $sheet->getHighestRow();
+                $lastCol = $sheet->getHighestColumn();
+                if ($lastRow < 1) {
+                    return;
+                }
+                $sheet->getStyle('A1:'.$lastCol.$lastRow)->getAlignment()
+                    ->setWrapText(true)
+                    ->setVertical(Alignment::VERTICAL_TOP);
+            },
+        ];
     }
 }

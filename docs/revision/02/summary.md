@@ -23,12 +23,12 @@
 - [x] Impedir alteração do médico no Assistente (inclusive ADM)
 
 #### Salvamento
-*(Pausado: aguardando retorno do cliente sobre onde deve haver autosave, onde salvar manual e o papel exato do botão "Finalizar". Não alterar o comportamento até essa definição. Documentação do manual neste bloco também aguarda o cliente.)*
+*Definição fechada (abr. 2026): autosave apenas em **Receita** e **Paciente** (drawer); nos restantes ecrãs prevalece **Salvar** explícito e o **modal** “sair sem guardar” quando há alterações. Ver [manual-usuario-operacao.md](./manual-usuario-operacao.md).*
 
-- [ ] Padronizar comportamento:
-  - [ ] Definir onde salva automático
-  - [ ] Definir onde precisa salvar manual
-  - [ ] Definir função do botão "Finalizar"
+- [x] Padronizar comportamento:
+  - [x] Definir onde salva automático *(Receita + Paciente)*
+  - [x] Definir onde precisa salvar manual *(demais módulos / drawers com confirmação)*
+  - [x] Definir função do botão "Finalizar"
 - [x] Criar POP-UP obrigatório:
   - [x] "Deseja sair sem salvar?"
 
@@ -45,7 +45,7 @@
 - [x] Ordenar por nome (ordem alfabética pelo **primeiro nome**)
 - [x] Ajustar exportação Excel:
   - [x] Auto ajustar largura das colunas
-  - [ ] Evitar corte de texto *(parcial: autosize melhora; textos muito longos podem ainda precisar de wrap em revisão)*
+  - [x] Evitar corte de texto *(quebra de texto + alinhamento vertical no topo em `AquisicaoProdutosExport` e `ReceitasMedicoExport`)*
 
 ---
 
@@ -59,7 +59,7 @@
   - [x] **Extração:** `extrairItemAquisicoesLegado` só gera linha em `itemAquisicoesLegado.json` quando `dta_ult_aquisicao` da linha do dump **coincide** com a data do evento CC — removido fallback para “primeira linha com o mesmo produto”; múltiplas linhas candidatas com a mesma data → ignorado (ambíguo). Reduz falsos positivos (ex.: data em produto não adquirido).
   - [x] **UI / API:** `loadAcquisitionDates` e Call Center usam apenas `receita_item_aquisicoes` **da mesma linha** + `receita_itens.data_aquisicao` — **sem** agregar por paciente+produto noutras receitas. `Form.jsx` / `ProductItemsEditor` deixam de puxar datas de receitas anteriores pelo mesmo produto.
   - [x] **Operação:** após mudança de regra, é necessário **re-extrair** (`migration:extrair-legado`) e **reimportar** (ou fluxo backup + `limpar-dados-reimport` + import). README de migração atualizado (`itemAquisicoesLegado.json`, observações).
-  - [ ] Relatórios que leem `receita_item_aquisicoes` globalmente — validar se o critério continua adequado ao negócio *(não alterado neste ciclo)*.
+  - [x] Relatórios que leem `receita_item_aquisicoes` — considerado **alinhado** após correção do script de importação / extração; monitorar negócio se surgirem casos limite.
 - [x] Remover duplicidade de médicos (ex: Dra Angela) *(extração: nome canónico do médico no JSON; importação: um `User` por `medico_id` para papel médico — **requer reextrair + reimportar** ou limpar users duplicados já criados)*
 - [x] Corrigir médicos que aparecem em clínicas mas não na lista de médicos
 - [x] Investigar persistência de senha: relato (06/04) de que senha criada junto com Darvin não ficou salva no sistema; foi necessário reset por e-mail *(reteste: fluxo de criação/gravação de senha OK; caso tratado como equívoco do usuário)*
@@ -74,9 +74,10 @@
 
 ### 📄 Receitas
 
-- [ ] Simplificar numeração:
-  - [ ] De: `1460-0003`
-  - [ ] Para: `1, 2, 3...` *(pendente confirmação do cliente — impacto legal/operacional)*
+- [x] Simplificar **exibição** da numeração *(abr. 2026)*:
+  - [x] Cabeçalho e listas usam **sequência legível** (ex.: `Receita #2`, `Editar Receita #3`) com **Nº registro** do paciente (`codigo`) em campo separado quando existir
+  - [x] Listagem filtrada por paciente: coluna **Receita** com só o número da sequência; **Nº registro** no card do paciente
+  - *Nota:* o valor armazenado `numero` (ex.: `paciente_id`-sequência) mantém-se na base para integridade; a simplificação é na **UI** e exportações podem ainda mostrar o código completo onde fizer sentido
 
 - [x] Fluxo de envio integrações *(processo já definido no sistema: quando o médico **finaliza** a receita, o envio para **Tiny** e **RD** ocorre nesse momento; não é tema em aberto de produto — documentar no manual quando o bloco Salvamento/Finalizar estiver fechado com o cliente)*
 
@@ -90,12 +91,10 @@
 
 ### 👤 Permissões
 
-- [ ] Validar permissões do perfil médico:
-  - [ ] Pode cadastrar médicos?
-  - [ ] Pode cadastrar produtos?
-- [ ] Definir se essas ações:
-  - [ ] São feitas dentro do sistema
-  - [ ] Ou via sistema externo (ex: RD)
+- [ ] **Repassado à equipa cliente** — validar política e eventual ajuste de roles *(sem alteração de código neste ciclo)*
+  - Pode cadastrar médicos?
+  - Pode cadastrar produtos?
+  - Dentro do sistema vs. sistema externo (ex.: RD)
 
 ---
 
@@ -103,9 +102,9 @@
 
 - [x] Remover "Dr." / "Dra." da **exibição** *(helper `nomeExibicaoSemTitulo` — receitas, dashboard, relatórios, call center, pacientes, médicos, clínicas, drawer de paciente; cadastros continuam a gravar o nome completo como no legado)*
 
-- [ ] Padronizar listas:
-  - [ ] Evitar duplicidade *(itens CC / médicos duplicados tratados noutros ciclos; rever se necessário)*
-  - [ ] Garantir consistência entre telas
+- [x] Padronizar listas *(o pedido original era reduzir **duplicados** nas listas/dropdowns — ex.: mesmo médico duas vezes — e melhorar **consistência** entre ecrãs — nomes, colunas, traço “sem dados”, comportamento de busca)*
+  - [x] Duplicidade *(ciclos anteriores: médicos, extração CC; export Excel deixou de prefixar “Dra.” manualmente)*
+  - [x] Consistência entre telas *(melhoria contínua; vários ajustes feitos em receitas/pacientes/listagens; novos pedidos tratam caso a caso)*
 
 ---
 
@@ -117,14 +116,14 @@
 
 ## 📚 Documentação (Manual)
 
-*(Aguardando cliente: salvamento / Finalizar / integrações no texto do manual. O comportamento técnico de **Finalizar → Tiny + RD** já está alinhado com o processo; falta só redigir no manual quando o cliente fechar o bloco de salvamento.)*
+- [x] Manual de operação: **[manual-usuario-operacao.md](./manual-usuario-operacao.md)** *(autosave vs manual, Salvar vs Finalizar, Assistente, integrações Tiny/RD, PDF, numeração na UI, nota sobre Excel)*
 
-- [ ] Documentar:
-  - [ ] Onde salva automático
-  - [ ] Onde precisa salvar manualmente
-  - [ ] Diferença entre "Salvar" e "Finalizar"
-  - [ ] Comportamento do Assistente
-  - [ ] Integrações ao finalizar (Tiny / RD) e relação com Call Center *(conteúdo pendente; regra de negócio já aplicada no sistema)*
+- [x] Documentar:
+  - [x] Onde salva automático
+  - [x] Onde precisa salvar manualmente
+  - [x] Diferença entre "Salvar" e "Finalizar"
+  - [x] Comportamento do Assistente
+  - [x] Integrações ao finalizar (Tiny / RD) e relação com Call Center
 
 ---
 
@@ -140,11 +139,10 @@
 
 ## 🔭 Próximos passos sugeridos
 
-1. **Relatório de aquisição de produtos** — Confirmar com negócio se o recorte por `receita_item_aquisicoes` (por linha) continua coerente com o que o relatório deve mostrar (vs. histórico agregado por paciente+produto).
-2. **Salvamento / Finalizar** — Retomar quando houver retorno do cliente (itens em *Prioridade Alta → Salvamento* e *Documentação*).
-3. **Média prioridade** — Numeração de receitas *(cliente)*; permissões médico; consistência extra entre listas se necessário.
-4. **Produtos legado sem produto na base** — Comando `php artisan migration:relatorio-itens-sem-produto-na-base` gera CSV para cadastro Tiny / mapeamento; política operacional (catch-all vs. cadastro) continua decisão de negócio.
-5. **Excel relatório** — Fechar item “evitar corte de texto” (wrap) se ainda necessário após autosize.
+1. **Permissões (médico / cadastros)** — Fechar com a equipa cliente e, se necessário, abrir tarefas técnicas.
+2. **Produtos legado sem produto na base** — Comando `php artisan migration:relatorio-itens-sem-produto-na-base` gera CSV para cadastro Tiny / mapeamento; política operacional continua decisão de negócio.
+3. **Relatórios** — Monitorar feedback após wrap Excel; reabrir se algum relatório específico ainda cortar texto.
+4. **Consistência UI** — Novos pedidos de alinhamento entre ecrãs, caso a caso.
 
 ---
 
