@@ -22,11 +22,16 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TabelaKarnaughController;
 use App\Http\Controllers\TinyIntegrationController;
 use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 // Public routes
 Route::get('/', function () {
+    if (Auth::check()) {
+        return redirect()->route('dashboard');
+    }
+
     return Inertia::render('Welcome');
 });
 
