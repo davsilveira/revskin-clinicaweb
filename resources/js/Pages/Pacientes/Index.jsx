@@ -48,8 +48,19 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     const pacientesList = pacientes?.data || pacientes || [];
 
     const rowClick = (paciente) => {
-        if (isSecretaria) openEditDrawer(paciente);
-        else router.visit(`/receitas?paciente_id=${paciente.id}`);
+        if (isSecretaria) {
+            openEditDrawer(paciente);
+            return;
+        }
+        const ultimaId = paciente.ultima_receita_id;
+        if (ultimaId) {
+            router.visit(`/receitas/${ultimaId}`);
+            return;
+        }
+        setToast({
+            message: 'Este paciente ainda não possui receitas.',
+            type: 'warning',
+        });
     };
 
     return (

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\PacienteTelefone;
+use App\Models\Receita;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
@@ -111,7 +112,18 @@ class PacienteController extends Controller
             $query->whereRaw('1 = 0'); // sem clínica = lista vazia
         }
 
-        $pacientes = $query->orderBy('nome')
+        $ultimaReceitaSub = Receita::query()
+            ->select('id')
+            ->whereColumn('paciente_id', 'pacientes.id')
+            ->orderByDesc('data_receita')
+            ->orderByDesc('id')
+            ->limit(1);
+
+        $pacientes = $query
+            ->addSelect([
+                'ultima_receita_id' => $ultimaReceitaSub,
+            ])
+            ->orderBy('nome')
             ->paginate(15)
             ->withQueryString();
 
