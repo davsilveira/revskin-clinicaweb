@@ -6,6 +6,15 @@ import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import PatientDrawer from '@/Components/PatientDrawer';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
+/** Ex.: "3751-0002" → "2" (sequência da receita no paciente, sem zeros à esquerda). */
+function sequenciaNumeroReceita(numero) {
+    if (numero == null || numero === '') return '—';
+    const parts = String(numero).split('-');
+    const last = parts[parts.length - 1];
+    const n = parseInt(last, 10);
+    return Number.isNaN(n) ? String(numero) : String(n);
+}
+
 export default function ReceitasIndex({
     receitas,
     filters,
@@ -21,6 +30,7 @@ export default function ReceitasIndex({
     const [search, setSearch] = useState(filters?.search || '');
     const [status, setStatus] = useState(filters?.status || '');
     const pacienteId = filters?.paciente_id;
+    const listagemPorPaciente = Boolean(pacienteId);
 
     const telefonesExibicao = (p) => {
         if (!p) return [];
@@ -192,7 +202,7 @@ export default function ReceitasIndex({
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Código
+                                                {listagemPorPaciente ? 'Receita' : 'Código'}
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Paciente
@@ -223,7 +233,9 @@ export default function ReceitasIndex({
                                                 >
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-sm font-medium text-gray-900">
-                                                            {receita.numero}
+                                                            {listagemPorPaciente
+                                                                ? sequenciaNumeroReceita(receita.numero)
+                                                                : receita.numero}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -316,7 +328,11 @@ export default function ReceitasIndex({
                                                 >
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="min-w-0 flex-1">
-                                                            <div className="font-medium text-gray-900">{receita.numero}</div>
+                                                            <div className="font-medium text-gray-900">
+                                                                {listagemPorPaciente
+                                                                    ? sequenciaNumeroReceita(receita.numero)
+                                                                    : receita.numero}
+                                                            </div>
                                                             <div className="text-sm font-medium text-gray-900 mt-1 break-words">
                                                                 {receita.paciente?.nome || '—'}
                                                             </div>

@@ -39,9 +39,13 @@ class ReceitaController extends Controller
             $query->where('medico_id', $user->medico_id);
         }
 
-        $receitas = $query->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+        if ($request->filled('paciente_id')) {
+            $query->orderByDesc('data_receita')->orderByDesc('id');
+        } else {
+            $query->orderByDesc('id');
+        }
+
+        $receitas = $query->paginate(15)->withQueryString();
 
         $medicos = Medico::ativo()
             ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
