@@ -3,13 +3,43 @@ import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
+import PatientDrawer from '@/Components/PatientDrawer';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
-export default function ReceitasIndex({ receitas, pacientes, filters }) {
+export default function ReceitasIndex({
+    receitas,
+    filters,
+    pacienteFiltrado = null,
+    medicosPacienteDrawer = [],
+    receitasIndexIsAdmin = false,
+    receitasIndexIsSecretaria = false,
+    receitasIndexCanSelectMedico = true,
+}) {
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
+    const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
     const [search, setSearch] = useState(filters?.search || '');
     const [status, setStatus] = useState(filters?.status || '');
     const pacienteId = filters?.paciente_id;
+
+    const telefonesExibicao = (p) => {
+        if (!p) return [];
+        const out = [];
+        if (p.celular) out.push(p.celular);
+        if (p.telefone1) out.push(p.telefone1);
+        (p.telefones || []).forEach((t) => {
+            if (t?.numero) {
+                out.push(t.tipo ? `${t.tipo}: ${t.numero}` : t.numero);
+            }
+        });
+        return [...new Set(out)];
+    };
+
+    const refreshReceitasIndex = () => {
+        const params = { search, status };
+        if (pacienteId) params.paciente_id = pacienteId;
+        router.get('/receitas', params, { preserveState: true, preserveScroll: true });
+    };
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -60,7 +90,11 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                 Assistente
                             </Link>
                             <Link
-                                href="/receitas/create"
+                                href={
+                                    pacienteFiltrado
+                                        ? `/receitas/create?paciente_id=${pacienteFiltrado.id}`
+                                        : '/receitas/create'
+                                }
                                 className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -71,6 +105,56 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                         </>
                     }
                 />
+
+                {pacienteFiltrado && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 mb-6">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm flex-1 min-w-0">
+                                <div>
+                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                        Paciente
+                                    </span>
+                                    <span className="text-gray-900 font-semibold">{pacienteFiltrado.nome}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                        Médico
+                                    </span>
+                                    <span className="text-gray-900">
+                                        {nomeExibicaoSemTitulo(
+                                            pacienteFiltrado.medico?.linkedUser?.name ||
+                                                pacienteFiltrado.medico?.linked_user?.name ||
+                                                pacienteFiltrado.medico?.apelido
+                                        ) || '—'}
+                                    </span>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                        Telefones
+                                    </span>
+                                    <span className="text-gray-900">
+                                        {telefonesExibicao(pacienteFiltrado).length
+                                            ? telefonesExibicao(pacienteFiltrado).join(' · ')
+                                            : '—'}
+                                    </span>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                        Indicado por
+                                    </span>
+                                    <span className="text-gray-900">{pacienteFiltrado.indicado_por || '—'}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPatientDrawerOpen(true)}
+                                className="shrink-0 min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg text-gray-800 font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Editar paciente
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
                     <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
@@ -331,6 +415,21 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                     )}
                 </div>
             </div>
+
+            <PatientDrawer
+                isOpen={patientDrawerOpen}
+                onClose={() => setPatientDrawerOpen(false)}
+                paciente={pacienteFiltrado}
+                onSave={() => {
+                    setPatientDrawerOpen(false);
+                    refreshReceitasIndex();
+                }}
+                isAdmin={receitasIndexIsAdmin}
+                showMedicoField={receitasIndexCanSelectMedico}
+                medicos={medicosPacienteDrawer}
+                medicoRequired={receitasIndexIsSecretaria}
+                enableAutoSave
+            />
         </DashboardLayout>
     );
 }

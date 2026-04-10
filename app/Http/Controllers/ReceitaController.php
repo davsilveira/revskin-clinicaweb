@@ -49,9 +49,40 @@ class ReceitaController extends Controller
             ->get()
             ->load('linkedUser:id,name,medico_id');
 
+        $pacienteFiltrado = null;
+        $medicosPacienteDrawer = collect();
+        if ($request->filled('paciente_id')) {
+            $pacienteCandidato = Paciente::with([
+                'medico:id',
+                'medico.linkedUser:id,name,medico_id',
+                'telefones',
+            ])->find((int) $request->paciente_id);
+
+            if ($pacienteCandidato) {
+                if (! $user->canAccessPaciente($pacienteCandidato)) {
+                    abort(403, 'Acesso não autorizado.');
+                }
+                $pacienteFiltrado = $pacienteCandidato;
+
+                $medQuery = Medico::ativo()
+                    ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+                    ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+                    ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+                if ($user->isSecretaria() && $user->clinica_id) {
+                    $medQuery->whereIn('medicos.id', $user->getMedicoIdsDaClinica());
+                }
+                $medicosPacienteDrawer = $medQuery->get()->load('linkedUser:id,name,medico_id');
+            }
+        }
+
         return Inertia::render('Receitas/Index', [
             'receitas' => $receitas,
             'medicos' => $medicos,
+            'pacienteFiltrado' => $pacienteFiltrado,
+            'medicosPacienteDrawer' => $medicosPacienteDrawer,
+            'receitasIndexIsAdmin' => $user->isAdmin(),
+            'receitasIndexIsSecretaria' => $user->isSecretaria(),
+            'receitasIndexCanSelectMedico' => ! $user->isMedico(),
             'filters' => $request->only(['search', 'medico_id', 'paciente_id', 'status', 'data_inicio', 'data_fim']),
         ]);
     }
