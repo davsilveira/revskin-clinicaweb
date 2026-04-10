@@ -93,13 +93,22 @@ class ReceitaController extends Controller
         $paciente = null;
 
         if ($request->paciente_id) {
-            $paciente = Paciente::find($request->paciente_id);
+            $paciente = Paciente::with(['telefones', 'medico.linkedUser:id,name,medico_id'])->find($request->paciente_id);
 
             // Check if user can access this paciente
             if ($paciente && ! $user->canAccessPaciente($paciente)) {
                 abort(403, 'Acesso não autorizado.');
             }
         }
+
+        $medicosPacienteDrawerQuery = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+        if ($user->isSecretaria() && $user->clinica_id) {
+            $medicosPacienteDrawerQuery->whereIn('medicos.id', $user->getMedicoIdsDaClinica());
+        }
+        $medicosPacienteDrawer = $medicosPacienteDrawerQuery->get()->load('linkedUser:id,name,medico_id');
 
         $medicos = $user->isMedico() && $user->medico_id
             ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
@@ -117,6 +126,10 @@ class ReceitaController extends Controller
         return Inertia::render('Receitas/Form', [
             'paciente' => $paciente,
             'medicos' => $medicos,
+            'medicosPacienteDrawer' => $medicosPacienteDrawer,
+            'receitaFormIsAdmin' => $user->isAdmin(),
+            'receitaFormIsSecretaria' => $user->isSecretaria(),
+            'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
             'defaultMedicoId' => $user->medico_id,
         ]);
@@ -215,9 +228,27 @@ class ReceitaController extends Controller
 
     private function renderReceitaForm(Receita $receita, Request $request, bool $viewMode = false): Response
     {
-        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+        $receita->load([
+            'paciente.telefones',
+            'paciente.medico.linkedUser:id,name,medico_id',
+            'medico.linkedUser:id,name,medico_id',
+            'itens.produto',
+            'itens.aquisicoes',
+            'atendimentoCallcenter',
+        ]);
 
         $this->loadAcquisitionDates($receita);
+
+        $user = $request->user();
+
+        $medicosPacienteDrawerQuery = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+        if ($user->isSecretaria() && $user->clinica_id) {
+            $medicosPacienteDrawerQuery->whereIn('medicos.id', $user->getMedicoIdsDaClinica());
+        }
+        $medicosPacienteDrawer = $medicosPacienteDrawerQuery->get()->load('linkedUser:id,name,medico_id');
 
         $medicos = Medico::ativo()
             ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
@@ -245,8 +276,6 @@ class ReceitaController extends Controller
             $this->applyAcquisitionDatesToItens($r->itens);
         });
 
-        $user = $request->user();
-
         $bloqueadaPorAtendimento = $receita->atendimentoCallcenter &&
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado']);
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
@@ -256,6 +285,10 @@ class ReceitaController extends Controller
             'receita' => $receita,
             'paciente' => $receita->paciente,
             'medicos' => $medicos,
+            'medicosPacienteDrawer' => $medicosPacienteDrawer,
+            'receitaFormIsAdmin' => $user->isAdmin(),
+            'receitaFormIsSecretaria' => $user->isSecretaria(),
+            'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
             'receitasAnteriores' => $receitasAnteriores,
             'bloqueadaParaEdicao' => $bloqueadaParaEdicao,

@@ -1,6 +1,7 @@
 import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
 import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
 import debounce from 'lodash/debounce';
@@ -101,7 +102,21 @@ export default function ReceitaFormPage(props) {
     return <ReceitaFormInner key={props.receita?.id ?? 'new'} {...props} />;
 }
 
-function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false, casoClinico = null }) {
+function ReceitaFormInner({
+    receita,
+    paciente: initialPaciente,
+    produtos,
+    medicos,
+    medicosPacienteDrawer = [],
+    receitaFormIsAdmin = false,
+    receitaFormIsSecretaria = false,
+    receitaFormCanSelectMedico = true,
+    defaultMedicoId,
+    receitasAnteriores = [],
+    bloqueadaParaEdicao = false,
+    viewMode: initialViewMode = false,
+    casoClinico = null,
+}) {
     const { auth, flash } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [toast, setToast] = useState(null);
@@ -114,6 +129,7 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
     const [showDuplicarModal, setShowDuplicarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
     const [expandedReceitas, setExpandedReceitas] = useState({});
+    const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
     
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
@@ -364,6 +380,20 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
         setData('paciente_id', paciente.id);
         setSearchPaciente('');
         setShowPacienteDropdown(false);
+    };
+
+    useEffect(() => {
+        if (receita?.paciente) {
+            setSelectedPaciente(receita.paciente);
+        }
+    }, [receita?.paciente]);
+
+    const reloadPacienteNaReceita = () => {
+        if (receita?.id) {
+            router.reload({ only: ['receita', 'paciente'] });
+        } else if (selectedPaciente?.id) {
+            router.reload({ only: ['paciente'] });
+        }
     };
 
     const addItem = () => {
@@ -792,6 +822,15 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                     {data.status === 'finalizada' ? 'Finalizada' :
                                      data.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                 </div>
+                                {!isReadOnly && selectedPaciente?.id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPatientDrawerOpen(true)}
+                                        className="min-h-[36px] px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Editar dados do paciente
+                                    </button>
+                                )}
                             </div>
                             {viewMode && data.status === 'aberta' && (
                                 <p className="mt-3 text-sm text-gray-600 border-t border-gray-100 pt-3">
@@ -811,20 +850,34 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                                 <div className="relative md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
                                     {selectedPaciente ? (
-                                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                                            <div>
-                                                <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
-                                                <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 gap-2">
+                                                <div className="min-w-0">
+                                                    <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
+                                                    <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPatientDrawerOpen(true)}
+                                                            className="text-sm px-2 py-1 border border-emerald-300 rounded-md text-emerald-800 hover:bg-emerald-100/80"
+                                                        >
+                                                            Editar paciente
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSelectedPaciente(null); setData('paciente_id', ''); }}
+                                                        className="text-gray-400 hover:text-gray-600"
+                                                        aria-label="Remover paciente"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => { setSelectedPaciente(null); setData('paciente_id', ''); }}
-                                                className="text-gray-400 hover:text-gray-600"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
                                         </div>
                                     ) : (
                                         <>
@@ -1537,6 +1590,20 @@ function ReceitaFormInner({ receita, paciente: initialPaciente, produtos, medico
                 onDiscard={handleUnsavedDiscard}
                 onSave={handleUnsavedSave}
                 saving={savingBeforeLeave}
+            />
+            <PatientDrawer
+                isOpen={patientDrawerOpen}
+                onClose={() => setPatientDrawerOpen(false)}
+                paciente={selectedPaciente?.id ? selectedPaciente : null}
+                onSave={() => {
+                    setPatientDrawerOpen(false);
+                    reloadPacienteNaReceita();
+                }}
+                isAdmin={receitaFormIsAdmin}
+                showMedicoField={receitaFormCanSelectMedico}
+                medicos={medicosPacienteDrawer}
+                medicoRequired={receitaFormIsSecretaria}
+                enableAutoSave
             />
         </DashboardLayout>
     );
