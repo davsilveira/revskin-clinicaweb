@@ -156,6 +156,10 @@ class SyncProdutosTinyJob implements ShouldQueue
             $produto = Produto::where('codigo', $sku)->first();
         }
 
+        if ($produto && $produto->legado_somente_leitura) {
+            return;
+        }
+
         $dados = [
             'tiny_id' => $tinyId,
             'preco' => $precos['preco'] ?? 0,

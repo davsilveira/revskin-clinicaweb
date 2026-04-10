@@ -37,7 +37,8 @@ class ProdutoController extends Controller
                 })->where(function ($query) {
                     $query->whereNull('modo_uso')->orWhere('modo_uso', '');
                 });
-            });
+            })
+            ->when($request->boolean('legado_somente_leitura'), fn ($q) => $q->where('legado_somente_leitura', true));
 
         $produtos = $query->orderBy('codigo')
             ->paginate(50)
@@ -51,7 +52,7 @@ class ProdutoController extends Controller
             });
         }
 
-        $filters = $request->only(['search', 'ativo', 'pendentes']);
+        $filters = $request->only(['search', 'ativo', 'pendentes', 'legado_somente_leitura']);
         if (isset($filters['search']) && in_array($filters['search'], ['undefined', 'null', ''], true)) {
             unset($filters['search']);
         }

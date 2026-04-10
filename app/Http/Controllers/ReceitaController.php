@@ -10,6 +10,7 @@ use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\Setting;
+use App\Support\ReceitaProdutoLegadoGuard;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -114,7 +115,7 @@ class ReceitaController extends Controller
             ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
             : Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura']);
 
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
@@ -159,6 +160,8 @@ class ReceitaController extends Controller
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
+
+        ReceitaProdutoLegadoGuard::assertNovaReceitaSemProdutoLegado($validated['itens']);
 
         // If user is medico, ensure they can only create receitas for themselves
         if ($user->isMedico() && $user->medico_id && $validated['medico_id'] != $user->medico_id) {
@@ -256,7 +259,7 @@ class ReceitaController extends Controller
             ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura']);
 
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
@@ -372,7 +375,10 @@ class ReceitaController extends Controller
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
+            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
         ]);
+
+        ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
 
         // medico_id não pode ser alterado após a receita existir (inclusive ADM)
         $updateData = [
@@ -466,6 +472,7 @@ class ReceitaController extends Controller
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
+            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
         ]);
 
         $id = $validated['id'] ?? null;
@@ -513,6 +520,11 @@ class ReceitaController extends Controller
 
         // Sync items if provided
         if (! empty($validated['itens'])) {
+            if ($id) {
+                ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
+            } else {
+                ReceitaProdutoLegadoGuard::assertNovaReceitaSemProdutoLegado($validated['itens']);
+            }
             $receita->itens()->delete();
             foreach ($validated['itens'] as $index => $item) {
                 $receita->itens()->create([

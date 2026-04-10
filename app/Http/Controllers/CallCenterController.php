@@ -8,6 +8,7 @@ use App\Models\Produto;
 use App\Models\ReceitaItem;
 use App\Models\ReceitaItemAquisicao;
 use App\Models\Setting;
+use App\Support\ReceitaProdutoLegadoGuard;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -93,7 +94,7 @@ class CallCenterController extends Controller
         }
 
         $statusOptions = AtendimentoCallcenter::getStatusOptions();
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'local_uso', 'anotacoes']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'local_uso', 'anotacoes', 'legado_somente_leitura']);
         $produtos->each(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
         });
@@ -117,6 +118,7 @@ class CallCenterController extends Controller
 
         $validated = $request->validate([
             'itens' => 'array',
+            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
             'itens.*.produto_id' => 'nullable|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string|max:255',
             'itens.*.anotacoes' => 'nullable|string|max:500',
@@ -135,6 +137,8 @@ class CallCenterController extends Controller
         if (!$receita) {
             return back()->with('error', 'Receita não encontrada');
         }
+
+        ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens'] ?? []);
 
         // Update receita fields
         $receita->update([
@@ -191,6 +195,7 @@ class CallCenterController extends Controller
 
         $validated = $request->validate([
             'itens' => 'array',
+            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
             'itens.*.produto_id' => 'nullable|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string|max:255',
             'itens.*.anotacoes' => 'nullable|string|max:500',
@@ -208,6 +213,8 @@ class CallCenterController extends Controller
         if (!$receita) {
             return response()->json(['error' => 'Receita não encontrada'], 404);
         }
+
+        ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens'] ?? []);
 
         // Update receita fields
         $receita->update([

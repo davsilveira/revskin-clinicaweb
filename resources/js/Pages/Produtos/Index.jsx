@@ -25,6 +25,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
     const [statusFilter, setStatusFilter] = useState(
         filters?.pendentes ? 'pendentes' : (filters?.ativo === undefined ? 'all' : String(filters.ativo))
     );
+    const [somenteLegado, setSomenteLegado] = useState(Boolean(filters?.legado_somente_leitura));
     const [syncing, setSyncing] = useState(false);
     const [importing, setImporting] = useState(false);
     const [confirming, setConfirming] = useState(false);
@@ -120,6 +121,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
         if (search?.trim()) q.search = search.trim();
         if (statusFilter === 'pendentes') q.pendentes = '1';
         else if (statusFilter !== 'all') q.ativo = statusFilter;
+        if (somenteLegado) q.legado_somente_leitura = '1';
         return { ...q, ...extra };
     };
 
@@ -264,6 +266,15 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                             <option value="0">Inativos</option>
                             <option value="pendentes">Pendentes</option>
                         </select>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                checked={somenteLegado}
+                                onChange={(e) => setSomenteLegado(e.target.checked)}
+                            />
+                            Somente descontinuados (legado)
+                        </label>
                         <button
                             type="submit"
                             className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
@@ -294,6 +305,9 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                                                 <td className="px-6 py-4 text-sm font-mono text-gray-900">{produto.codigo}</td>
                                                 <td className="px-6 py-4 text-sm font-medium text-gray-900">
                                                     {produto.nome}
+                                                    {produto.legado_somente_leitura && (
+                                                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-800">Legado</span>
+                                                    )}
                                                     {!produto.descricao && !produto.modo_uso && (
                                                         <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">Pendente</span>
                                                     )}

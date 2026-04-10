@@ -85,6 +85,12 @@ export default function ProductItemsEditor({
 }) {
     const lastItemRef = useRef(null);
 
+    const isItemLegado = (item) => {
+        if (!item?.produto_id) return false;
+        const p = produtos.find((x) => String(x.id) === String(item.produto_id));
+        return Boolean(p?.legado_somente_leitura);
+    };
+
     // Funções de manipulação de itens
     const addItem = () => {
         const newItens = [
@@ -107,6 +113,7 @@ export default function ProductItemsEditor({
     };
 
     const removeItem = (index) => {
+        if (isItemLegado(itens[index])) return;
         const newItens = [...itens];
         newItens.splice(index, 1);
         onItensChange(newItens);
@@ -115,6 +122,9 @@ export default function ProductItemsEditor({
     const updateItem = (index, field, value) => {
         const newItens = [...itens];
         const currentItem = newItens[index];
+        if (isItemLegado(currentItem)) {
+            return;
+        }
         newItens[index] = { ...currentItem, [field]: value };
 
         // Se mudou o produto, atualiza o preco e local_uso padrao
@@ -183,15 +193,19 @@ export default function ProductItemsEditor({
         const ultimaAquisicao = aquisicaoData?.ultima_aquisicao || item.ultima_aquisicao;
         const datasAquisicao = aquisicaoData?.datas_aquisicao || item.datas_aquisicao || [];
         const temHistorico = datasAquisicao.length > 1;
+        const legado = isItemLegado(item);
+        const rowDisabled = readOnly || legado;
 
         return (
             <div 
                 key={index} 
                 ref={isLastItem ? lastItemRef : null}
                 className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${
-                    item.imprimir 
-                        ? (item.grupo === 'opcional' ? 'hover:bg-gray-50' : 'hover:bg-emerald-50/50') 
-                        : 'bg-gray-50 opacity-50'
+                    legado
+                        ? 'bg-red-50 border border-red-100'
+                        : item.imprimir 
+                          ? (item.grupo === 'opcional' ? 'hover:bg-gray-50' : 'hover:bg-emerald-50/50') 
+                          : 'bg-gray-50 opacity-50'
                 }`}
             >
                 {/* Checkbox */}
@@ -199,7 +213,7 @@ export default function ProductItemsEditor({
                     type="checkbox"
                     checked={item.imprimir}
                     onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                    disabled={readOnly}
+                    disabled={rowDisabled}
                     className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
                 />
                 
@@ -208,7 +222,7 @@ export default function ProductItemsEditor({
                     value={item.produto_id}
                     onChange={(val) => updateItem(index, 'produto_id', val)}
                     produtos={produtos}
-                    disabled={readOnly}
+                    disabled={rowDisabled}
                     className="flex-[3]"
                 />
                 
@@ -218,7 +232,7 @@ export default function ProductItemsEditor({
                     placeholder="Anotações..."
                     value={item.anotacoes || ''}
                     onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                    disabled={readOnly}
+                    disabled={rowDisabled}
                     className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                 />
                 
@@ -278,7 +292,7 @@ export default function ProductItemsEditor({
                     min="1"
                     value={item.quantidade}
                     onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                    disabled={readOnly || !item.imprimir}
+                    disabled={rowDisabled || !item.imprimir}
                     className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
                 />
                 
@@ -290,7 +304,7 @@ export default function ProductItemsEditor({
                 )}
                 
                 {/* Remover */}
-                {!readOnly && (
+                {!readOnly && !legado && (
                     <button 
                         type="button" 
                         onClick={() => removeItem(index)} 

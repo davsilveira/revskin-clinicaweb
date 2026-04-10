@@ -29,12 +29,14 @@ class Produto extends Model
         'tiny_id',
         'tiny_sync_at',
         'ativo',
+        'legado_somente_leitura',
     ];
 
     protected function casts(): array
     {
         return [
             'ativo' => 'boolean',
+            'legado_somente_leitura' => 'boolean',
             'preco' => 'decimal:2',
             'preco_custo' => 'decimal:2',
             'estoque_minimo' => 'integer',

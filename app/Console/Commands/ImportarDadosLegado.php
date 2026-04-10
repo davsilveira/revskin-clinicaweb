@@ -619,7 +619,11 @@ class ImportarDadosLegado extends Command
             : trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
 
         if ($codigoBusca === '') {
-            return null;
+            $lid = $receitaItem['legado_id'] ?? null;
+            if ($lid === null || $lid === '') {
+                return null;
+            }
+            $codigoBusca = 'LEGADO-ITEM-'.$lid;
         }
 
         $produto = $produtoCache->get($codigoBusca);
@@ -632,7 +636,24 @@ class ImportarDadosLegado extends Command
             }
         }
 
-        return $produto?->id;
+        if ($produto) {
+            return $produto->id;
+        }
+
+        $nome = $legado !== ''
+            ? 'Produto legado (cód. '.$legado.')'
+            : 'Produto legado '.$codigoBusca;
+
+        $novo = Produto::create([
+            'codigo' => $codigoBusca,
+            'nome' => $nome,
+            'legado_somente_leitura' => true,
+            'ativo' => true,
+            'preco' => (float) ($receitaItem['valor_unitario'] ?? 0),
+        ]);
+        $produtoCache->put($novo->codigo, $novo);
+
+        return $novo->id;
     }
 
     /**
