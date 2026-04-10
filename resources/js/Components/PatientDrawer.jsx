@@ -1,5 +1,6 @@
 import { useForm, router } from '@inertiajs/react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import Drawer from '@/Components/Drawer';
 import Input from '@/Components/Form/Input';
 import MaskedInput from '@/Components/Form/MaskedInput';
@@ -386,7 +387,11 @@ export default function PatientDrawer({
             if (response.ok) {
                 setFieldErrors({});
                 setCpfError(null);
-                setFormBaseline(cloneDeep(normalizePatientData(data)));
+                // Garante que isDirty vire false e o router.on('before') seja removido antes de onSave()
+                // disparar router.get (ex.: refresh na lista de receitas filtradas por paciente).
+                flushSync(() => {
+                    setFormBaseline(cloneDeep(normalizePatientData(data)));
+                });
                 onSave?.();
                 return true;
             }
