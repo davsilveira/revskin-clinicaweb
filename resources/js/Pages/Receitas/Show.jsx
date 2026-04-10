@@ -5,7 +5,7 @@ import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
-import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
+import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
 
 export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const { auth } = usePage().props;
@@ -69,23 +69,17 @@ const formatDate = (dateString) => {
                     
                     <div className="flex justify-between items-start mt-2">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Receita</h1>
-                            <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                                {receita.paciente?.codigo != null && String(receita.paciente.codigo).trim() !== '' && (
-                                    <div>
-                                        <span className="text-gray-500">Nº registro </span>
-                                        <span className="font-semibold text-gray-900 tabular-nums">
-                                            {String(receita.paciente.codigo).trim()}
-                                        </span>
-                                    </div>
-                                )}
-                                <div>
-                                    <span className="text-gray-500">Sequência </span>
+                            <h1 className="text-2xl font-bold text-gray-900">
+                                {tituloReceitaComSequencia('Receita', receita.numero)}
+                            </h1>
+                            {receita.paciente?.codigo != null && String(receita.paciente.codigo).trim() !== '' && (
+                                <p className="mt-1.5 text-sm text-gray-600">
+                                    <span className="text-gray-500">Nº registro </span>
                                     <span className="font-semibold text-gray-900 tabular-nums">
-                                        {sequenciaNumeroReceita(receita.numero)}
+                                        {String(receita.paciente.codigo).trim()}
                                     </span>
-                                </div>
-                            </div>
+                                </p>
+                            )}
                             <p className="text-gray-500 mt-1">
                                 Criada em {new Date(receita.created_at).toLocaleDateString('pt-BR')}
                             </p>
@@ -398,7 +392,7 @@ const formatDate = (dateString) => {
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span className="text-sm font-medium text-gray-900 tabular-nums">
-                                                        {sequenciaNumeroReceita(r.numero)}
+                                                        {tituloReceitaComSequencia('Receita', r.numero)}
                                                     </span>
                                                     <span
                                                         className={`px-1.5 py-0.5 text-xs rounded ${

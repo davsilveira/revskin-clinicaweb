@@ -13,7 +13,7 @@ import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
 import { formatAnotacaoDisplay } from '@/utils/text';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
-import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
+import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
 
 const tippyAquisicaoProps = {
     appendTo: () => document.body,
@@ -573,23 +573,17 @@ function ReceitaFormInner({
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mt-2">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">
-                                {!isEditing ? 'Nova Receita' : viewMode ? 'Receita' : 'Editar Receita'}
+                                {!isEditing
+                                    ? 'Nova Receita'
+                                    : viewMode
+                                      ? tituloReceitaComSequencia('Receita', receita.numero)
+                                      : tituloReceitaComSequencia('Editar Receita', receita.numero)}
                             </h1>
-                            {isEditing && (
-                                <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                                    {codigoRegistroPaciente !== '' && (
-                                        <div>
-                                            <span className="text-gray-500">Nº registro </span>
-                                            <span className="font-semibold text-gray-900 tabular-nums">{codigoRegistroPaciente}</span>
-                                        </div>
-                                    )}
-                                    <div>
-                                        <span className="text-gray-500">Sequência </span>
-                                        <span className="font-semibold text-gray-900 tabular-nums">
-                                            {sequenciaNumeroReceita(receita.numero)}
-                                        </span>
-                                    </div>
-                                </div>
+                            {isEditing && codigoRegistroPaciente !== '' && (
+                                <p className="mt-1.5 text-sm text-gray-600">
+                                    <span className="text-gray-500">Nº registro </span>
+                                    <span className="font-semibold text-gray-900 tabular-nums">{codigoRegistroPaciente}</span>
+                                </p>
                             )}
                         </div>
                         <div className="flex flex-col gap-2 w-full lg:w-auto lg:justify-end">
@@ -1297,7 +1291,7 @@ function ReceitaFormInner({
                                             </svg>
                                             <div className="flex flex-col gap-1 min-w-0 lg:flex-row lg:flex-wrap lg:items-baseline lg:gap-x-3 lg:gap-y-0">
                                                 <span className="text-base font-medium text-gray-900 tabular-nums">
-                                                    {sequenciaNumeroReceita(r.numero)}
+                                                    {tituloReceitaComSequencia('Receita', r.numero)}
                                                 </span>
                                                 <span className="text-sm text-gray-500">{new Date(r.data_receita).toLocaleDateString('pt-BR')}</span>
                                                 {r.medico && (

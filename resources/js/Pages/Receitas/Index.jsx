@@ -5,7 +5,7 @@ import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import PatientDrawer from '@/Components/PatientDrawer';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
-import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
+import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
 
 export default function ReceitasIndex({
     receitas,
@@ -226,7 +226,7 @@ export default function ReceitasIndex({
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-sm font-medium text-gray-900">
                                                             {listagemPorPaciente
-                                                                ? sequenciaNumeroReceita(receita.numero)
+                                                                ? tituloReceitaComSequencia('Receita', receita.numero)
                                                                 : receita.numero}
                                                         </span>
                                                     </td>
@@ -322,7 +322,7 @@ export default function ReceitasIndex({
                                                         <div className="min-w-0 flex-1">
                                                             <div className="font-medium text-gray-900">
                                                                 {listagemPorPaciente
-                                                                    ? sequenciaNumeroReceita(receita.numero)
+                                                                    ? tituloReceitaComSequencia('Receita', receita.numero)
                                                                     : receita.numero}
                                                             </div>
                                                             <div className="text-sm font-medium text-gray-900 mt-1 break-words">
