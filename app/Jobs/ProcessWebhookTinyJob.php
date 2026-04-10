@@ -3,7 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\AtendimentoCallcenter;
+use App\Models\Produto;
 use App\Models\Receita;
+use App\Models\ReceitaItem;
 use App\Models\ReceitaItemAquisicao;
 use App\Services\TinyErpClient;
 use Illuminate\Bus\Queueable;
@@ -11,6 +13,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -109,44 +112,56 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
         $pedidoData = $result['data'] ?? [];
         $itensTiny = $pedidoData['itens'] ?? [];
-
-        $tinyProductIds = [];
-        foreach ($itensTiny as $itemTiny) {
-            $produtoId = $itemTiny['produto']['id'] ?? null;
-            if ($produtoId) {
-                $tinyProductIds[] = (int) $produtoId;
-            }
-        }
+        $parsed = $this->parseItensPedidoTiny($itensTiny);
 
         Log::info('Tiny ERP: Pedido obtido da API', [
             'tiny_pedido_id' => $this->pedidoId,
             'qtd_itens_no_pedido' => count($itensTiny),
-            'tiny_product_ids_extraidos' => $tinyProductIds,
+            'linhas_normalizadas' => count($parsed),
         ]);
 
-        $receita->load('itens.produto');
         $dataAquisicao = now();
         $itensMarcados = 0;
+        $linhasNovas = 0;
 
-        foreach ($receita->itens as $item) {
-            if (!$item->produto) {
-                Log::info('Tiny ERP: Item sem produto, pulando', ['receita_item_id' => $item->id]);
-                continue;
-            }
-            if (!$item->produto->tiny_id) {
-                Log::info('Tiny ERP: Item sem tiny_id no produto, pulando', [
-                    'receita_item_id' => $item->id,
-                    'produto_id' => $item->produto->id,
+        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, &$itensMarcados, &$linhasNovas) {
+            $pending = $parsed;
+            $receita->load('itens.produto');
+
+            foreach ($receita->itens as $item) {
+                if (! $item->produto || ! $item->produto->tiny_id) {
+                    continue;
+                }
+
+                $tid = (int) $item->produto->tiny_id;
+                $matchIndex = null;
+                foreach ($pending as $i => $row) {
+                    if ((int) $row['tiny_id'] === $tid) {
+                        $matchIndex = $i;
+                        break;
+                    }
+                }
+
+                if ($matchIndex === null) {
+                    continue;
+                }
+
+                $row = $pending[$matchIndex];
+                array_splice($pending, $matchIndex, 1);
+
+                $q = $row['quantidade'];
+                $vu = $row['valor_unitario'];
+                $item->update([
+                    'quantidade' => $q,
+                    'valor_unitario' => $vu,
+                    'valor_total' => $q * $vu,
+                    'vendido' => true,
                 ]);
-                continue;
-            }
 
-            if (in_array((int) $item->produto->tiny_id, $tinyProductIds)) {
-                $item->update(['vendido' => true]);
                 $jaExiste = ReceitaItemAquisicao::where('receita_item_id', $item->id)
                     ->where('tiny_pedido_id', $this->pedidoId)
                     ->exists();
-                if (!$jaExiste) {
+                if (! $jaExiste) {
                     ReceitaItemAquisicao::create([
                         'receita_item_id' => $item->id,
                         'data_aquisicao' => $dataAquisicao,
@@ -154,24 +169,115 @@ class ProcessWebhookTinyJob implements ShouldQueue
                     ]);
                     $itensMarcados++;
                 }
-                Log::info('Tiny ERP: Item marcado como vendido', [
-                    'receita_item_id' => $item->id,
-                    'produto_tiny_id' => $item->produto->tiny_id,
-                ]);
-            } else {
-                Log::info('Tiny ERP: Produto não está no pedido Tiny', [
-                    'receita_item_id' => $item->id,
-                    'produto_tiny_id' => $item->produto->tiny_id,
-                ]);
             }
-        }
+
+            $maxOrdem = (int) ($receita->itens()->max('ordem') ?? -1);
+
+            foreach ($pending as $row) {
+                $produto = Produto::where('tiny_id', $row['tiny_id'])->first();
+                if (! $produto) {
+                    Log::warning('Tiny ERP: Linha do pedido sem produto local com mesmo tiny_id', [
+                        'tiny_id' => $row['tiny_id'],
+                        'receita_id' => $receita->id,
+                    ]);
+
+                    continue;
+                }
+
+                $maxOrdem++;
+                $q = $row['quantidade'];
+                $vu = $row['valor_unitario'];
+                $novo = ReceitaItem::create([
+                    'receita_id' => $receita->id,
+                    'produto_id' => $produto->id,
+                    'local_uso' => $produto->local_uso,
+                    'quantidade' => $q,
+                    'valor_unitario' => $vu,
+                    'valor_total' => $q * $vu,
+                    'imprimir' => true,
+                    'grupo' => 'recomendado',
+                    'ordem' => $maxOrdem,
+                    'vendido' => true,
+                ]);
+
+                ReceitaItemAquisicao::create([
+                    'receita_item_id' => $novo->id,
+                    'data_aquisicao' => $dataAquisicao,
+                    'tiny_pedido_id' => $this->pedidoId,
+                ]);
+                $linhasNovas++;
+                $itensMarcados++;
+            }
+
+            $receita->calcularTotais();
+        });
 
         Log::info('Tiny ERP: marcarItensVendidos concluído', [
             'receita_id' => $receita->id,
-            'tiny_product_ids_pedido' => $tinyProductIds,
-            'total_itens_receita' => $receita->itens->count(),
-            'itens_marcados' => $itensMarcados,
+            'itens_marcados_ou_atualizados' => $itensMarcados,
+            'linhas_novas_inseridas' => $linhasNovas,
         ]);
+    }
+
+    /**
+     * @return list<array{tiny_id: int, quantidade: int, valor_unitario: float}>
+     */
+    protected function parseItensPedidoTiny(array $itensTiny): array
+    {
+        $out = [];
+        foreach ($itensTiny as $itemTiny) {
+            $tid = $this->extrairTinyProdutoId($itemTiny);
+            if ($tid === null) {
+                continue;
+            }
+            $out[] = [
+                'tiny_id' => $tid,
+                'quantidade' => $this->extrairQuantidadeTiny($itemTiny),
+                'valor_unitario' => $this->extrairValorUnitarioTiny($itemTiny),
+            ];
+        }
+
+        return $out;
+    }
+
+    protected function extrairTinyProdutoId(array $itemTiny): ?int
+    {
+        $produto = $itemTiny['produto'] ?? [];
+        if (! is_array($produto)) {
+            $produto = [];
+        }
+
+        $raw = $produto['id']
+            ?? $produto['idProduto']
+            ?? $itemTiny['idProduto']
+            ?? $itemTiny['produto_id']
+            ?? null;
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $id = (int) $raw;
+
+        return $id > 0 ? $id : null;
+    }
+
+    protected function extrairQuantidadeTiny(array $itemTiny): int
+    {
+        $q = $itemTiny['quantidade'] ?? $itemTiny['quantity'] ?? 1;
+
+        return max(1, (int) round((float) $q));
+    }
+
+    protected function extrairValorUnitarioTiny(array $itemTiny): float
+    {
+        $v = $itemTiny['valorUnitario']
+            ?? $itemTiny['valor_unitario']
+            ?? $itemTiny['preco']
+            ?? $itemTiny['valor']
+            ?? 0;
+
+        return round((float) $v, 2);
     }
 
     protected function processarCancelamento(Receita $receita): void
