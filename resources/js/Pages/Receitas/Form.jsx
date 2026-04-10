@@ -136,7 +136,6 @@ function ReceitaFormInner({
         medico_id: receita?.medico_id || defaultMedicoId || '',
         data_receita: receita?.data_receita ? receita.data_receita.split('T')[0] : new Date().toISOString().split('T')[0],
         anotacoes: receita?.anotacoes || '',
-        anotacoes_paciente: receita?.anotacoes_paciente || '',
         desconto_percentual: receita?.desconto_percentual || 0,
         desconto_motivo: receita?.desconto_motivo || '',
         valor_caixa: receita?.valor_caixa || 0,
@@ -958,6 +957,19 @@ function ReceitaFormInner({
                         </div>
                     )}
 
+                    {/* Anotações internas (acima dos produtos; não vão ao PDF) */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Anotações internas</label>
+                        <textarea
+                            value={data.anotacoes}
+                            onChange={(e) => setData('anotacoes', e.target.value)}
+                            disabled={isReadOnly}
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            placeholder="Uso interno da equipe (não aparece no PDF da receita)."
+                        />
+                    </div>
+
                     {/* Itens da Receita */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                         <div className="flex justify-between items-center mb-2">
@@ -1235,34 +1247,6 @@ function ReceitaFormInner({
                         )}
                     </div>
 
-                    {/* Anotações - movido para antes das ações */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Anotações Internas</label>
-                                <textarea
-                                    value={data.anotacoes}
-                                    onChange={(e) => setData('anotacoes', e.target.value)}
-                                    disabled={isReadOnly}
-                                    rows={2}
-                                    className="w-full min-h-32 lg:min-h-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    placeholder="Observações internas (não aparecem no PDF)..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Anotações para o Paciente</label>
-                                <textarea
-                                    value={data.anotacoes_paciente}
-                                    onChange={(e) => setData('anotacoes_paciente', e.target.value)}
-                                    disabled={isReadOnly}
-                                    rows={2}
-                                    className="w-full min-h-32 lg:min-h-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    placeholder="Instruções que aparecerão no PDF..."
-                                />
-                            </div>
-                        </div>
-                    </div>
-
                 </form>
 
                 {/* Receitas Anteriores - Accordion */}
@@ -1343,21 +1327,11 @@ function ReceitaFormInner({
                                     {/* Accordion Content */}
                                     {expandedReceitas[r.id] && (
                                         <div className="p-3 border-t border-gray-200 bg-white">
-                                            {/* Anotações */}
-                                            {(r.anotacoes || r.anotacoes_paciente) && (
+                                            {/* Anotações internas */}
+                                            {r.anotacoes && (
                                                 <div className="mb-3 text-sm">
-                                                    {r.anotacoes && (
-                                                        <div className="mb-1">
-                                                            <span className="font-medium text-gray-700">Anotações Internas:</span>
-                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes)}</span>
-                                                        </div>
-                                                    )}
-                                                    {r.anotacoes_paciente && (
-                                                        <div>
-                                                            <span className="font-medium text-gray-700">Anotações Paciente:</span>
-                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes_paciente)}</span>
-                                                        </div>
-                                                    )}
+                                                    <span className="font-medium text-gray-700">Anotações internas:</span>
+                                                    <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes)}</span>
                                                 </div>
                                             )}
                                             

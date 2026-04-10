@@ -218,20 +218,10 @@ const formatDate = (dateString) => {
                                     </div>
                                 </div>
 
-                                {(receita.anotacoes || receita.anotacoes_paciente) && (
-                                    <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {receita.anotacoes && (
-                                            <div>
-                                                <label className="text-sm text-gray-500">Anotações Internas</label>
-                                                <p className="text-gray-900 whitespace-pre-line mt-1">{receita.anotacoes}</p>
-                                            </div>
-                                        )}
-                                        {receita.anotacoes_paciente && (
-                                            <div>
-                                                <label className="text-sm text-gray-500">Anotações para o Paciente</label>
-                                                <p className="text-gray-900 whitespace-pre-line mt-1">{receita.anotacoes_paciente}</p>
-                                            </div>
-                                        )}
+                                {receita.anotacoes && (
+                                    <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <label className="text-sm text-gray-500">Anotações internas</label>
+                                        <p className="text-gray-900 whitespace-pre-line mt-1">{receita.anotacoes}</p>
                                     </div>
                                 )}
                             </div>
