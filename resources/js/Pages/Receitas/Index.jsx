@@ -111,24 +111,44 @@ export default function ReceitasIndex({
                 {pacienteFiltrado && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 mb-6">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm flex-1 min-w-0">
-                                <div>
-                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
-                                        Paciente
-                                    </span>
-                                    <span className="text-gray-900 font-semibold">{pacienteFiltrado.nome}</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm flex-1 min-w-0">
+                                <div className="space-y-3">
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Paciente
+                                        </span>
+                                        <span className="text-gray-900 font-semibold">{pacienteFiltrado.nome}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Nº Registro
+                                        </span>
+                                        <span className="text-gray-900">
+                                            {pacienteFiltrado.codigo != null && String(pacienteFiltrado.codigo).trim() !== ''
+                                                ? String(pacienteFiltrado.codigo).trim()
+                                                : '—'}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
-                                        Médico
-                                    </span>
-                                    <span className="text-gray-900">
-                                        {nomeExibicaoSemTitulo(
-                                            pacienteFiltrado.medico?.linkedUser?.name ||
-                                                pacienteFiltrado.medico?.linked_user?.name ||
-                                                pacienteFiltrado.medico?.apelido
-                                        ) || '—'}
-                                    </span>
+                                <div className="space-y-3">
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Médico
+                                        </span>
+                                        <span className="text-gray-900">
+                                            {nomeExibicaoSemTitulo(
+                                                pacienteFiltrado.medico?.linkedUser?.name ||
+                                                    pacienteFiltrado.medico?.linked_user?.name ||
+                                                    pacienteFiltrado.medico?.apelido
+                                            ) || '—'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Indicado por
+                                        </span>
+                                        <span className="text-gray-900">{pacienteFiltrado.indicado_por || '—'}</span>
+                                    </div>
                                 </div>
                                 <div className="sm:col-span-2">
                                     <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
@@ -139,12 +159,6 @@ export default function ReceitasIndex({
                                             ? telefonesExibicao(pacienteFiltrado).join(' · ')
                                             : '—'}
                                     </span>
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
-                                        Indicado por
-                                    </span>
-                                    <span className="text-gray-900">{pacienteFiltrado.indicado_por || '—'}</span>
                                 </div>
                             </div>
                             <button
