@@ -120,6 +120,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Registro</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cidade</th>
@@ -137,6 +138,11 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                 >
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="text-sm font-medium text-gray-900">{paciente.nome}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 tabular-nums">
+                                                        {paciente.codigo != null && String(paciente.codigo).trim() !== ''
+                                                            ? String(paciente.codigo).trim()
+                                                            : '—'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cpf || '-'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.celular || paciente.telefone1 || '-'}</td>
@@ -197,7 +203,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                                <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                                     Nenhum paciente encontrado
                                                 </td>
                                             </tr>
@@ -220,7 +226,13 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="min-w-0 flex-1">
                                                             <div className="font-medium text-gray-900">{paciente.nome}</div>
-                                                            <p className="text-sm text-gray-600 mt-1">
+                                                            <p className="text-sm text-gray-600 mt-1 tabular-nums">
+                                                                Nº registro:{' '}
+                                                                {paciente.codigo != null && String(paciente.codigo).trim() !== ''
+                                                                    ? String(paciente.codigo).trim()
+                                                                    : '—'}
+                                                            </p>
+                                                            <p className="text-sm text-gray-600 mt-0.5">
                                                                 {paciente.cpf || '—'} · {paciente.celular || paciente.telefone1 || '—'}
                                                             </p>
                                                             <p className="text-sm text-gray-500 mt-0.5">
