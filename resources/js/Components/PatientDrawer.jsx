@@ -16,6 +16,8 @@ import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 const INITIAL_PACIENTE_FORM = {
     nome: '',
+    codigo: '',
+    indicado_por: '',
     cpf: '',
     data_nascimento: '',
     sexo: '',
@@ -102,6 +104,8 @@ export default function PatientDrawer({
                 });
                 const initial = {
                     nome: paciente.nome || '',
+                    codigo: paciente.codigo || '',
+                    indicado_por: paciente.indicado_por || '',
                     cpf: paciente.cpf || '',
                     data_nascimento: paciente.data_nascimento ? paciente.data_nascimento.split('T')[0] : '',
                     sexo: paciente.sexo || '',
@@ -543,6 +547,22 @@ export default function PatientDrawer({
                                 { value: 'M', label: 'Masculino' },
                                 { value: 'F', label: 'Feminino' },
                             ]}
+                        />
+                        <Input
+                            label="Nº Registro"
+                            value={data.codigo}
+                            onChange={(e) => {
+                                setData('codigo', e.target.value);
+                                setFieldErrors((prev) => ({ ...prev, codigo: null }));
+                            }}
+                            error={fieldErrors.codigo || errors.codigo}
+                            placeholder="Opcional"
+                        />
+                        <Input
+                            label="Indicado por"
+                            value={data.indicado_por}
+                            onChange={(e) => setData('indicado_por', e.target.value)}
+                            placeholder="Opcional"
                         />
                         <Input
                             label="E-mail"

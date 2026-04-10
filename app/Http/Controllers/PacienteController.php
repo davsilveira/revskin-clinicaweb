@@ -14,6 +14,16 @@ use Inertia\Response;
 class PacienteController extends Controller
 {
     /**
+     * Trata Nº Registro vazio como null (evita violação de unique com string vazia).
+     */
+    private function normalizePacienteCodigo(array &$validated): void
+    {
+        if (array_key_exists('codigo', $validated) && trim((string) ($validated['codigo'] ?? '')) === '') {
+            $validated['codigo'] = null;
+        }
+    }
+
+    /**
      * Validate CPF digits.
      */
     private function validateCpfDigits(?string $cpf): bool
@@ -180,6 +190,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
+            'codigo' => 'nullable|string|max:255|unique:pacientes,codigo',
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => $medicoRules,
@@ -194,7 +205,10 @@ class PacienteController extends Controller
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
             'medico_id.required' => 'Selecione o médico responsável.',
+            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
+
+        $this->normalizePacienteCodigo($validated);
 
         // Validate CPF digits
         if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
@@ -312,6 +326,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
+            'codigo' => ['nullable', 'string', 'max:255', Rule::unique('pacientes', 'codigo')->ignore($paciente->id)],
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
@@ -325,7 +340,10 @@ class PacienteController extends Controller
             'data_nascimento.required' => 'A data de nascimento é obrigatória.',
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
+            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
+
+        $this->normalizePacienteCodigo($validated);
 
         // Validate CPF digits
         if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
@@ -443,6 +461,15 @@ class PacienteController extends Controller
             }
         }
 
+        $codigoRule = ['nullable', 'string', 'max:255'];
+        if ($request->filled('codigo')) {
+            if ($request->filled('id')) {
+                $codigoRule[] = Rule::unique('pacientes', 'codigo')->ignore($request->input('id'));
+            } else {
+                $codigoRule[] = 'unique:pacientes,codigo';
+            }
+        }
+
         $validated = $request->validate([
             'id' => 'nullable|exists:pacientes,id',
             'nome' => 'required|string|max:255',
@@ -465,6 +492,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
+            'codigo' => $codigoRule,
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => $medicoRules,
@@ -475,7 +503,10 @@ class PacienteController extends Controller
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
             'medico_id.required' => 'Selecione o médico responsável.',
+            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
+
+        $this->normalizePacienteCodigo($validated);
 
         // Validate CPF digits if provided
         if (!empty($validated['cpf']) && !$this->validateCpfDigits($validated['cpf'])) {

@@ -416,7 +416,8 @@ class ImportarDadosLegado extends Command
                 $medicoId = $this->getMapping('medicos', $item['legado_medico_id']);
 
                 $paciente = Paciente::create([
-                    'codigo' => $item['codigo'],
+                    'codigo' => $item['codigo'] ?? null,
+                    'indicado_por' => $item['indicado_por'] ?? null,
                     'nome' => $item['nome'],
                     'data_nascimento' => $item['data_nascimento'],
                     'sexo' => $item['sexo'],

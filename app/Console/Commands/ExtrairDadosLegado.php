@@ -828,9 +828,7 @@ class ExtrairDadosLegado extends Command
             if ($obs) {
                 $anotacoes[] = $obs;
             }
-            if ($amiga) {
-                $anotacoes[] = "Indicação: {$amiga}";
-            }
+            // Indicação vai para indicado_por no JSON; não duplicar em anotacoes
             if ($vip && strtolower($vip) !== 'n' && $vip !== '0') {
                 $anotacoes[] = "VIP: {$vip}";
             }
@@ -844,6 +842,7 @@ class ExtrairDadosLegado extends Command
             $pacientes[] = [
                 'legado_id' => $this->col($row, $c, 'id'),
                 'codigo' => $this->colStr($row, $c, 'nr_registro'),
+                'indicado_por' => $amiga !== '' ? $amiga : null,
                 'nome' => $nome,
                 'data_nascimento' => $this->normalizarData($this->colStr($row, $c, 'dataNascimento')),
                 'sexo' => $this->colStr($row, $c, 'sexo'),

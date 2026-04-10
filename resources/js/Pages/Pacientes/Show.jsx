@@ -116,6 +116,10 @@ export default function PacienteShow({ paciente }) {
                                 <dd className="text-gray-900 font-medium">{paciente.cpf || '-'}</dd>
                             </div>
                             <div className="flex justify-between">
+                                <dt className="text-gray-500">Nº Registro</dt>
+                                <dd className="text-gray-900 font-medium">{paciente.codigo || '-'}</dd>
+                            </div>
+                            <div className="flex justify-between">
                                 <dt className="text-gray-500">RG</dt>
                                 <dd className="text-gray-900 font-medium">{paciente.rg || '-'}</dd>
                             </div>
