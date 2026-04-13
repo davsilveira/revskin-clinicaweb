@@ -527,6 +527,7 @@ export default function PatientDrawer({
                             onChange={(e) => {
                                 setData('cpf', e.target.value);
                                 setCpfError(null);
+                                setFieldErrors((prev) => ({ ...prev, cpf: null }));
                             }}
                             error={cpfError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
