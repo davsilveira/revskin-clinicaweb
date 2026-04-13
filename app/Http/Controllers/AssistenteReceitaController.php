@@ -91,8 +91,10 @@ class AssistenteReceitaController extends Controller
 
         $initialPaciente = null;
         $initialPacienteMedicoId = null;
+        $initialPacienteMedicoLabel = null;
+        $initialPacienteFromQuery = false;
         if ($pacienteId = $request->query('paciente_id')) {
-            $paciente = Paciente::find($pacienteId);
+            $paciente = Paciente::with(['medico.linkedUser:id,name,medico_id'])->find($pacienteId);
             if ($paciente && $user->canAccessPaciente($paciente)) {
                 $initialPaciente = [
                     'id' => $paciente->id,
@@ -100,6 +102,12 @@ class AssistenteReceitaController extends Controller
                     'cpf' => $paciente->cpf,
                 ];
                 $initialPacienteMedicoId = $paciente->medico_id;
+                if ($paciente->medico) {
+                    $m = $paciente->medico;
+                    $nome = $m->linkedUser?->name ?? $m->apelido ?? 'Médico';
+                    $initialPacienteMedicoLabel = "{$nome} (CRM: {$m->crm})";
+                }
+                $initialPacienteFromQuery = true;
             }
         }
 
@@ -112,6 +120,8 @@ class AssistenteReceitaController extends Controller
             'isAdmin' => $user->isAdmin(),
             'initialPaciente' => $initialPaciente,
             'initialPacienteMedicoId' => $initialPacienteMedicoId,
+            'initialPacienteMedicoLabel' => $initialPacienteMedicoLabel,
+            'initialPacienteFromQuery' => $initialPacienteFromQuery,
         ]);
     }
 
