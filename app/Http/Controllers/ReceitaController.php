@@ -115,9 +115,17 @@ class ReceitaController extends Controller
         }
         $medicosPacienteDrawer = $medicosPacienteDrawerQuery->get()->load('linkedUser:id,name,medico_id');
 
-        $medicos = $user->isMedico() && $user->medico_id
-            ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
-            : Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
+        if ($user->isMedico() && $user->medico_id) {
+            $medicos = Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id');
+            if ($paciente && $paciente->medico_id && (int) $paciente->medico_id !== (int) $user->medico_id) {
+                $outro = Medico::where('id', $paciente->medico_id)->with('linkedUser:id,name,medico_id')->first();
+                if ($outro) {
+                    $medicos = $medicos->prepend($outro)->unique('id')->values();
+                }
+            }
+        } else {
+            $medicos = Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
+        }
 
         $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
 
@@ -128,6 +136,8 @@ class ReceitaController extends Controller
             return $produto;
         });
 
+        $defaultMedicoId = $paciente?->medico_id ?? $user->medico_id;
+
         return Inertia::render('Receitas/Form', [
             'paciente' => $paciente,
             'medicos' => $medicos,
@@ -136,7 +146,7 @@ class ReceitaController extends Controller
             'receitaFormIsSecretaria' => $user->isSecretaria(),
             'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
-            'defaultMedicoId' => $user->medico_id,
+            'defaultMedicoId' => $defaultMedicoId,
         ]);
     }
 

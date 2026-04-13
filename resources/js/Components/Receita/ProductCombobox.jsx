@@ -82,6 +82,7 @@ export default function ProductCombobox({ value, onChange, produtos = [], disabl
                 ref={inputRef}
                 type="text"
                 value={isOpen ? search : displayValue}
+                title={displayValue || undefined}
                 placeholder="Buscar produto..."
                 disabled={disabled}
                 onChange={(e) => {
@@ -91,7 +92,11 @@ export default function ProductCombobox({ value, onChange, produtos = [], disabl
                 }}
                 onFocus={() => {
                     setIsOpen(true);
-                    setSearch('');
+                    if (selectedProduct) {
+                        setSearch(`${selectedProduct.codigo} - ${selectedProduct.nome}`);
+                    } else {
+                        setSearch('');
+                    }
                 }}
                 onKeyDown={handleKeyDown}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"

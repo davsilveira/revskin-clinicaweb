@@ -22,6 +22,12 @@ const tippyAquisicaoProps = {
     zIndex: 9999,
 };
 
+const duplicarReceitaTippyContent = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Repete a prescrição numa nova receita com a data de hoje.
+    </div>
+);
+
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
     'face': 'Creme Facial',
@@ -683,13 +689,20 @@ function ReceitaFormInner({
                                             </svg>
                                         </summary>
                                         <div className="px-2 pb-2 pt-0 flex flex-col gap-2 border-t border-gray-200">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowDuplicarModal(true)}
-                                                className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
+                                            <Tippy
+                                                content={duplicarReceitaTippyContent}
+                                                placement="top"
+                                                theme="light-border"
+                                                {...tippyAquisicaoProps}
                                             >
-                                                Duplicar Receita
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowDuplicarModal(true)}
+                                                    className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
+                                                >
+                                                    Duplicar Receita
+                                                </button>
+                                            </Tippy>
                                             {canCancel && (
                                                 <button
                                                     type="button"
@@ -775,16 +788,23 @@ function ReceitaFormInner({
 
                                 {isEditing && (
                                     <>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowDuplicarModal(true)}
-                                            className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
+                                        <Tippy
+                                            content={duplicarReceitaTippyContent}
+                                            placement="top"
+                                            theme="light-border"
+                                            {...tippyAquisicaoProps}
                                         >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                            </svg>
-                                            Duplicar Receita
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowDuplicarModal(true)}
+                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                                Duplicar Receita
+                                            </button>
+                                        </Tippy>
                                         {canCancel && (
                                             <button
                                                 type="button"
