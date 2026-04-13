@@ -5,6 +5,7 @@ import PageHeader from '@/Components/PageHeader';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import { validateCPF } from '@/utils/validations';
 import debounce from 'lodash/debounce';
+import SimNaoToggle from '@/Components/AssistenteReceita/SimNaoToggle';
 
 export default function AssistenteReceitaIndex({ 
     tipoPeleOptions, 
@@ -770,48 +771,24 @@ export default function AssistenteReceitaIndex({
                         <div className="space-y-6 mb-6">
                             {/* Gravidez */}
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-3 border-b border-gray-100">
-                                <label className="text-sm font-medium text-gray-700">
+                                <label className="text-sm font-medium text-gray-700" id="label-gravidez">
                                     Gravidez
                                 </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {['Sim', 'Não'].map((option) => (
-                                        <button
-                                            key={option}
-                                            type="button"
-                                            onClick={() => updateCondicao('gravidez', option)}
-                                            className={`min-h-[44px] py-2 px-4 sm:px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
-                                                condicoes.gravidez === option
-                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                                            }`}
-                                        >
-                                            {option}
-                                        </button>
-                                    ))}
-                                </div>
+                                <SimNaoToggle
+                                    value={condicoes.gravidez}
+                                    onChange={(v) => updateCondicao('gravidez', v)}
+                                />
                             </div>
 
                             {/* Rosácea */}
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-3 border-b border-gray-100">
-                                <label className="text-sm font-medium text-gray-700">
+                                <label className="text-sm font-medium text-gray-700" id="label-rosacea">
                                     Rosácea
                                 </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {['Sim', 'Não'].map((option) => (
-                                        <button
-                                            key={option}
-                                            type="button"
-                                            onClick={() => updateCondicao('rosacea', option)}
-                                            className={`min-h-[44px] py-2 px-4 sm:px-6 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
-                                                condicoes.rosacea === option
-                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                                            }`}
-                                        >
-                                            {option}
-                                        </button>
-                                    ))}
-                                </div>
+                                <SimNaoToggle
+                                    value={condicoes.rosacea}
+                                    onChange={(v) => updateCondicao('rosacea', v)}
+                                />
                             </div>
 
                             {/* Fototipo - Range Slider */}
