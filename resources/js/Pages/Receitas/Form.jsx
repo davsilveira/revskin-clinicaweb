@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
+import DatePickerField from '@/Components/Form/DatePickerField';
 import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
@@ -813,14 +814,14 @@ function ReceitaFormInner({
                                     <span className="font-medium text-gray-900 break-words">{selectedPaciente.nome}</span>
                                     <span className="text-gray-400">({selectedPaciente.cpf})</span>
                                 </div>
-                                <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto">
+                                <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto sm:max-w-[11rem]">
                                     <span className="text-gray-500 flex-shrink-0">Data:</span>
-                                    <input
-                                        type="date"
+                                    <DatePickerField
                                         value={data.data_receita}
-                                        onChange={(e) => setData('data_receita', e.target.value)}
+                                        onChange={(v) => setData('data_receita', v)}
                                         disabled={isReadOnly}
-                                        className="w-full max-w-full min-w-0 sm:w-auto px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                        compact
+                                        error={errors.data_receita}
                                     />
                                 </div>
                                 <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
@@ -934,10 +935,14 @@ function ReceitaFormInner({
 
                                 {/* Data */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
-                                    <input type="date" value={data.data_receita} onChange={(e) => setData('data_receita', e.target.value)}
+                                    <DatePickerField
+                                        label="Data"
+                                        value={data.data_receita}
+                                        onChange={(v) => setData('data_receita', v)}
                                         disabled={isReadOnly}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                                        required
+                                        error={errors.data_receita}
+                                    />
                                 </div>
 
                                 {/* Medico — só alterável em nova receita */}

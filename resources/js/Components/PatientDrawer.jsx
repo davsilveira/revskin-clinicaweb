@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import Drawer from '@/Components/Drawer';
 import Input from '@/Components/Form/Input';
+import DatePickerField from '@/Components/Form/DatePickerField';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
 import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
@@ -534,13 +535,12 @@ export default function PatientDrawer({
                             placeholder="000.000.000-00"
                             required
                         />
-                        <Input
+                        <DatePickerField
                             label="Data de Nascimento"
-                            type="date"
                             value={data.data_nascimento}
-                            onChange={(e) => {
-                                setData('data_nascimento', e.target.value);
-                                setFieldErrors(prev => ({ ...prev, data_nascimento: null }));
+                            onChange={(v) => {
+                                setData('data_nascimento', v);
+                                setFieldErrors((prev) => ({ ...prev, data_nascimento: null }));
                             }}
                             error={fieldErrors.data_nascimento || errors.data_nascimento}
                             required

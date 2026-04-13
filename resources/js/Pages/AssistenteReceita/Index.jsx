@@ -6,6 +6,7 @@ import MaskedInput from '@/Components/Form/MaskedInput';
 import { validateCPF } from '@/utils/validations';
 import debounce from 'lodash/debounce';
 import SimNaoToggle from '@/Components/AssistenteReceita/SimNaoToggle';
+import DatePickerField from '@/Components/Form/DatePickerField';
 
 export default function AssistenteReceitaIndex({ 
     tipoPeleOptions, 
@@ -499,23 +500,16 @@ export default function AssistenteReceitaIndex({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Data de Nascimento <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="date"
+                                        <DatePickerField
+                                            label="Data de Nascimento"
                                             value={novoPaciente.data_nascimento}
-                                            onChange={(e) => {
-                                                updateNovoPaciente('data_nascimento', e.target.value);
-                                                setFieldErrors(prev => ({ ...prev, data_nascimento: null }));
+                                            onChange={(v) => {
+                                                updateNovoPaciente('data_nascimento', v);
+                                                setFieldErrors((prev) => ({ ...prev, data_nascimento: null }));
                                             }}
-                                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
-                                                fieldErrors.data_nascimento ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                                            }`}
+                                            required
+                                            error={fieldErrors.data_nascimento}
                                         />
-                                        {fieldErrors.data_nascimento && (
-                                            <p className="mt-1 text-sm text-red-600">{fieldErrors.data_nascimento}</p>
-                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Sexo</label>
