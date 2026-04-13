@@ -119,7 +119,7 @@ class ReceitaController extends Controller
             ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
             : Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
 
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
@@ -269,7 +269,7 @@ class ReceitaController extends Controller
             ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura']);
+        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
 
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
@@ -280,7 +280,7 @@ class ReceitaController extends Controller
         $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
-            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
+            ->with(['itens.produto:id,codigo,nome,local_uso,unidade', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->orderByDesc('id')
             ->take(10)
             ->get();

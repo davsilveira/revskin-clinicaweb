@@ -1,3 +1,4 @@
+import { useMemo, useLayoutEffect, useRef } from 'react';
 import Tippy from '@tippyjs/react';
 import ProductCombobox from '@/Components/Receita/ProductCombobox';
 
@@ -31,6 +32,23 @@ export default function ReceitaFormItemRow({
     lastItemRef,
     formatItemTotal,
 }) {
+    const formulaRef = useRef(null);
+
+    const unidadeLabel = useMemo(() => {
+        const id = item.produto_id ? parseInt(String(item.produto_id), 10) : null;
+        if (!id) return '—';
+        const p = produtos.find((pr) => pr.id === id);
+        const u = p?.unidade != null && String(p.unidade).trim() !== '' ? String(p.unidade).trim() : '';
+        return u || '—';
+    }, [produtos, item.produto_id]);
+
+    useLayoutEffect(() => {
+        const el = formulaRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(Math.max(el.scrollHeight, 32), 320)}px`;
+    }, [item.anotacoes]);
+
     const rowTone =
         item.vendido
             ? 'bg-green-50 border border-green-200'
@@ -103,14 +121,15 @@ export default function ReceitaFormItemRow({
             </div>
 
             <div className="w-full min-w-0 lg:flex-[2]">
-                <span className="text-xs font-medium text-gray-500 lg:hidden block mb-1">Anotações</span>
-                <input
-                    type="text"
-                    placeholder="Anotações..."
+                <span className="text-xs font-medium text-gray-500 lg:hidden block mb-1">Fórmula</span>
+                <textarea
+                    ref={formulaRef}
+                    rows={1}
+                    placeholder="Fórmula / posologia…"
                     value={item.anotacoes || ''}
                     onChange={(e) => onUpdateItem(index, 'anotacoes', e.target.value)}
                     disabled={isReadOnly}
-                    className="w-full min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                    className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50 resize-none overflow-hidden leading-snug"
                 />
             </div>
 
@@ -177,6 +196,16 @@ export default function ReceitaFormItemRow({
                         disabled={isReadOnly || !item.imprimir}
                         className={`w-full sm:w-14 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 lg:w-14 flex-shrink-0 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
                     />
+                </div>
+
+                <div className="w-full sm:w-auto lg:w-16 lg:flex-shrink-0">
+                    <span className="text-xs font-medium text-gray-500 lg:hidden block mb-0.5">Unidade</span>
+                    <div
+                        className="w-full sm:w-16 px-1 py-1 text-xs text-gray-700 text-center lg:flex lg:items-center lg:justify-center min-h-[28px]"
+                        title={unidadeLabel !== '—' ? unidadeLabel : undefined}
+                    >
+                        <span className="truncate max-w-full">{unidadeLabel}</span>
+                    </div>
                 </div>
 
                 {!isMedico && (

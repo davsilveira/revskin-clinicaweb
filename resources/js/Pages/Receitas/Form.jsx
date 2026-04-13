@@ -1035,13 +1035,16 @@ function ReceitaFormInner({
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                         </div>
                                         <div className="flex-[2] min-w-0">
-                                            <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Fórmula</span>
                                         </div>
                                         <div className="w-36 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                                         </div>
                                         <div className="w-14 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                        </div>
+                                        <div className="w-16 flex-shrink-0 text-center">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Unid.</span>
                                         </div>
                                         {!isMedico && (
                                             <div className="w-20 flex-shrink-0 text-right">
@@ -1124,13 +1127,16 @@ function ReceitaFormInner({
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                         </div>
                                         <div className="flex-[2] min-w-0">
-                                            <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Fórmula</span>
                                         </div>
                                         <div className="w-36 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
                                         </div>
                                         <div className="w-14 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
+                                        </div>
+                                        <div className="w-16 flex-shrink-0 text-center">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Unid.</span>
                                         </div>
                                         {!isMedico && (
                                             <div className="w-20 flex-shrink-0 text-right">
