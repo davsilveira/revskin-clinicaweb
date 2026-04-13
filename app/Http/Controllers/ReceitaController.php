@@ -355,10 +355,6 @@ class ReceitaController extends Controller
     {
         $user = $request->user();
 
-        if ($user->isMedico()) {
-            abort(403, 'Médicos só podem visualizar receitas.');
-        }
-
         // Check if receita is blocked for editing (atendimento in production or finalized)
         $receita->load('atendimentoCallcenter');
         if ($receita->atendimentoCallcenter &&
@@ -393,6 +389,10 @@ class ReceitaController extends Controller
         ]);
 
         ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
+
+        if ($user->isMedico()) {
+            $validated['anotacoes'] = $receita->anotacoes;
+        }
 
         // medico_id não pode ser alterado após a receita existir (inclusive ADM)
         $updateData = [

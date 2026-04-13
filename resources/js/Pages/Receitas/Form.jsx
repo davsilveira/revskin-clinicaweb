@@ -544,7 +544,7 @@ function ReceitaFormInner({
         }
     };
 
-    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao;
+    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico;
     const canCancel = isEditing && receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada');
 
     const pacienteCabecalho = receita?.paciente || selectedPaciente;
