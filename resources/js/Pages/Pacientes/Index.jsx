@@ -82,10 +82,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
             router.visit(`/receitas/${ultimaId}`);
             return;
         }
-        setToast({
-            message: 'Este paciente ainda não possui receitas.',
-            type: 'warning',
-        });
+        openEditDrawer(paciente);
     };
 
     return (
