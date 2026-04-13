@@ -271,7 +271,7 @@ export default function ReceitasIndex({
                                                             <Link
                                                                 href={`/receitas/${receita.id}`}
                                                                 className="inline-flex p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                                aria-label="Ver receita"
+                                                                aria-label={isMedico ? 'Visualizar receita' : 'Ver receita'}
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -290,7 +290,7 @@ export default function ReceitasIndex({
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                                     </svg>
                                                                 </a>
-                                                            ) : (
+                                                            ) : !isMedico ? (
                                                                 <Link
                                                                     href={`/receitas/${receita.id}/edit`}
                                                                     className="inline-flex p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
@@ -300,7 +300,7 @@ export default function ReceitasIndex({
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                                     </svg>
                                                                 </Link>
-                                                            )}
+                                                            ) : null}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -365,7 +365,7 @@ export default function ReceitasIndex({
                                                     <Link
                                                         href={`/receitas/${receita.id}`}
                                                         className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                                        aria-label="Ver receita"
+                                                        aria-label={isMedico ? 'Visualizar receita' : 'Ver receita'}
                                                     >
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -384,7 +384,7 @@ export default function ReceitasIndex({
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                             </svg>
                                                         </a>
-                                                    ) : (
+                                                    ) : !isMedico ? (
                                                         <Link
                                                             href={`/receitas/${receita.id}/edit`}
                                                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
@@ -394,7 +394,7 @@ export default function ReceitasIndex({
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                             </svg>
                                                         </Link>
-                                                    )}
+                                                    ) : null}
                                                 </div>
                                             </div>
                                         </div>

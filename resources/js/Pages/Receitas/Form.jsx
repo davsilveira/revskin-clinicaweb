@@ -976,18 +976,20 @@ function ReceitaFormInner({
                         </div>
                     )}
 
-                    {/* Anotações internas (acima dos produtos; não vão ao PDF) */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Anotações internas</label>
-                        <textarea
-                            value={data.anotacoes}
-                            onChange={(e) => setData('anotacoes', e.target.value)}
-                            disabled={isReadOnly}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            placeholder="Uso interno da equipe (não aparece no PDF da receita)."
-                        />
-                    </div>
+                    {/* Anotações internas (secretária/admin; não vão ao PDF) */}
+                    {!isMedico && (
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Anotações internas</label>
+                            <textarea
+                                value={data.anotacoes}
+                                onChange={(e) => setData('anotacoes', e.target.value)}
+                                disabled={isReadOnly}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                placeholder="Uso interno da equipe (não aparece no PDF da receita)."
+                            />
+                        </div>
+                    )}
 
                     {/* Itens da Receita */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">

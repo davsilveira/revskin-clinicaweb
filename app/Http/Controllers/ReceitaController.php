@@ -172,12 +172,14 @@ class ReceitaController extends Controller
             return back()->with('error', 'Você não pode criar receitas para outros médicos.');
         }
 
+        $anotacoesReceita = $user->isMedico() ? null : ($validated['anotacoes'] ?? null);
+
         $receita = Receita::create([
             'numero' => Receita::gerarNumero($validated['paciente_id']),
             'paciente_id' => $validated['paciente_id'],
             'medico_id' => $validated['medico_id'],
             'data_receita' => $validated['data_receita'],
-            'anotacoes' => $validated['anotacoes'] ?? null,
+            'anotacoes' => $anotacoesReceita,
             'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
             'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
             'desconto_motivo' => $validated['desconto_motivo'] ?? null,
@@ -227,6 +229,10 @@ class ReceitaController extends Controller
     {
         // Redirect finalized prescriptions to view – they are not editable
         if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita);
+        }
+
+        if ($request->user()->isMedico()) {
             return redirect()->route('receitas.show', $receita);
         }
 
@@ -348,6 +354,10 @@ class ReceitaController extends Controller
     public function update(Request $request, Receita $receita)
     {
         $user = $request->user();
+
+        if ($user->isMedico()) {
+            abort(403, 'Médicos só podem visualizar receitas.');
+        }
 
         // Check if receita is blocked for editing (atendimento in production or finalized)
         $receita->load('atendimentoCallcenter');
@@ -497,22 +507,26 @@ class ReceitaController extends Controller
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
 
-            $receita->update([
+            $updatePayload = [
                 'data_receita' => $validated['data_receita'],
-                'anotacoes' => $validated['anotacoes'] ?? null,
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
                 'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,
                 'valor_caixa' => $validated['valor_caixa'] ?? 0,
                 'valor_frete' => $validated['valor_frete'] ?? 0,
-            ]);
+            ];
+            if (! $user->isMedico()) {
+                $updatePayload['anotacoes'] = $validated['anotacoes'] ?? null;
+            }
+
+            $receita->update($updatePayload);
         } else {
             $receita = Receita::create([
                 'numero' => Receita::gerarNumero($validated['paciente_id']),
                 'paciente_id' => $validated['paciente_id'],
                 'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
-                'anotacoes' => $validated['anotacoes'] ?? null,
+                'anotacoes' => $user->isMedico() ? null : ($validated['anotacoes'] ?? null),
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
                 'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,
