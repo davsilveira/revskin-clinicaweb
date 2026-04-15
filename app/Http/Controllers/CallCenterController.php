@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
 use App\Models\Produto;
-use App\Models\ReceitaItem;
 use App\Models\ReceitaItemAquisicao;
 use App\Models\Setting;
 use App\Support\ReceitaProdutoLegadoGuard;
@@ -18,19 +17,19 @@ class CallCenterController extends Controller
     public function index(Request $request): Response
     {
         $query = AtendimentoCallcenter::with([
-                'paciente:id,nome',
-                'medico:id', 'medico.linkedUser:id,name,medico_id',
-                'receita:id,numero',
-                'usuario:id,name',
-            ])
+            'paciente:id,nome',
+            'medico:id', 'medico.linkedUser:id,name,medico_id',
+            'receita:id,numero',
+            'usuario:id,name',
+        ])
             ->ativo()
             ->when($request->search, function ($q, $search) {
-                $q->whereHas('paciente', fn($pq) => $pq->where('nome', 'like', "%{$search}%"));
+                $q->whereHas('paciente', fn ($pq) => $pq->where('nome', 'like', "%{$search}%"));
             })
-            ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId))
-            ->when($request->status, fn($q, $status) => $q->where('status', $status))
-            ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_abertura', '>=', $data))
-            ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_abertura', '<=', $data));
+            ->when($request->medico_id, fn ($q, $medicoId) => $q->where('medico_id', $medicoId))
+            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
+            ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_abertura', '>=', $data))
+            ->when($request->data_fim, fn ($q, $data) => $q->whereDate('data_abertura', '<=', $data));
 
         $ordenarPor = $request->get('ordenar_por', 'data_abertura');
         $ordem = $request->get('ordem', 'desc');
@@ -94,7 +93,10 @@ class CallCenterController extends Controller
         }
 
         $statusOptions = AtendimentoCallcenter::getStatusOptions();
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'preco', 'local_uso', 'anotacoes', 'legado_somente_leitura']);
+        $produtos = Produto::ativo()
+            ->semLegadoSomenteLeitura()
+            ->orderBy('codigo')
+            ->get(['id', 'codigo', 'nome', 'preco', 'local_uso', 'anotacoes', 'legado_somente_leitura']);
         $produtos->each(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
         });
@@ -134,7 +136,7 @@ class CallCenterController extends Controller
         ]);
 
         $receita = $atendimento->receita;
-        if (!$receita) {
+        if (! $receita) {
             return back()->with('error', 'Receita não encontrada');
         }
 
@@ -210,7 +212,7 @@ class CallCenterController extends Controller
         ]);
 
         $receita = $atendimento->receita;
-        if (!$receita) {
+        if (! $receita) {
             return response()->json(['error' => 'Receita não encontrada'], 404);
         }
 
@@ -259,7 +261,7 @@ class CallCenterController extends Controller
     public function atualizarStatus(Request $request, AtendimentoCallcenter $atendimento)
     {
         $validated = $request->validate([
-            'status' => 'required|in:' . implode(',', array_keys(AtendimentoCallcenter::getStatusOptions())),
+            'status' => 'required|in:'.implode(',', array_keys(AtendimentoCallcenter::getStatusOptions())),
             'acompanhamento' => 'nullable|string',
         ]);
 
@@ -275,7 +277,7 @@ class CallCenterController extends Controller
         // Register acquisition date when status changes to em_producao (sale closed)
         if ($novoStatus === AtendimentoCallcenter::STATUS_EM_PRODUCAO && $statusAnterior !== $novoStatus) {
             $this->registrarDatasAquisicao($atendimento);
-            
+
             // Sincronizar com Tiny ERP (delay de 1 minuto) - só se integração estiver habilitada
             if (Setting::get('tiny_enabled', false)) {
                 \App\Jobs\SyncVendaTinyJob::dispatch($atendimento)
@@ -297,7 +299,7 @@ class CallCenterController extends Controller
     protected function registrarDatasAquisicao(AtendimentoCallcenter $atendimento): void
     {
         $receita = $atendimento->receita;
-        if (!$receita) {
+        if (! $receita) {
             return;
         }
 
@@ -357,13 +359,3 @@ class CallCenterController extends Controller
         return back()->with('success', 'Atendimentos cancelados com sucesso!');
     }
 }
-
-
-
-
-
-
-
-
-
-

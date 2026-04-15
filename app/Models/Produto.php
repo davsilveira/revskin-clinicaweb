@@ -61,6 +61,14 @@ class Produto extends Model
     }
 
     /**
+     * Exclui produtos criados só para migração legada (listagem catálogo / receitas novas).
+     */
+    public function scopeSemLegadoSomenteLeitura($query)
+    {
+        return $query->where('legado_somente_leitura', false);
+    }
+
+    /**
      * Normalize literal \n and /n to real newlines in text fields.
      */
     private function normalizeNewlines(?string $value): ?string

@@ -193,7 +193,7 @@ class RelatorioController extends Controller
             ? Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id')
             : collect([]);
         $pacientes = Paciente::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $produtos = Produto::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $produtos = Produto::ativo()->semLegadoSomenteLeitura()->orderBy('nome')->get(['id', 'nome']);
 
         // Preparar datas padrão para o frontend
         $dataInicio = $request->get('data_inicio', now()->subDays(7)->format('Y-m-d'));

@@ -34,13 +34,18 @@ export default function ReceitaFormItemRow({
 }) {
     const anotacoesRef = useRef(null);
 
-    const unidadeLabel = useMemo(() => {
+    const produtoObj = useMemo(() => {
         const id = item.produto_id ? parseInt(String(item.produto_id), 10) : null;
-        if (!id) return '—';
-        const p = produtos.find((pr) => pr.id === id);
-        const u = p?.unidade != null && String(p.unidade).trim() !== '' ? String(p.unidade).trim() : '';
-        return u || '—';
+        if (!id) return null;
+        return produtos.find((pr) => pr.id === id) || null;
     }, [produtos, item.produto_id]);
+
+    const isLegado = Boolean(produtoObj?.legado_somente_leitura);
+
+    const unidadeLabel = useMemo(() => {
+        const u = produtoObj?.unidade != null && String(produtoObj.unidade).trim() !== '' ? String(produtoObj.unidade).trim() : '';
+        return u || '—';
+    }, [produtoObj]);
 
     useLayoutEffect(() => {
         const el = anotacoesRef.current;
@@ -52,11 +57,13 @@ export default function ReceitaFormItemRow({
     const rowTone =
         item.vendido
             ? 'bg-green-50 border border-green-200'
-            : item.imprimir
-              ? variant === 'recomendado'
-                  ? 'hover:bg-emerald-50/50'
-                  : 'hover:bg-gray-50'
-              : 'bg-gray-50';
+            : isLegado
+              ? 'bg-red-100 border border-red-200'
+              : item.imprimir
+                ? variant === 'recomendado'
+                    ? 'hover:bg-emerald-50/50'
+                    : 'hover:bg-gray-50'
+                : 'bg-gray-50';
 
     return (
         <div

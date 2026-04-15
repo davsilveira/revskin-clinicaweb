@@ -127,7 +127,10 @@ class ReceitaController extends Controller
             $medicos = Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
         }
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
+        $produtos = Produto::ativo()
+            ->semLegadoSomenteLeitura()
+            ->orderBy('codigo')
+            ->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
 
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
@@ -279,7 +282,16 @@ class ReceitaController extends Controller
             ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
+        $produtoColumns = ['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade'];
+        $produtos = Produto::ativo()
+            ->semLegadoSomenteLeitura()
+            ->orderBy('codigo')
+            ->get($produtoColumns);
+
+        $legadoIds = $receita->itens->pluck('produto_id')->filter()->diff($produtos->pluck('id'));
+        if ($legadoIds->isNotEmpty()) {
+            $produtos = $produtos->concat(Produto::whereIn('id', $legadoIds)->get($produtoColumns));
+        }
 
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
@@ -298,6 +310,19 @@ class ReceitaController extends Controller
         $receitasAnteriores->each(function ($r) {
             $this->applyAcquisitionDatesToItens($r->itens);
         });
+
+        $anteriorLegadoIds = $receitasAnteriores->flatMap(fn ($r) => $r->itens->pluck('produto_id'))
+            ->filter()
+            ->diff($produtos->pluck('id'))
+            ->unique();
+        if ($anteriorLegadoIds->isNotEmpty()) {
+            $extras = Produto::whereIn('id', $anteriorLegadoIds)->get($produtoColumns)->map(function ($p) {
+                $p->preco_venda = $p->preco ?? 0;
+
+                return $p;
+            });
+            $produtos = $produtos->concat($extras);
+        }
 
         $bloqueadaPorAtendimento = $receita->atendimentoCallcenter &&
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado']);

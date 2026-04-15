@@ -23,6 +23,8 @@ class ProdutoController extends Controller
         }
 
         $query = Produto::query()
+            ->when($request->boolean('legado_somente_leitura'), fn ($q) => $q->where('legado_somente_leitura', true),
+                fn ($q) => $q->where('legado_somente_leitura', false))
             ->when($search, function ($q, $s) {
                 $q->where(function ($query) use ($s) {
                     $query->where('nome', 'like', "%{$s}%")
@@ -37,8 +39,7 @@ class ProdutoController extends Controller
                 })->where(function ($query) {
                     $query->whereNull('modo_uso')->orWhere('modo_uso', '');
                 });
-            })
-            ->when($request->boolean('legado_somente_leitura'), fn ($q) => $q->where('legado_somente_leitura', true));
+            });
 
         $produtos = $query->orderBy('codigo')
             ->paginate(50)
@@ -57,7 +58,7 @@ class ProdutoController extends Controller
             unset($filters['search']);
         }
 
-        $totalGeral = Produto::count();
+        $totalGeral = Produto::where('legado_somente_leitura', false)->count();
 
         return Inertia::render('Produtos/Index', [
             'produtos' => $produtos,
@@ -161,6 +162,7 @@ class ProdutoController extends Controller
     public function catalogo(Request $request): Response
     {
         $query = Produto::ativo()
+            ->semLegadoSomenteLeitura()
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('nome', 'like', "%{$search}%")
@@ -545,6 +547,7 @@ class ProdutoController extends Controller
         $search = $request->get('q', '');
 
         $produtos = Produto::ativo()
+            ->semLegadoSomenteLeitura()
             ->where(function ($q) use ($search) {
                 $q->where('nome', 'like', "%{$search}%")
                     ->orWhere('codigo', 'like', "%{$search}%");

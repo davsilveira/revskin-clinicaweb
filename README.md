@@ -316,7 +316,7 @@ O projeto inclui dois comandos Artisan para migrar dados do sistema legado Clini
 
 ### Pré-requisitos
 
-- Dump SQL do ClinicaWeb em `docs/clinicaweb/database/bkp_cw2_20251201.sql`
+- Dump SQL do ClinicaWeb em `docs/clinicaweb/database/bkp_cw2_20260325.sql` (ou outro caminho passado a `--sql`)
 - Mapeamento de códigos de produtos em `docs/sanitization/mapeamento-codigos-legado-base.md`
 - Produtos já importados no novo sistema (a migração **não** importa produtos)
 
@@ -332,8 +332,9 @@ php artisan migration:extrair-legado
 
 | Opção | Padrão | Descrição |
 |-------|--------|-----------|
-| `--sql` | `docs/clinicaweb/database/bkp_cw2_20251201.sql` | Caminho do dump SQL |
+| `--sql` | `docs/clinicaweb/database/bkp_cw2_20260325.sql` | Caminho do dump SQL |
 | `--output` | `docs/migration` | Diretório de saída dos JSONs |
+| `--incluir-receitas-canceladas` | *(desligado)* | Por omissão, receitas com `ativo = 0` no legado **não** entram em `receitas.json` nem nas ligações de `itemAquisicoesLegado.json`. Com esta flag, voltam a ser extraídas (auditoria). |
 
 **Arquivos gerados:**
 
@@ -354,6 +355,7 @@ php artisan migration:extrair-legado
 - Telefones classificados: números começando com `9` (após DDD) são identificados como celular
 - Campos `fone1`/`fone2`/`fone3` mapeados para campo principal + repeater
 - **Usuários médico:** o campo `nome` no JSON passa a seguir o **nome do cadastro de médico** (`nome_legado` em `medicos.json`) quando há um único `legado_medico_id`, para evitar grafias divergentes entre contas legado
+- **Receitas canceladas no legado:** no dump ClinicaWeb, a coluna `receita.ativo` define se a receita está ativa (`1`) ou inativa (`0`). Na extração, `ativo = 0` é mapeado para `status: "cancelada"` no JSON; **por omissão essas receitas deixam de ser extraídas** (alinhando a contagem ao que o sistema antigo costuma mostrar só para receitas ativas). Use `--incluir-receitas-canceladas` na extração se precisar de todas as linhas da tabela `receita`.
 
 ### Etapa 2: Importação
 
@@ -406,6 +408,8 @@ O comando de importação é **idempotente** — pode ser executado múltiplas v
 - **Endereços de médicos:** Importados como repeater (campo dinâmico), incluindo endereço principal e endereço da clínica quando disponível
 - **Telefones de pacientes:** Telefones extras são importados no repeater de telefones
 - **Vários logins legado para o mesmo médico:** na importação, se já existir um `User` com `role = medico` e o mesmo `medico_id`, novos `legado_id` de médico são mapeados para esse utilizador (evita duas contas "Angela" no gerenciamento de usuários). O `id-mapping.json` guarda cada `legado_id` → o mesmo `users.id`
+- **Receitas com `status: "cancelada"` no JSON:** `migration:importar-legado` **ignora** essas entradas (defesa se ainda tiver JSONs gerados antes da alteração na extração). Volte a extrair sem `--incluir-receitas-canceladas` para não as gerar.
+- **Produtos ausentes na base (migração):** na extração, o código legado do item usa **`codigo`** do `produto` no dump e, se vazio, **`codigoCQ`**; o texto para nome usa **`descricao`** e, se vazio, **`nomeGenerico`**. Na importação, tenta-se ainda casar pelo **código cru** do legado antes de criar linha nova; ao criar, o **código** gravado no Revskin é o **original do legado** (quando existe), não só o código mapeado ou `LEGADO-PROD-*`; só **`LEGADO-PROD-{id}`** / **`LEGADO-ITEM-*`** quando o legado não tem código. Produtos `legado_somente_leitura` ficam no filtro **Descontinuados** e fora da listagem “Todos” / picker de receitas novas.
 - **Reimportação limpa:** para corrigir dados já migrados, pode apagar receitas/pacientes/clínicas/utilizadores (respeitando FKs), remover ou regenerar `id-mapping.json` e rodar extração + importação de novo
 - **Datas de aquisição na receita (coerente com o legado):** na extração, cada linha em `itemAquisicoesLegado.json` só é gerada quando existe **correspondência explícita** entre a data do registo de aquisição (CC) e `dta_ult_aquisicao` **dessa** linha de `receita_item` no dump — não há fallback para “primeira linha com o mesmo produto”. Vários candidatos com a mesma data → linha ignorada (ambíguo). Na app, o tooltip junta apenas `receita_item_aquisicoes` **da mesma linha** + `receita_itens.data_aquisicao`, **sem** cruzar outras receitas do paciente pelo mesmo produto. Após alterar a extração, é preciso **re-executar** `migration:extrair-legado` e reimportar (ou fluxo de limpeza + import) para limpar `receita_item_aquisicoes` antigos
 

@@ -24,7 +24,9 @@ class ProcessCatalogoExportJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 600;
+
     private const CHUNK_SIZE = 60;
 
     public function __construct(
@@ -92,12 +94,14 @@ class ProcessCatalogoExportJob implements ShouldQueue
         if (in_array($search, ['undefined', 'null', ''], true) || $search === null) {
             return null;
         }
+
         return $search;
     }
 
     private function getProdutos(?string $search)
     {
         return Produto::ativo()
+            ->semLegadoSomenteLeitura()
             ->when($search, function ($q, $s) {
                 $q->where(function ($query) use ($s) {
                     $query->where('nome', 'like', "%{$s}%")
@@ -144,7 +148,7 @@ class ProcessCatalogoExportJob implements ShouldQueue
         }
 
         $fileName = sprintf('catalogo-produtos_%s_%s.pdf', now()->format('Ymd_His'), $request->id);
-        $filePath = 'exports/' . $fileName;
+        $filePath = 'exports/'.$fileName;
 
         if (! $disk->exists('exports')) {
             $disk->makeDirectory('exports');
@@ -167,7 +171,7 @@ class ProcessCatalogoExportJob implements ShouldQueue
 
     private function mergePdfs(array $sourcePaths, string $outputPath): void
     {
-        $pdf = new Fpdi();
+        $pdf = new Fpdi;
 
         foreach ($sourcePaths as $sourcePath) {
             $pageCount = $pdf->setSourceFile($sourcePath);
@@ -192,7 +196,7 @@ class ProcessCatalogoExportJob implements ShouldQueue
         }
 
         $fileName = sprintf('catalogo-produtos_%s_%s.xlsx', now()->format('Ymd_His'), $request->id);
-        $filePath = 'exports/' . $fileName;
+        $filePath = 'exports/'.$fileName;
 
         Excel::store(new CatalogoProdutosExport($produtos), $filePath, 'local');
 
@@ -209,6 +213,7 @@ class ProcessCatalogoExportJob implements ShouldQueue
             return '';
         }
         $clean = str_replace("\0", '', (string) $value);
+
         return mb_substr($clean, 0, $maxLength, 'UTF-8');
     }
 

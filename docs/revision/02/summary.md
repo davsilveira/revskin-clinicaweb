@@ -91,7 +91,7 @@
 
 ### 👤 Permissões
 
-- [ ] **Repassado à equipa cliente** — validar política e eventual ajuste de roles *(sem alteração de código neste ciclo)*
+- [x] **Repassado à equipa cliente** — validar política e eventual ajuste de roles *(sem alteração de código neste ciclo)*
   - Pode cadastrar médicos?
   - Pode cadastrar produtos?
   - Dentro do sistema vs. sistema externo (ex.: RD)

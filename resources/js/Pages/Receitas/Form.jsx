@@ -1450,10 +1450,71 @@ function ReceitaFormInner({
                                             )}
                                             
                                             {/* Produtos */}
-                                            {r.itens && r.itens.filter((item) => item.imprimir).length > 0 ? (
+                                            {r.itens && r.itens.length > 0 ? (() => {
+                                                const recomendados = r.itens.filter((item) => item.grupo !== 'opcional');
+                                                const complementares = r.itens.filter((item) => item.grupo === 'opcional');
+                                                const produtoLabel = (item) => {
+                                                    const codigo = item.produto?.codigo;
+                                                    const nome = item.produto?.nome || 'Produto não encontrado';
+                                                    return codigo ? `${codigo} - ${nome}` : nome;
+                                                };
+                                                const renderDesktopRows = (itens, startIdx = 0) => itens.map((item, idx) => (
+                                                    <tr key={startIdx + idx} className={(startIdx + idx) % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                        <td className="px-2 py-1 w-6 text-center">
+                                                            <input type="checkbox" checked={!!item.imprimir} disabled className="rounded border-gray-300 text-emerald-600 cursor-default" />
+                                                        </td>
+                                                        <td className="px-2 py-1 text-gray-900">
+                                                            {produtoLabel(item)}
+                                                        </td>
+                                                        <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
+                                                        {!isMedico && (
+                                                            <td className="px-2 py-1 text-right text-gray-600">
+                                                                {item.imprimir
+                                                                    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_unitario * item.quantidade)
+                                                                    : '-'}
+                                                            </td>
+                                                        )}
+                                                        <td className="px-2 py-1 text-gray-500">
+                                                            <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
+                                                        </td>
+                                                    </tr>
+                                                ));
+                                                const renderMobileCards = (itens) => itens.map((item, idx) => (
+                                                    <div key={idx} className="rounded-lg border border-gray-200 p-3 text-sm max-w-full">
+                                                        <div className="flex items-start gap-2">
+                                                            <input type="checkbox" checked={!!item.imprimir} disabled className="mt-0.5 rounded border-gray-300 text-emerald-600 cursor-default" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-medium text-gray-900 break-words">
+                                                                    {produtoLabel(item)}
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-sm">
+                                                                    <div>
+                                                                        <span className="text-gray-500">Qtd</span>{' '}
+                                                                        <span className="font-medium text-gray-800">{item.quantidade}</span>
+                                                                    </div>
+                                                                    {!isMedico && (
+                                                                        <div className="text-right">
+                                                                            <span className="text-gray-500">Valor</span>{' '}
+                                                                            <span className="font-medium text-gray-800">
+                                                                                {item.imprimir
+                                                                                    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_unitario * item.quantidade)
+                                                                                    : '-'}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                                                                    <span className="text-gray-500 shrink-0">Aquisição</span>
+                                                                    <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ));
+                                                return (
                                                 <div className="space-y-1">
                                                     <div className="text-sm font-medium text-gray-700 mb-2">
-                                                        Produtos ({r.itens.filter((item) => item.imprimir).length})
+                                                        Produtos ({r.itens.length})
                                                     </div>
                                                     <ResponsiveEntityList
                                                         desktop={
@@ -1461,7 +1522,7 @@ function ReceitaFormInner({
                                                                 <table className="w-full text-sm">
                                                                     <thead className="bg-gray-50">
                                                                         <tr>
-                                                                            <th className="text-left px-2 py-1 font-medium text-gray-600">Tipo</th>
+                                                                            <th className="w-6 px-2 py-1"></th>
                                                                             <th className="text-left px-2 py-1 font-medium text-gray-600">Produto</th>
                                                                             <th className="text-center px-2 py-1 font-medium text-gray-600">Qtd</th>
                                                                             {!isMedico && (
@@ -1471,74 +1532,34 @@ function ReceitaFormInner({
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody>
-                                                                        {r.itens
-                                                                            .filter((item) => item.imprimir)
-                                                                            .map((item, idx) => (
-                                                                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                                                    <td className="px-2 py-1 text-gray-600">
-                                                                                        {formatLocalUso(item.local_uso || item.produto?.local_uso)}
-                                                                                    </td>
-                                                                                    <td className="px-2 py-1 text-gray-900">
-                                                                                        {item.produto?.nome || 'Produto não encontrado'}
-                                                                                    </td>
-                                                                                    <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
-                                                                                    {!isMedico && (
-                                                                                        <td className="px-2 py-1 text-right text-gray-600">
-                                                                                            {new Intl.NumberFormat('pt-BR', {
-                                                                                                style: 'currency',
-                                                                                                currency: 'BRL',
-                                                                                            }).format(item.valor_unitario * item.quantidade)}
-                                                                                        </td>
-                                                                                    )}
-                                                                                    <td className="px-2 py-1 text-gray-500">
-                                                                                        <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
+                                                                        {renderDesktopRows(recomendados)}
+                                                                        {complementares.length > 0 && (
+                                                                            <tr>
+                                                                                <td colSpan={isMedico ? 4 : 5} className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase bg-gray-100 border-t border-gray-200">
+                                                                                    Complementares
+                                                                                </td>
+                                                                            </tr>
+                                                                        )}
+                                                                        {renderDesktopRows(complementares, recomendados.length)}
                                                                     </tbody>
                                                                 </table>
                                                             </div>
                                                         }
                                                         mobile={
                                                             <div className="space-y-2">
-                                                                {r.itens
-                                                                    .filter((item) => item.imprimir)
-                                                                    .map((item, idx) => (
-                                                                        <div key={idx} className="rounded-lg border border-gray-200 p-3 text-sm max-w-full">
-                                                                            <div className="font-medium text-gray-900 break-words">
-                                                                                {item.produto?.nome || 'Produto não encontrado'}
-                                                                            </div>
-                                                                            <div className="text-gray-600 mt-1">
-                                                                                {formatLocalUso(item.local_uso || item.produto?.local_uso)}
-                                                                            </div>
-                                                                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-sm">
-                                                                                <div>
-                                                                                    <span className="text-gray-500">Qtd</span>{' '}
-                                                                                    <span className="font-medium text-gray-800">{item.quantidade}</span>
-                                                                                </div>
-                                                                                {!isMedico && (
-                                                                                    <div className="text-right">
-                                                                                        <span className="text-gray-500">Valor</span>{' '}
-                                                                                        <span className="font-medium text-gray-800">
-                                                                                            {new Intl.NumberFormat('pt-BR', {
-                                                                                                style: 'currency',
-                                                                                                currency: 'BRL',
-                                                                                            }).format(item.valor_unitario * item.quantidade)}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                                                                                <span className="text-gray-500 shrink-0">Aquisição</span>
-                                                                                <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
+                                                                {renderMobileCards(recomendados)}
+                                                                {complementares.length > 0 && (
+                                                                    <div className="text-xs font-semibold text-gray-500 uppercase py-1 border-t border-gray-200 mt-2">
+                                                                        Complementares
+                                                                    </div>
+                                                                )}
+                                                                {renderMobileCards(complementares)}
                                                             </div>
                                                         }
                                                     />
                                                 </div>
-                                            ) : (
+                                                );
+                                            })() : (
                                                 <p className="text-sm text-gray-500">Nenhum produto nesta receita.</p>
                                             )}
                                             

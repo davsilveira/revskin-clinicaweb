@@ -506,7 +506,7 @@ export default function PatientDrawer({
             onClose={requestClose}
             title={paciente ? 'Editar Paciente' : 'Novo Paciente'}
         >
-            <form onSubmit={handleSubmit} className="flex flex-col h-full">
+            <form onSubmit={handleSubmit} className="flex flex-col h-full" autoComplete="off">
                 <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-2">
@@ -519,7 +519,8 @@ export default function PatientDrawer({
                                 }}
                                 error={fieldErrors.nome || errors.nome}
                                 required
-                                autoComplete="name"
+                                autoComplete="off"
+                                name="revskin_paciente_nome"
                             />
                         </div>
                         <MaskedInput
@@ -534,6 +535,8 @@ export default function PatientDrawer({
                             error={cpfError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
                             required
+                            autoComplete="off"
+                            name="revskin_paciente_cpf"
                         />
                         <DatePickerField
                             label="Data de Nascimento"
@@ -554,6 +557,8 @@ export default function PatientDrawer({
                                 { value: 'M', label: 'Masculino' },
                                 { value: 'F', label: 'Feminino' },
                             ]}
+                            autoComplete="off"
+                            name="revskin_paciente_sexo"
                         />
                         <div className="col-span-2 sm:col-span-1">
                             <Input
@@ -566,8 +571,9 @@ export default function PatientDrawer({
                                 }}
                                 error={fieldErrors.email1 || errors.email1}
                                 required
-                                autoComplete="email"
+                                autoComplete="off"
                                 inputMode="email"
+                                name="revskin_paciente_email"
                             />
                         </div>
                         <div className="col-span-2">
@@ -576,6 +582,8 @@ export default function PatientDrawer({
                                 value={data.pais}
                                 onChange={(e) => setData('pais', e.target.value)}
                                 options={countries}
+                                autoComplete="off"
+                                name="revskin_paciente_pais"
                             />
                         </div>
                         {isBrazil ? (
@@ -590,6 +598,8 @@ export default function PatientDrawer({
                                 placeholder="(00) 00000-0000"
                                 error={fieldErrors.celular || errors.celular}
                                 required
+                                autoComplete="off"
+                                name="revskin_paciente_celular"
                             />
                         ) : (
                             <Input
@@ -602,6 +612,8 @@ export default function PatientDrawer({
                                 placeholder="Número com código do país"
                                 error={fieldErrors.celular || errors.celular}
                                 required
+                                autoComplete="off"
+                                name="revskin_paciente_celular"
                             />
                         )}
                     </div>
@@ -639,6 +651,8 @@ export default function PatientDrawer({
                                                     { value: 'Recado', label: 'Recado' },
                                                     { value: 'Outro', label: 'Outro' },
                                                 ]}
+                                                autoComplete="off"
+                                                name={`revskin_paciente_tel_tipo_${index}`}
                                             />
                                         </div>
                                         <div className="flex-[2]">
@@ -653,6 +667,8 @@ export default function PatientDrawer({
                                                     value={tel.numero}
                                                     onAccept={(value) => updateTelefone(index, 'numero', value)}
                                                     placeholder="(00) 00000-0000"
+                                                    autoComplete="off"
+                                                    name={`revskin_paciente_tel_extra_${index}`}
                                                 />
                                             ) : (
                                                 <Input
@@ -660,6 +676,8 @@ export default function PatientDrawer({
                                                     value={tel.numero}
                                                     onChange={(e) => updateTelefone(index, 'numero', e.target.value)}
                                                     placeholder="Número com código do país"
+                                                    autoComplete="off"
+                                                    name={`revskin_paciente_tel_extra_${index}`}
                                                 />
                                             )}
                                         </div>
@@ -692,23 +710,55 @@ export default function PatientDrawer({
                                     onChange={(e) => setData('cep', e.target.value)}
                                     onBlur={buscarCep}
                                     placeholder="00000-000"
+                                    autoComplete="off"
+                                    name="revskin_paciente_cep"
                                 />
                                 {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
                             </div>
                             <div className="col-span-4">
-                                <Input label="Endereço" value={data.endereco} onChange={(e) => setData('endereco', e.target.value)} />
+                                <Input
+                                    label="Endereço"
+                                    value={data.endereco}
+                                    onChange={(e) => setData('endereco', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_logradouro"
+                                />
                             </div>
                             <div className="col-span-1">
-                                <Input label="Número" value={data.numero} onChange={(e) => setData('numero', e.target.value)} />
+                                <Input
+                                    label="Número"
+                                    value={data.numero}
+                                    onChange={(e) => setData('numero', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_numero"
+                                />
                             </div>
                             <div className="col-span-2">
-                                <Input label="Complemento" value={data.complemento} onChange={(e) => setData('complemento', e.target.value)} />
+                                <Input
+                                    label="Complemento"
+                                    value={data.complemento}
+                                    onChange={(e) => setData('complemento', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_complemento"
+                                />
                             </div>
                             <div className="col-span-3">
-                                <Input label="Bairro" value={data.bairro} onChange={(e) => setData('bairro', e.target.value)} />
+                                <Input
+                                    label="Bairro"
+                                    value={data.bairro}
+                                    onChange={(e) => setData('bairro', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_bairro"
+                                />
                             </div>
                             <div className="col-span-4">
-                                <Input label="Cidade" value={data.cidade} onChange={(e) => setData('cidade', e.target.value)} />
+                                <Input
+                                    label="Cidade"
+                                    value={data.cidade}
+                                    onChange={(e) => setData('cidade', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_cidade"
+                                />
                             </div>
                             <div className="col-span-2">
                                 {isBrazil ? (
@@ -720,12 +770,16 @@ export default function PatientDrawer({
                                             { value: '', label: 'UF' },
                                             ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))
                                         ]}
+                                        autoComplete="off"
+                                        name="revskin_paciente_uf"
                                     />
                                 ) : (
                                     <Input
                                         label="Estado/Província"
                                         value={data.uf}
                                         onChange={(e) => setData('uf', e.target.value)}
+                                        autoComplete="off"
+                                        name="revskin_paciente_uf"
                                     />
                                 )}
                             </div>
@@ -763,6 +817,8 @@ export default function PatientDrawer({
                                                 })),
                                             ]}
                                             error={fieldErrors.medico_id || errors.medico_id}
+                                            autoComplete="off"
+                                            name="revskin_paciente_medico_id"
                                         />
                                     )}
                                 </div>
@@ -811,6 +867,8 @@ export default function PatientDrawer({
                                                         value={searchMedico}
                                                         onChange={(e) => setSearchMedico(e.target.value)}
                                                         className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${(fieldErrors.medico_id || errors.medico_id) ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                                        autoComplete="off"
+                                                        name="revskin_paciente_medico_busca"
                                                     />
                                                     {loadingMedicos && (
                                                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -857,6 +915,8 @@ export default function PatientDrawer({
                             onChange={(e) => setData('anotacoes', e.target.value)}
                             multiline
                             rows={3}
+                            autoComplete="off"
+                            name="revskin_paciente_anotacoes"
                         />
                     </div>
 
@@ -871,12 +931,16 @@ export default function PatientDrawer({
                                 }}
                                 error={fieldErrors.codigo || errors.codigo}
                                 placeholder="Opcional"
+                                autoComplete="off"
+                                name="revskin_paciente_codigo"
                             />
                             <Input
                                 label="Indicado por"
                                 value={data.indicado_por}
                                 onChange={(e) => setData('indicado_por', e.target.value)}
                                 placeholder="Opcional"
+                                autoComplete="off"
+                                name="revskin_paciente_indicado_por"
                             />
                         </div>
                     </div>
@@ -892,6 +956,8 @@ export default function PatientDrawer({
                                     { value: '1', label: 'Ativo' },
                                     { value: '0', label: 'Inativo' },
                                 ]}
+                                autoComplete="off"
+                                name="revskin_paciente_ativo"
                             />
                         </div>
                     )}
