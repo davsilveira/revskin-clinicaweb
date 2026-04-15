@@ -26,7 +26,7 @@ function normalizarAtivoFiltro(filtersObj) {
     return String(val);
 }
 
-export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters, canAccessAssistente = false }) {
+export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingPaciente, setEditingPaciente] = useState(null);
     const [toast, setToast] = useState(null);
@@ -221,20 +221,6 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                                     </span>
                                                                 </Link>
                                                             )}
-                                                            {canAccessAssistente && (
-                                                                <Link
-                                                                    href={`/assistente-receita?paciente_id=${paciente.id}`}
-                                                                    className="group relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                                    aria-label="Assistente de Receitas"
-                                                                >
-                                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                                                    </svg>
-                                                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none whitespace-nowrap z-10">
-                                                                        Assistente de Receitas
-                                                                    </span>
-                                                                </Link>
-                                                            )}
                                                             <span className="group relative inline-block">
                                                                 <button
                                                                     type="button"
@@ -310,17 +296,6 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                         >
                                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                            </svg>
-                                                        </Link>
-                                                    )}
-                                                    {canAccessAssistente && (
-                                                        <Link
-                                                            href={`/assistente-receita?paciente_id=${paciente.id}`}
-                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                                            aria-label="Assistente de Receitas"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                                             </svg>
                                                         </Link>
                                                     )}

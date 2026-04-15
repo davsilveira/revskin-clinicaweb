@@ -38,20 +38,33 @@ export default function ReceitasIndex({
     const isMedico = auth.user.role === 'medico';
     const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
     const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
-    const [status, setStatus] = useState(() => (filters?.status != null ? String(filters.status) : ''));
+    const [status, setStatus] = useState(() =>
+        filters?.paciente_id ? '' : filters?.status != null ? String(filters.status) : ''
+    );
     const pacienteId = filters?.paciente_id;
     const listagemPorPaciente = Boolean(pacienteId);
+    const receitasQuerySearch = listagemPorPaciente ? '' : search;
+    const receitasQueryStatus = listagemPorPaciente ? '' : status;
     const skipNextReceitasFetch = useRef(true);
 
     useEffect(() => {
         if (!filters) {
             return;
         }
-        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        const patientScoped = Boolean(filters.paciente_id);
+        const nextSearch = patientScoped
+            ? ''
+            : filters.search != null && filters.search !== ''
+              ? String(filters.search)
+              : '';
         setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-        const nextStatus = filters.status != null ? String(filters.status) : '';
+        const nextStatus = patientScoped
+            ? ''
+            : filters.status != null
+              ? String(filters.status)
+              : '';
         setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
-    }, [filters?.search, filters?.status]);
+    }, [filters?.search, filters?.status, filters?.paciente_id]);
 
     useEffect(() => {
         persistReceitasIndexQueryFromLocation();
@@ -75,8 +88,8 @@ export default function ReceitasIndex({
             skipNextReceitasFetch.current = false;
             return;
         }
-        runReceitasQuery(search, status, pacienteId);
-    }, [search, status, pacienteId, runReceitasQuery]);
+        runReceitasQuery(receitasQuerySearch, receitasQueryStatus, pacienteId);
+    }, [receitasQuerySearch, receitasQueryStatus, pacienteId, runReceitasQuery]);
 
     useEffect(() => () => runReceitasQuery.cancel(), [runReceitasQuery]);
 
@@ -95,7 +108,7 @@ export default function ReceitasIndex({
 
     const refreshReceitasIndex = () => {
         runReceitasQuery.cancel();
-        router.get('/receitas', buildReceitasIndexParams(search, status, pacienteId), {
+        router.get('/receitas', buildReceitasIndexParams(receitasQuerySearch, receitasQueryStatus, pacienteId), {
             preserveState: true,
             preserveScroll: true,
             only: ['receitas', 'filters'],
@@ -105,7 +118,7 @@ export default function ReceitasIndex({
     const handleSearch = (e) => {
         e.preventDefault();
         runReceitasQuery.cancel();
-        router.get('/receitas', buildReceitasIndexParams(search, status, pacienteId), {
+        router.get('/receitas', buildReceitasIndexParams(receitasQuerySearch, receitasQueryStatus, pacienteId), {
             preserveState: true,
             preserveScroll: true,
             only: ['receitas', 'filters'],
@@ -158,19 +171,10 @@ export default function ReceitasIndex({
                     actions={
                         <>
                             <Link
-                                href="/assistente-receita"
-                                className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                </svg>
-                                Assistente
-                            </Link>
-                            <Link
                                 href={
                                     pacienteFiltrado
-                                        ? `/receitas/create?paciente_id=${pacienteFiltrado.id}`
-                                        : '/receitas/create'
+                                        ? `/assistente-receita?paciente_id=${pacienteFiltrado.id}`
+                                        : '/assistente-receita'
                                 }
                                 className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
                             >
@@ -247,34 +251,36 @@ export default function ReceitasIndex({
                     </div>
                 )}
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                        <input
-                            type="text"
-                            placeholder="Buscar por paciente..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            autoComplete="off"
-                        />
-                        <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        >
-                            <option value="">Todos os status</option>
-                            <option value="aberta">Aberta</option>
-                            <option value="finalizada">Finalizada</option>
-                            <option value="cancelada">Cancelada</option>
-                        </select>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                        >
-                            Filtrar
-                        </button>
-                    </form>
-                </div>
+                {!listagemPorPaciente && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                        <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                            <input
+                                type="text"
+                                placeholder="Buscar por paciente..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                autoComplete="off"
+                            />
+                            <select
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value)}
+                                className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            >
+                                <option value="">Todos os status</option>
+                                <option value="aberta">Aberta</option>
+                                <option value="finalizada">Finalizada</option>
+                                <option value="cancelada">Cancelada</option>
+                            </select>
+                            <button
+                                type="submit"
+                                className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                                Filtrar
+                            </button>
+                        </form>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <ResponsiveEntityList

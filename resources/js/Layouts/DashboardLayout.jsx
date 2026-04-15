@@ -5,7 +5,6 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProfileDrawer from '@/Components/ProfileDrawer';
 import {
-    NavIconAssistente,
     NavIconCallcenter,
     NavIconClinicas,
     NavIconExport,
@@ -206,19 +205,6 @@ export default function DashboardLayout({ children }) {
                         {/* Receitas (medico and admin) */}
                         {(isAdmin || isMedico) && (
                             <>
-                                <Link
-                                    href="/assistente-receita"
-                                    className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
-                                        isActive('/assistente-receita')
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title={!showLabels ? 'Assistente Receita' : undefined}
-                                >
-                                    <NavIconAssistente />
-                                    {showLabels && <span className="font-medium">Assistente Receita</span>}
-                                </Link>
-
                                 <Link
                                     href="/relatorios"
                                     className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${

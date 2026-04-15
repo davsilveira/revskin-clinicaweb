@@ -388,31 +388,6 @@ export default function AssistenteReceitaIndex({
                 </ReceitasIndexBackLink>
                 <PageHeader title="Assistente de Receitas" description={pageDescription} />
 
-                {/* Progress Steps */}
-                <div className="flex items-center justify-center mb-8">
-                    {[1, 2].map((s) => (
-                        <div key={s} className="flex items-center">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                                step >= s ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
-                            }`}>
-                                {step > s ? (
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                ) : s}
-                            </div>
-                            {s < 2 && (
-                                <div className={`w-16 md:w-24 h-1 transition-all ${step > s ? 'bg-emerald-600' : 'bg-gray-200'}`} />
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                <div className="flex justify-center gap-6 md:gap-12 text-sm text-gray-600 mb-8">
-                    <span className={step === 1 ? 'text-emerald-600 font-medium' : ''}>1. Paciente</span>
-                    <span className={step === 2 ? 'text-emerald-600 font-medium' : ''}>2. Avaliação</span>
-                </div>
-
                 {/* Step 1: Selecionar Paciente */}
                 {step === 1 && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

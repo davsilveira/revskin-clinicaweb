@@ -569,9 +569,6 @@ export default function PatientDrawer({
                                 autoComplete="email"
                                 inputMode="email"
                             />
-                            <p className="mt-1.5 text-xs text-gray-500">
-                                Se o browser preencher país ou endereço ao digitar o e-mail, desative o autofill para este site ou use outro perfil — não é o CW3 que grava esses campos automaticamente.
-                            </p>
                         </div>
                         <div className="col-span-2">
                             <Select
