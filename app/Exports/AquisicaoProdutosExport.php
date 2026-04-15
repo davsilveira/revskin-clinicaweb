@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomStartCell, WithEvents, WithTitle
 {
@@ -29,34 +30,6 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
         $this->isAdmin = $isAdmin;
     }
 
-    /**
-     * Calcula última modificação (max data_receita) por nome de produto.
-     */
-    private function ultimaModificacaoPorProduto(array $produtos): array
-    {
-        $porProduto = [];
-        foreach ($produtos as $p) {
-            $nome = $p['produto_nome'];
-            if (! isset($porProduto[$nome])) {
-                $porProduto[$nome] = $p['data_receita'];
-            } else {
-                try {
-                    $atual = Carbon::createFromFormat('d/m/Y', $p['data_receita']);
-                    $max = Carbon::createFromFormat('d/m/Y', $porProduto[$nome]);
-                    if ($atual->gt($max)) {
-                        $porProduto[$nome] = $p['data_receita'];
-                    }
-                } catch (\Exception $e) {
-                    if (strcmp($p['data_receita'], $porProduto[$nome]) > 0) {
-                        $porProduto[$nome] = $p['data_receita'];
-                    }
-                }
-            }
-        }
-
-        return $porProduto;
-    }
-
     private function formatarCpf(?string $cpf): string
     {
         if (empty($cpf)) {
@@ -70,6 +43,27 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
         return $cpf;
     }
 
+    private function formatarTelefone(?string $telefone): string
+    {
+        if ($telefone === null || $telefone === '') {
+            return '';
+        }
+        $digits = preg_replace('/\D/', '', $telefone);
+        if (strlen($digits) === 11) {
+            return '('.substr($digits, 0, 2).') '.substr($digits, 2, 5).'-'.substr($digits, 7);
+        }
+        if (strlen($digits) === 10) {
+            return '('.substr($digits, 0, 2).') '.substr($digits, 2, 4).'-'.substr($digits, 6);
+        }
+
+        return $telefone;
+    }
+
+    private function brl(?float $v): string
+    {
+        return number_format((float) $v, 2, ',', '.');
+    }
+
     public function array(): array
     {
         $rows = [];
@@ -81,11 +75,33 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
         $rows[] = ['Período:', $dataInicioFormatada.' a '.$dataFimFormatada];
         $rows[] = [];
 
+        if ($this->isAdmin) {
+            $rows[] = [
+                'Produto',
+                'Data da receita',
+                'Data da manipulação',
+                'Valor unitário',
+                'Qtd',
+                'Total',
+            ];
+        } else {
+            $rows[] = [
+                'Produto',
+                'Data da receita',
+                'Data da manipulação',
+                'Qtd',
+            ];
+        }
+
         foreach ($this->dados['pacientes'] as $pacienteData) {
             $cpf = $this->formatarCpf($pacienteData['paciente']['cpf'] ?? null);
+            $tel = $this->formatarTelefone($pacienteData['paciente']['telefone'] ?? null);
             $medicoNome = $this->isAdmin ? ($pacienteData['paciente']['medico_nome'] ?? '') : '';
 
             $pacienteRow = [strtoupper($pacienteData['paciente']['nome'])];
+            if ($tel !== '') {
+                $pacienteRow[] = $tel;
+            }
             if ($cpf) {
                 $pacienteRow[] = 'CPF: '.$cpf;
             }
@@ -94,16 +110,44 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
             }
             $rows[] = $pacienteRow;
 
-            $ultimaModPorProduto = $this->ultimaModificacaoPorProduto($pacienteData['produtos']);
             foreach ($pacienteData['produtos'] as $p) {
-                $rows[] = [
-                    $p['produto_nome'],
-                    $ultimaModPorProduto[$p['produto_nome']] ?? $p['data_receita'],
-                    $p['data_aquisicao'],
-                    (int) ($p['quantidade'] ?? 0),
-                ];
+                if ($this->isAdmin) {
+                    $rows[] = [
+                        $p['produto_nome'],
+                        $p['data_receita'],
+                        $p['data_aquisicao'],
+                        $this->brl((float) ($p['valor_unitario'] ?? 0)),
+                        (int) ($p['quantidade'] ?? 0),
+                        $this->brl((float) ($p['valor_total'] ?? 0)),
+                    ];
+                } else {
+                    $rows[] = [
+                        $p['produto_nome'],
+                        $p['data_receita'],
+                        $p['data_aquisicao'],
+                        (int) ($p['quantidade'] ?? 0),
+                    ];
+                }
             }
 
+            $tot = $pacienteData['totais'] ?? [];
+            if ($this->isAdmin) {
+                $rows[] = [
+                    'Qtd. Produtos: '.(int) ($tot['qtd_produtos'] ?? 0),
+                    '',
+                    '',
+                    'Vlr. Frete: '.$this->brl((float) ($tot['vlr_frete'] ?? 0)),
+                    'Vlr. Desconto: '.$this->brl((float) ($tot['vlr_desconto'] ?? 0)),
+                    'Total: '.$this->brl((float) ($tot['total'] ?? 0)),
+                ];
+            } else {
+                $rows[] = [
+                    'Qtd. Produtos: '.(int) ($tot['qtd_produtos'] ?? 0),
+                    '',
+                    '',
+                    '',
+                ];
+            }
             $rows[] = [];
         }
 
@@ -135,6 +179,31 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
                 $sheet->getStyle('A1:'.$lastCol.$lastRow)->getAlignment()
                     ->setWrapText(true)
                     ->setVertical(Alignment::VERTICAL_TOP);
+
+                $endCol = $this->isAdmin ? 'F' : 'D';
+
+                for ($row = 1; $row <= $lastRow; $row++) {
+                    $cellA = $sheet->getCell('A'.$row)->getValue();
+                    if (! is_string($cellA) || ! str_starts_with($cellA, 'Qtd. Produtos:')) {
+                        continue;
+                    }
+                    $sheet->getStyle('A'.$row.':'.$endCol.$row)->applyFromArray([
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'E5E7EB'],
+                        ],
+                        'font' => [
+                            'bold' => true,
+                            'color' => ['rgb' => '111827'],
+                        ],
+                    ]);
+                    $sheet->getStyle('A'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    if ($this->isAdmin) {
+                        $sheet->getStyle('D'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                        $sheet->getStyle('E'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                        $sheet->getStyle('F'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    }
+                }
             },
         ];
     }
