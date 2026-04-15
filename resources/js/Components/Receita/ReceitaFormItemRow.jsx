@@ -32,7 +32,7 @@ export default function ReceitaFormItemRow({
     lastItemRef,
     formatItemTotal,
 }) {
-    const formulaRef = useRef(null);
+    const anotacoesRef = useRef(null);
 
     const unidadeLabel = useMemo(() => {
         const id = item.produto_id ? parseInt(String(item.produto_id), 10) : null;
@@ -43,7 +43,7 @@ export default function ReceitaFormItemRow({
     }, [produtos, item.produto_id]);
 
     useLayoutEffect(() => {
-        const el = formulaRef.current;
+        const el = anotacoesRef.current;
         if (!el) return;
         el.style.height = 'auto';
         el.style.height = `${Math.min(Math.max(el.scrollHeight, 32), 320)}px`;
@@ -121,11 +121,11 @@ export default function ReceitaFormItemRow({
             </div>
 
             <div className="w-full min-w-0 lg:flex-[2]">
-                <span className="text-xs font-medium text-gray-500 lg:hidden block mb-1">Fórmula</span>
+                <span className="text-xs font-medium text-gray-500 lg:hidden block mb-1">Anotações</span>
                 <textarea
-                    ref={formulaRef}
+                    ref={anotacoesRef}
                     rows={1}
-                    placeholder="Fórmula / posologia…"
+                    placeholder="Anotações…"
                     value={item.anotacoes || ''}
                     onChange={(e) => onUpdateItem(index, 'anotacoes', e.target.value)}
                     disabled={isReadOnly}

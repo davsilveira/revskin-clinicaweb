@@ -1,5 +1,5 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -42,8 +42,11 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const [editingClinica, setEditingClinica] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(filters?.search || '');
+    const [search, setSearch] = useState(() =>
+        filters?.search != null && filters.search !== '' ? String(filters.search) : ''
+    );
     const [loadingCep, setLoadingCep] = useState(false);
+    const skipNextClinicasFetch = useRef(true);
 
     // Medico search states
     const [searchMedico, setSearchMedico] = useState('');
@@ -102,6 +105,38 @@ export default function ClinicasIndex({ clinicas, filters }) {
             searchMedicosApi(searchMedico);
         }
     }, [searchMedico, searchMedicosApi]);
+
+    useEffect(() => {
+        if (!filters) return;
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    }, [filters?.search]);
+
+    const runClinicasQuery = useMemo(
+        () =>
+            debounce((term) => {
+                const params = {};
+                const t = term?.trim();
+                if (t) params.search = t;
+                router.get('/clinicas', params, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['clinicas', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextClinicasFetch.current) {
+            skipNextClinicasFetch.current = false;
+            return;
+        }
+        runClinicasQuery(search);
+    }, [search, runClinicasQuery]);
+
+    useEffect(() => () => runClinicasQuery.cancel(), [runClinicasQuery]);
 
     const addMedico = (medico) => {
         const newMedicos = [...selectedMedicos, medico];
@@ -271,11 +306,6 @@ export default function ClinicasIndex({ clinicas, filters }) {
         });
     };
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        router.get('/clinicas', { search }, { preserveState: true });
-    };
-
     const buscarCep = useCallback(async () => {
         const cepLimpo = data.cep?.replace(/\D/g, '');
         if (!cepLimpo || cepLimpo.length < 8) return;
@@ -335,21 +365,16 @@ export default function ClinicasIndex({ clinicas, filters }) {
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 min-w-0">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 min-w-0">
                         <input
                             type="text"
                             placeholder="Buscar por nome ou CNPJ..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            autoComplete="off"
                             className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                         />
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

@@ -55,10 +55,28 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
         debouncedSave.cancel();
     }, [debouncedSave]);
 
+    /** Cancel debounced autosave and clear the unsaved flag (e.g. before Inertia PUT + redirect GET). */
+    const clearDirtyState = useCallback(() => {
+        debouncedSave.cancel();
+        setHasUnsavedChanges(false);
+    }, [debouncedSave]);
+
+    /** Restore unsaved flag after a failed persistence attempt (no debounced run). */
+    const markUnsaved = useCallback(() => {
+        setHasUnsavedChanges(true);
+    }, []);
+
+    /** Update “last saved” clock without calling the save API (e.g. after manual Inertia save). */
+    const bumpLastSaved = useCallback(() => {
+        setLastSaved(new Date());
+    }, []);
+
     // Force immediate save
     const saveNow = useCallback(async () => {
         debouncedSave.cancel();
-        if (!enabled) return;
+        if (!enabledRef.current) {
+            throw new Error('Autosave disabled');
+        }
         
         setIsSaving(true);
         try {
@@ -71,7 +89,7 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
         } finally {
             setIsSaving(false);
         }
-    }, [debouncedSave, enabled]);
+    }, [debouncedSave]);
 
     // Format last saved time
     const getLastSavedText = useCallback(() => {
@@ -98,5 +116,8 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
         triggerAutoSave,
         cancelAutoSave,
         saveNow,
+        clearDirtyState,
+        markUnsaved,
+        bumpLastSaved,
     };
 }

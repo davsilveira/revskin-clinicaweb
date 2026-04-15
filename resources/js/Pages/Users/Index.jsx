@@ -1,5 +1,6 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -44,20 +45,24 @@ function userFormComparable(d) {
     };
 }
 
+function roleFilterFromFilters(filters, tinyEnabled) {
+    const r = filters?.role;
+    if (!r || r === '') return 'all';
+    if (tinyEnabled && r === 'callcenter') return 'all';
+    return r;
+}
+
 export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     const { props } = usePage();
     const auth = props.auth || {};
     const tinyEnabled = auth.tinyEnabled || false;
     const serverErrors = props.errors || {};
 
-    const [search, setSearch] = useState(filters.search || '');
-    const [roleFilter, setRoleFilter] = useState(() => {
-        const r = filters.role || 'all';
-        if (tinyEnabled && r === 'callcenter') {
-            return 'all';
-        }
-        return r;
-    });
+    const [search, setSearch] = useState(() =>
+        filters.search != null && filters.search !== '' ? String(filters.search) : ''
+    );
+    const [roleFilter, setRoleFilter] = useState(() => roleFilterFromFilters(filters, tinyEnabled));
+    const skipNextUsersFetch = useRef(true);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -72,10 +77,11 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     );
 
     useEffect(() => {
-        setSearch(filters.search || '');
-        const r = filters.role || 'all';
-        setRoleFilter(tinyEnabled && r === 'callcenter' ? 'all' : r);
-    }, [filters.search, filters.role, tinyEnabled]);
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextRole = roleFilterFromFilters(filters, tinyEnabled);
+        setRoleFilter((prev) => (prev === nextRole ? prev : nextRole));
+    }, [filters?.search, filters?.role, tinyEnabled]);
 
     const [formBaseline, setFormBaseline] = useState(null);
 
@@ -287,17 +293,38 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         }
     };
 
-    const buildQuery = (extra = {}) => {
-        const q = { ...extra };
-        if (search?.trim()) q.search = search.trim();
-        if (roleFilter && roleFilter !== 'all') q.role = roleFilter;
-        return q;
-    };
+    const buildQuery = useCallback(
+        (extra = {}) => {
+            const q = { ...extra };
+            if (search?.trim()) q.search = search.trim();
+            if (roleFilter && roleFilter !== 'all') q.role = roleFilter;
+            return q;
+        },
+        [search, roleFilter]
+    );
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        router.get('/users', buildQuery(), { preserveState: true });
-    };
+    const runUsersQuery = useMemo(
+        () =>
+            debounce((query) => {
+                router.get('/users', query, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['users', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextUsersFetch.current) {
+            skipNextUsersFetch.current = false;
+            return;
+        }
+        runUsersQuery(buildQuery());
+    }, [search, roleFilter, buildQuery, runUsersQuery]);
+
+    useEffect(() => () => runUsersQuery.cancel(), [runUsersQuery]);
 
     const handleToggleStatus = (user) => {
         router.put(`/users/${user.id}`, {
@@ -361,12 +388,13 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                         <input
                             type="text"
                             placeholder="Buscar por nome ou e-mail..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            autoComplete="off"
                             className="w-full min-w-0 flex-1 sm:min-w-[200px] px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                         />
                         <select
@@ -380,13 +408,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             <option value="secretaria">Secretária</option>
                             {!tinyEnabled && <option value="callcenter">Call Center</option>}
                         </select>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

@@ -1,11 +1,29 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import PatientDrawer from '@/Components/PatientDrawer';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
+import PacientesIndexBackLink from '@/Components/PacientesIndexBackLink';
+import { persistReceitasIndexQueryFromLocation } from '@/utils/receitasListNavigation';
+
+function buildReceitasIndexParams(term, st, pacId) {
+    const params = {};
+    const t = (term ?? '').trim();
+    if (t) {
+        params.search = t;
+    }
+    if (st !== undefined && st !== null && st !== '') {
+        params.status = st;
+    }
+    if (pacId) {
+        params.paciente_id = pacId;
+    }
+    return params;
+}
 
 export default function ReceitasIndex({
     receitas,
@@ -19,10 +37,48 @@ export default function ReceitasIndex({
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
-    const [search, setSearch] = useState(filters?.search || '');
-    const [status, setStatus] = useState(filters?.status || '');
+    const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
+    const [status, setStatus] = useState(() => (filters?.status != null ? String(filters.status) : ''));
     const pacienteId = filters?.paciente_id;
     const listagemPorPaciente = Boolean(pacienteId);
+    const skipNextReceitasFetch = useRef(true);
+
+    useEffect(() => {
+        if (!filters) {
+            return;
+        }
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextStatus = filters.status != null ? String(filters.status) : '';
+        setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    }, [filters?.search, filters?.status]);
+
+    useEffect(() => {
+        persistReceitasIndexQueryFromLocation();
+    }, [filters?.search, filters?.status, filters?.paciente_id]);
+
+    const runReceitasQuery = useMemo(
+        () =>
+            debounce((term, st, pacId) => {
+                router.get('/receitas', buildReceitasIndexParams(term, st, pacId), {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['receitas', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextReceitasFetch.current) {
+            skipNextReceitasFetch.current = false;
+            return;
+        }
+        runReceitasQuery(search, status, pacienteId);
+    }, [search, status, pacienteId, runReceitasQuery]);
+
+    useEffect(() => () => runReceitasQuery.cancel(), [runReceitasQuery]);
 
     const telefonesExibicao = (p) => {
         if (!p) return [];
@@ -38,19 +94,25 @@ export default function ReceitasIndex({
     };
 
     const refreshReceitasIndex = () => {
-        const params = { search, status };
-        if (pacienteId) params.paciente_id = pacienteId;
-        router.get('/receitas', params, { preserveState: true, preserveScroll: true });
+        runReceitasQuery.cancel();
+        router.get('/receitas', buildReceitasIndexParams(search, status, pacienteId), {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['receitas', 'filters'],
+        });
     };
 
     const handleSearch = (e) => {
         e.preventDefault();
-        const params = { search, status };
-        if (pacienteId) params.paciente_id = pacienteId;
-        router.get('/receitas', params, { preserveState: true });
+        runReceitasQuery.cancel();
+        router.get('/receitas', buildReceitasIndexParams(search, status, pacienteId), {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['receitas', 'filters'],
+        });
     };
 
-    const getStatusBadge = (status) => {
+    const getStatusBadge = (statusVal) => {
         const badges = {
             aberta: 'bg-gray-100 text-gray-800',
             finalizada: 'bg-green-100 text-green-800',
@@ -62,21 +124,34 @@ export default function ReceitasIndex({
             cancelada: 'Cancelada',
         };
         return (
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${badges[status] || 'bg-gray-100'}`}>
-                {labels[status] || status}
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${badges[statusVal] || 'bg-gray-100'}`}>
+                {labels[statusVal] || statusVal}
             </span>
         );
     };
 
     const receitasList = receitas?.data || [];
 
-    const rowVisit = (id) => router.visit(`/receitas/${id}`);
+    const rowVisit = (id) => {
+        persistReceitasIndexQueryFromLocation();
+        router.visit(`/receitas/${id}`);
+    };
 
     return (
         <DashboardLayout>
             <Head title="Receitas" />
 
             <div className="py-4 lg:py-6 px-0">
+                {pacienteFiltrado && (
+                    <div className="mb-4">
+                        <PacientesIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Voltar para Pacientes
+                        </PacientesIndexBackLink>
+                    </div>
+                )}
                 <PageHeader
                     title="Receitas"
                     description="Gerencie as receitas médicas"
@@ -180,6 +255,7 @@ export default function ReceitasIndex({
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            autoComplete="off"
                         />
                         <select
                             value={status}
@@ -270,6 +346,7 @@ export default function ReceitasIndex({
                                                         <div className="flex items-center justify-end gap-1">
                                                             <Link
                                                                 href={`/receitas/${receita.id}`}
+                                                                onClick={() => persistReceitasIndexQueryFromLocation()}
                                                                 className="inline-flex p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                                 aria-label={isMedico ? 'Visualizar receita' : 'Ver receita'}
                                                             >
@@ -293,6 +370,7 @@ export default function ReceitasIndex({
                                                             ) : !isMedico ? (
                                                                 <Link
                                                                     href={`/receitas/${receita.id}/edit`}
+                                                                    onClick={() => persistReceitasIndexQueryFromLocation()}
                                                                     className="inline-flex p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                                                     aria-label="Editar receita"
                                                                 >
@@ -364,6 +442,7 @@ export default function ReceitasIndex({
                                                 >
                                                     <Link
                                                         href={`/receitas/${receita.id}`}
+                                                        onClick={() => persistReceitasIndexQueryFromLocation()}
                                                         className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                                         aria-label={isMedico ? 'Visualizar receita' : 'Ver receita'}
                                                     >
@@ -387,6 +466,7 @@ export default function ReceitasIndex({
                                                     ) : !isMedico ? (
                                                         <Link
                                                             href={`/receitas/${receita.id}/edit`}
+                                                            onClick={() => persistReceitasIndexQueryFromLocation()}
                                                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                                             aria-label="Editar receita"
                                                         >

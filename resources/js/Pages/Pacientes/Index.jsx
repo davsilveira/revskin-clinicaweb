@@ -6,14 +6,48 @@ import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
+import { persistPacientesIndexQueryFromLocation } from '@/utils/pacientesListNavigation';
+
+/** Alinha o select de status ao que veio do backend (query / Inertia). */
+function normalizarAtivoFiltro(filtersObj) {
+    if (!filtersObj || !Object.prototype.hasOwnProperty.call(filtersObj, 'ativo')) {
+        return '1';
+    }
+    const val = filtersObj.ativo;
+    if (val === '' || val === null) {
+        return '';
+    }
+    if (val === true || val === 1 || val === '1' || val === 'true') {
+        return '1';
+    }
+    if (val === false || val === 0 || val === '0' || val === 'false') {
+        return '0';
+    }
+    return String(val);
+}
 
 export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters, canAccessAssistente = false }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingPaciente, setEditingPaciente] = useState(null);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(filters?.search || '');
-    const [status, setStatus] = useState(filters?.ativo ?? '1');
+    const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
+    const [status, setStatus] = useState(() => normalizarAtivoFiltro(filters));
     const skipNextPacientesFetch = useRef(true);
+
+    // Voltar do navegador / visita Inertia: alinhar ao que veio na URL (deps estáveis para não reiniciar o debounce a cada resposta).
+    useEffect(() => {
+        if (!filters) {
+            return;
+        }
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextStatus = normalizarAtivoFiltro(filters);
+        setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    }, [filters?.search, filters?.ativo]);
+
+    useEffect(() => {
+        persistPacientesIndexQueryFromLocation();
+    }, [filters?.search, filters?.ativo]);
 
     const runPacientesQuery = useMemo(
         () =>
@@ -79,6 +113,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
         }
         const ultimaId = paciente.ultima_receita_id;
         if (ultimaId) {
+            persistPacientesIndexQueryFromLocation();
             router.visit(`/receitas/${ultimaId}`);
             return;
         }
@@ -174,6 +209,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             {!isSecretaria && (
                                                                 <Link
                                                                     href={`/receitas?paciente_id=${paciente.id}`}
+                                                                    onClick={() => persistPacientesIndexQueryFromLocation()}
                                                                     className="group relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                                                     aria-label="Ver receitas"
                                                                 >
@@ -268,6 +304,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     {!isSecretaria && (
                                                         <Link
                                                             href={`/receitas?paciente_id=${paciente.id}`}
+                                                            onClick={() => persistPacientesIndexQueryFromLocation()}
                                                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                                             aria-label="Ver receitas"
                                                         >

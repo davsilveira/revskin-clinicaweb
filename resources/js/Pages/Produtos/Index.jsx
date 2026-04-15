@@ -1,5 +1,6 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -14,6 +15,15 @@ import Select from '@/Components/Form/Select';
 import Checkbox from '@/Components/Form/Checkbox';
 import Pagination from '@/Components/Pagination';
 
+function statusFilterFromFilters(filters) {
+    if (!filters) return 'all';
+    if (filters.legado_somente_leitura) return 'legado';
+    if (filters.pendentes) return 'pendentes';
+    const a = filters.ativo;
+    if (a === undefined || a === null || a === '') return 'all';
+    return a === true || a === '1' || a === 1 ? '1' : '0';
+}
+
 export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync }) {
     const { auth, flash } = usePage().props;
     const isAdmin = auth.user.role === 'admin';
@@ -21,11 +31,11 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
     const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
     const [editingProduto, setEditingProduto] = useState(null);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(filters?.search || '');
-    const [statusFilter, setStatusFilter] = useState(
-        filters?.pendentes ? 'pendentes' : (filters?.ativo === undefined ? 'all' : String(filters.ativo))
+    const [search, setSearch] = useState(() =>
+        filters?.search != null && filters.search !== '' ? String(filters.search) : ''
     );
-    const [somenteLegado, setSomenteLegado] = useState(Boolean(filters?.legado_somente_leitura));
+    const [statusFilter, setStatusFilter] = useState(() => statusFilterFromFilters(filters));
+    const skipNextProdutosFetch = useRef(true);
     const [syncing, setSyncing] = useState(false);
     const [importing, setImporting] = useState(false);
     const [confirming, setConfirming] = useState(false);
@@ -68,6 +78,14 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
             setFormBaseline(null);
         }
     }, [drawerOpen, editingProduto?.id]);
+
+    useEffect(() => {
+        if (!filters) return;
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextStatus = statusFilterFromFilters(filters);
+        setStatusFilter((prev) => (prev === nextStatus ? prev : nextStatus));
+    }, [filters?.search, filters?.ativo, filters?.pendentes, filters?.legado_somente_leitura]);
 
     const forceCloseDrawer = () => {
         setDrawerOpen(false);
@@ -116,19 +134,43 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
         }
     };
 
-    const buildQuery = (extra = {}) => {
-        const q = {};
-        if (search?.trim()) q.search = search.trim();
-        if (statusFilter === 'pendentes') q.pendentes = '1';
-        else if (statusFilter !== 'all') q.ativo = statusFilter;
-        if (somenteLegado) q.legado_somente_leitura = '1';
-        return { ...q, ...extra };
-    };
+    const buildQuery = useCallback(
+        (extra = {}) => {
+            const q = {};
+            if (search?.trim()) q.search = search.trim();
+            if (statusFilter === 'legado') {
+                q.legado_somente_leitura = '1';
+            } else {
+                if (statusFilter === 'pendentes') q.pendentes = '1';
+                else if (statusFilter !== 'all') q.ativo = statusFilter;
+            }
+            return { ...q, ...extra };
+        },
+        [search, statusFilter]
+    );
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        router.get('/produtos', buildQuery(), { preserveState: true });
-    };
+    const runProdutosQuery = useMemo(
+        () =>
+            debounce((query) => {
+                router.get('/produtos', query, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['produtos', 'filters', 'totalGeral'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextProdutosFetch.current) {
+            skipNextProdutosFetch.current = false;
+            return;
+        }
+        runProdutosQuery(buildQuery());
+    }, [search, statusFilter, buildQuery, runProdutosQuery]);
+
+    useEffect(() => () => runProdutosQuery.cancel(), [runProdutosQuery]);
 
     const handleExport = (format, statusOverride, somentePendentes) => {
         const q = {};
@@ -248,12 +290,13 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                         <input
                             type="text"
                             placeholder="Buscar por código ou nome..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            autoComplete="off"
                             className="w-full min-w-0 flex-1 sm:min-w-[200px] px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                         />
                         <select
@@ -265,23 +308,9 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                             <option value="1">Ativos</option>
                             <option value="0">Inativos</option>
                             <option value="pendentes">Pendentes</option>
+                            <option value="legado">Descontinuados</option>
                         </select>
-                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                checked={somenteLegado}
-                                onChange={(e) => setSomenteLegado(e.target.checked)}
-                            />
-                            Somente descontinuados (legado)
-                        </label>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -426,17 +455,49 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Dados ClinicaWeb (editáveis)</h3>
                             <Input label="Nome" value={data.nome} onChange={(e) => setData('nome', e.target.value)} error={errors.nome} />
                             <div className="mt-4">
-                                <Input label="Descrição / Fórmula" value={data.descricao} onChange={(e) => setData('descricao', e.target.value)} multiline rows={3} placeholder="Fórmula ou descrição detalhada do produto..." />
+                                <Input
+                                    label="Fórmula"
+                                    value={data.descricao}
+                                    onChange={(e) => setData('descricao', e.target.value)}
+                                    multiline
+                                    autoGrow
+                                    rows={3}
+                                    placeholder="Composição / fórmula do produto..."
+                                />
                             </div>
                             <div className="mt-4">
-                                <Input label="Modo de Uso" value={data.modo_uso} onChange={(e) => setData('modo_uso', e.target.value)} multiline rows={3} placeholder="Ex: Aplicar à noite após limpeza" />
+                                <Input
+                                    label="Modo de Uso"
+                                    value={data.modo_uso}
+                                    onChange={(e) => setData('modo_uso', e.target.value)}
+                                    multiline
+                                    autoGrow
+                                    rows={3}
+                                    placeholder="Ex: Aplicar à noite após limpeza"
+                                />
                             </div>
                             <div className="mt-4">
-                                <Input label="Anotações dos Especialistas" value={data.anotacoes} onChange={(e) => setData('anotacoes', e.target.value)} multiline rows={3} placeholder="Dicas sobre o creme: para quem é indicado, outras formas de uso..." />
+                                <Input
+                                    label="Anotações dos Especialistas"
+                                    value={data.anotacoes}
+                                    onChange={(e) => setData('anotacoes', e.target.value)}
+                                    multiline
+                                    autoGrow
+                                    rows={3}
+                                    placeholder="Dicas sobre o creme: para quem é indicado, outras formas de uso..."
+                                />
                             </div>
                             {isAdmin && (
                                 <div className="mt-4">
-                                    <Input label="Anotações Internas" value={data.anotacoes_internas} onChange={(e) => setData('anotacoes_internas', e.target.value)} multiline rows={3} placeholder="Notas internas da equipe (não exibidas no catálogo)..." />
+                                    <Input
+                                        label="Anotações Internas"
+                                        value={data.anotacoes_internas}
+                                        onChange={(e) => setData('anotacoes_internas', e.target.value)}
+                                        multiline
+                                        autoGrow
+                                        rows={3}
+                                        placeholder="Notas internas da equipe (não exibidas no catálogo)..."
+                                    />
                                 </div>
                             )}
                         </div>

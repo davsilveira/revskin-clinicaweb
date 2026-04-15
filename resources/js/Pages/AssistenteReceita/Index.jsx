@@ -1,11 +1,12 @@
-import { Link, router } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { useState, useCallback, useEffect } from 'react';
+import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import { validateCPF } from '@/utils/validations';
 import debounce from 'lodash/debounce';
-import SimNaoToggle from '@/Components/AssistenteReceita/SimNaoToggle';
+import ClinicalToggleSwitch from '@/Components/AssistenteReceita/ClinicalToggleSwitch';
 import DatePickerField from '@/Components/Form/DatePickerField';
 
 export default function AssistenteReceitaIndex({ 
@@ -68,8 +69,8 @@ export default function AssistenteReceitaIndex({
 
     // Clinical conditions
     const [condicoes, setCondicoes] = useState({
-        gravidez: '',
-        rosacea: '',
+        gravidez: false,
+        rosacea: false,
         fototipo: '',
         tipo_pele: '',
         manchas: '',
@@ -307,9 +308,13 @@ export default function AssistenteReceitaIndex({
         setLoading(true);
         setError('');
         
-        // Usar router.post do Inertia que gerencia CSRF automaticamente
+        const { gravidez, rosacea, ...outrasCondicoes } = condicoes;
+
+        // Motor de regras e legado esperam "Sim" / "Não" para estes campos
         router.post('/assistente-receita/processar', {
-            ...condicoes,
+            ...outrasCondicoes,
+            gravidez: gravidez ? 'Sim' : 'Não',
+            rosacea: rosacea ? 'Sim' : 'Não',
             paciente_id: selectedPaciente.id,
             medico_id: selectedMedicoId,
         }, {
@@ -375,15 +380,12 @@ export default function AssistenteReceitaIndex({
     return (
         <DashboardLayout>
             <div className="py-4 lg:py-6 px-0 max-w-4xl mx-auto">
-                <Link
-                    href="/receitas"
-                    className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm mb-4"
-                >
+                <ReceitasIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm mb-4">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                     Voltar para Receitas
-                </Link>
+                </ReceitasIndexBackLink>
                 <PageHeader title="Assistente de Receitas" description={pageDescription} />
 
                 {/* Progress Steps */}
@@ -863,9 +865,10 @@ export default function AssistenteReceitaIndex({
                                 <label className="text-sm font-medium text-gray-700" id="label-gravidez">
                                     Gravidez
                                 </label>
-                                <SimNaoToggle
-                                    value={condicoes.gravidez}
+                                <ClinicalToggleSwitch
+                                    checked={!!condicoes.gravidez}
                                     onChange={(v) => updateCondicao('gravidez', v)}
+                                    aria-labelledby="label-gravidez"
                                 />
                             </div>
 
@@ -874,9 +877,10 @@ export default function AssistenteReceitaIndex({
                                 <label className="text-sm font-medium text-gray-700" id="label-rosacea">
                                     Rosácea
                                 </label>
-                                <SimNaoToggle
-                                    value={condicoes.rosacea}
+                                <ClinicalToggleSwitch
+                                    checked={!!condicoes.rosacea}
                                     onChange={(v) => updateCondicao('rosacea', v)}
+                                    aria-labelledby="label-rosacea"
                                 />
                             </div>
 
@@ -987,8 +991,6 @@ export default function AssistenteReceitaIndex({
                                 onClick={processarCondicoes}
                                 disabled={
                                     !condicoes.tipo_pele ||
-                                    !condicoes.gravidez ||
-                                    !condicoes.rosacea ||
                                     !selectedMedicoId ||
                                     loading
                                 }

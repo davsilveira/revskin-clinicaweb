@@ -1,5 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
@@ -57,15 +58,12 @@ const formatDate = (dateString) => {
         <DashboardLayout>
             <div className="p-6">
                 <div className="mb-6">
-                    <Link
-                        href="/receitas"
-                        className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm"
-                    >
+                    <ReceitasIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
-                        Voltar para Receitas
-                    </Link>
+                        Voltar para Receitas do Paciente
+                    </ReceitasIndexBackLink>
                     
                     <div className="flex justify-between items-start mt-2">
                         <div>

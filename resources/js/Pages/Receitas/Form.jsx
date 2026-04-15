@@ -9,6 +9,7 @@ import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
 import ReceitaFormItemRow from '@/Components/Receita/ReceitaFormItemRow';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
+import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
@@ -133,6 +134,7 @@ function ReceitaFormInner({
     const isReadOnly = bloqueadaParaEdicao || viewMode;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);
+    const suppressAutosaveOnceRef = useRef(false);
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showDuplicarModal, setShowDuplicarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
@@ -198,6 +200,17 @@ function ReceitaFormInner({
             // Update URL to edit mode without full page reload
             window.history.replaceState({}, '', `/receitas/${result.id}/edit`);
         }
+        if (Array.isArray(result.itens) && result.itens.length === data.itens.length) {
+            suppressAutosaveOnceRef.current = true;
+            setData(
+                'itens',
+                data.itens.map((row, i) => ({
+                    ...row,
+                    id: result.itens[i]?.id ?? row.id,
+                    produto_id: result.itens[i]?.produto_id ?? row.produto_id,
+                }))
+            );
+        }
         setToast({
             message: 'Alterações salvas automaticamente',
             type: 'success',
@@ -214,29 +227,39 @@ function ReceitaFormInner({
         triggerAutoSave,
         saveNow,
         cancelAutoSave,
+        clearDirtyState,
+        markUnsaved,
+        bumpLastSaved,
     } = useAutoSave(performAutoSave, 2000, canAutoSave);
 
     // Unsaved changes modal state
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
     const [savingBeforeLeave, setSavingBeforeLeave] = useState(false);
     const pendingVisitRef = useRef(null);
+    /** Deixa passar o próximo GET (ex.: após “Salvar e sair” / “Sair sem salvar”) sem reabrir a modal se o dirty voltar no mesmo tick. */
+    const skipUnsavedGuardOnceRef = useRef(false);
 
     // Intercept Inertia navigation to warn about unsaved changes
     useEffect(() => {
         if (isReadOnly) return;
 
         const removeListener = router.on('before', (event) => {
+            if (skipUnsavedGuardOnceRef.current) {
+                skipUnsavedGuardOnceRef.current = false;
+                return;
+            }
             if (!hasUnsavedChanges) return;
             // Don't intercept form submissions (same-page autosave, finalizar, etc.)
             if (event.detail?.visit?.method !== 'get') return;
 
             event.preventDefault();
+            cancelAutoSave();
             pendingVisitRef.current = event.detail.visit;
             setShowUnsavedModal(true);
         });
 
         return removeListener;
-    }, [hasUnsavedChanges, isReadOnly]);
+    }, [hasUnsavedChanges, isReadOnly, cancelAutoSave]);
 
     // Browser tab/close protection
     useEffect(() => {
@@ -261,6 +284,7 @@ function ReceitaFormInner({
         const visit = pendingVisitRef.current;
         pendingVisitRef.current = null;
         if (visit) {
+            skipUnsavedGuardOnceRef.current = true;
             router.visit(visit.url, { ...visit, onBefore: undefined });
         }
     };
@@ -273,9 +297,16 @@ function ReceitaFormInner({
             pendingVisitRef.current = null;
             setShowUnsavedModal(false);
             if (visit) {
+                skipUnsavedGuardOnceRef.current = true;
                 router.visit(visit.url, { ...visit, onBefore: undefined });
             }
         } catch {
+            setToast({
+                message: 'Não foi possível salvar automaticamente. Corrija os dados ou use Salvar na receita.',
+                type: 'error',
+                key: Date.now(),
+            });
+        } finally {
             setSavingBeforeLeave(false);
         }
     };
@@ -318,6 +349,7 @@ function ReceitaFormInner({
         });
         
         if (hasChanges) {
+            suppressAutosaveOnceRef.current = true;
             setData('itens', newItens);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -327,6 +359,10 @@ function ReceitaFormInner({
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
+            return;
+        }
+        if (suppressAutosaveOnceRef.current) {
+            suppressAutosaveOnceRef.current = false;
             return;
         }
         if (canAutoSave) {
@@ -491,14 +527,25 @@ function ReceitaFormInner({
         return subtotal - desconto + frete + caixa;
     };
 
+    const inertiaPersistReceitaOptions = {
+        onStart: () => clearDirtyState(),
+        onError: () => markUnsaved(),
+    };
+
     const handleSubmit = (e) => {
         e?.preventDefault();
         if (isEditing) {
             put(`/receitas/${receita.id}`, {
-                onSuccess: () => setViewMode(true),
+                ...inertiaPersistReceitaOptions,
+                onSuccess: () => {
+                    bumpLastSaved();
+                    setViewMode(true);
+                },
             });
         } else {
-            post('/receitas');
+            post('/receitas', {
+                ...inertiaPersistReceitaOptions,
+            });
         }
     };
 
@@ -510,7 +557,9 @@ function ReceitaFormInner({
             ...data,
             status: 'finalizada',
         }, {
+            ...inertiaPersistReceitaOptions,
             onSuccess: () => {
+                bumpLastSaved();
                 setData('status', 'finalizada');
                 setViewMode(true);
                 setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
@@ -532,7 +581,7 @@ function ReceitaFormInner({
             router.post(`/receitas/${receita.id}/copiar`);
         };
         if (!viewMode && isEditing) {
-            put(`/receitas/${receita.id}`, { onSuccess: doCopy });
+            put(`/receitas/${receita.id}`, { ...inertiaPersistReceitaOptions, onSuccess: doCopy });
         } else {
             doCopy();
         }
@@ -544,7 +593,7 @@ function ReceitaFormInner({
             router.delete(`/receitas/${receita.id}`);
         };
         if (!viewMode && isEditing) {
-            put(`/receitas/${receita.id}`, { onSuccess: doCancel });
+            put(`/receitas/${receita.id}`, { ...inertiaPersistReceitaOptions, onSuccess: doCancel });
         } else {
             doCancel();
         }
@@ -568,15 +617,12 @@ function ReceitaFormInner({
                     </div>
                 )}
                 <div className="mb-6">
-                    <Link
-                        href="/receitas"
-                        className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm"
-                    >
+                    <ReceitasIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
-                        Voltar para Receitas
-                    </Link>
+                        Voltar para Receitas do Paciente
+                    </ReceitasIndexBackLink>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mt-2">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">
@@ -1060,7 +1106,7 @@ function ReceitaFormInner({
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                         </div>
                                         <div className="flex-[2] min-w-0">
-                                            <span className="text-xs font-semibold text-gray-600 uppercase">Fórmula</span>
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
                                         </div>
                                         <div className="w-36 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
@@ -1152,7 +1198,7 @@ function ReceitaFormInner({
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
                                         </div>
                                         <div className="flex-[2] min-w-0">
-                                            <span className="text-xs font-semibold text-gray-600 uppercase">Fórmula</span>
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Anotações</span>
                                         </div>
                                         <div className="w-36 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase text-center w-full block">Data Aquisição</span>
