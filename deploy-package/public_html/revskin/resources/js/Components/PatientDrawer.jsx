@@ -1,13 +1,54 @@
-import { useForm, router } from '@inertiajs/react';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useForm, router, usePage } from '@inertiajs/react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import Drawer from '@/Components/Drawer';
 import Input from '@/Components/Form/Input';
+import DatePickerField from '@/Components/Form/DatePickerField';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
 import { validateCPF } from '@/utils/validations';
 import useAutoSave from '@/hooks/useAutoSave';
+import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
 import countries from '@/utils/countries';
 import debounce from 'lodash/debounce';
+import cloneDeep from 'lodash/cloneDeep';
+import isEqual from 'lodash/isEqual';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+
+const INITIAL_PACIENTE_FORM = {
+    nome: '',
+    codigo: '',
+    indicado_por: '',
+    cpf: '',
+    data_nascimento: '',
+    sexo: '',
+    email1: '',
+    celular: '',
+    cep: '',
+    endereco: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
+    pais: 'Brasil',
+    anotacoes: '',
+    ativo: true,
+    medico_id: '',
+    telefones: [],
+};
+
+function normalizePatientData(d) {
+    return {
+        ...d,
+        medico_id: d.medico_id === '' || d.medico_id == null ? '' : String(d.medico_id),
+        telefones: (d.telefones || []).map((t) => ({
+            numero: String(t.numero || '').trim(),
+            tipo: t.tipo || '',
+        })),
+    };
+}
 
 /**
  * PatientDrawer - Drawer reutilizável para edição de pacientes
@@ -21,7 +62,7 @@ import debounce from 'lodash/debounce';
  * - showMedicoField: boolean - mostrar campo médico (admin e secretária)
  * - medicos: array - lista de médicos para Select (quando fornecida, usa Select em vez de busca)
  * - medicoRequired: boolean - tornar médico obrigatório (secretária) - bloqueia autosave e salvar sem médico
- * - enableAutoSave: boolean - habilitar autosave (default: true)
+ * - enableAutoSave: boolean - em edição (com `paciente`), habilita autosave debounced. Em cadastro novo, não se usa.
  */
 export default function PatientDrawer({
     isOpen,
@@ -35,6 +76,17 @@ export default function PatientDrawer({
     enableAutoSave = true,
 }) {
     const showMedico = showMedicoField ?? isAdmin;
+    const { props: pageProps } = usePage();
+    const csrfForRequests = useMemo(() => {
+        const t = pageProps?.csrfToken;
+        if (typeof t === 'string' && t.length > 0) {
+            return t;
+        }
+        if (typeof document === 'undefined') {
+            return '';
+        }
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }, [pageProps?.csrfToken]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
     const [cpfError, setCpfError] = useState(null);
@@ -42,26 +94,7 @@ export default function PatientDrawer({
     const isFirstRender = useRef(true);
     const [fieldErrors, setFieldErrors] = useState({});
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
-        nome: '',
-        cpf: '',
-        data_nascimento: '',
-        sexo: '',
-        email1: '',
-        celular: '',
-        cep: '',
-        endereco: '',
-        numero: '',
-        complemento: '',
-        bairro: '',
-        cidade: '',
-        uf: '',
-        pais: 'Brasil',
-        anotacoes: '',
-        ativo: true,
-        medico_id: '',
-        telefones: [],
-    });
+    const { data, setData, post, put, processing, errors, reset } = useForm({ ...INITIAL_PACIENTE_FORM });
 
     // Medico search states (for admin)
     const [searchMedico, setSearchMedico] = useState('');
@@ -70,19 +103,39 @@ export default function PatientDrawer({
     const [selectedMedico, setSelectedMedico] = useState(null);
     const [loadingMedicos, setLoadingMedicos] = useState(false);
     const [auditNames, setAuditNames] = useState({ created: null, updated: null });
+    const [formBaseline, setFormBaseline] = useState(null);
+
+    const currentPacienteIdRef = useRef(paciente?.id ?? null);
+    const persistQueueRef = useRef(Promise.resolve());
+    const isManualPersistRef = useRef(false);
+
+    const runExclusive = useCallback((fn) => {
+        const p = persistQueueRef.current
+            .catch(() => {})
+            .then(() => fn());
+        persistQueueRef.current = p;
+        return p;
+    }, []);
+
+    useEffect(() => {
+        currentPacienteIdRef.current = currentPacienteId;
+    }, [currentPacienteId]);
 
     // Initialize form data when paciente changes
     useEffect(() => {
         if (isOpen) {
             if (paciente) {
                 setCurrentPacienteId(paciente.id);
+                currentPacienteIdRef.current = paciente.id;
                 setSelectedMedico(paciente.medico || null);
                 setAuditNames({
                     created: paciente.created_by?.name ?? paciente.createdBy?.name ?? null,
                     updated: paciente.updated_by?.name ?? paciente.updatedBy?.name ?? null,
                 });
-                setData({
+                const initial = {
                     nome: paciente.nome || '',
+                    codigo: paciente.codigo || '',
+                    indicado_por: paciente.indicado_por || '',
                     cpf: paciente.cpf || '',
                     data_nascimento: paciente.data_nascimento ? paciente.data_nascimento.split('T')[0] : '',
                     sexo: paciente.sexo || '',
@@ -100,18 +153,24 @@ export default function PatientDrawer({
                     ativo: paciente.ativo ?? true,
                     medico_id: paciente.medico_id || '',
                     telefones: paciente.telefones?.map(t => ({ numero: t.numero, tipo: t.tipo })) || [],
-                });
+                };
+                setData(initial);
+                setFormBaseline(cloneDeep(normalizePatientData(initial)));
             } else {
                 reset();
                 setCurrentPacienteId(null);
+                currentPacienteIdRef.current = null;
                 setSelectedMedico(null);
                 setAuditNames({ created: null, updated: null });
+                setFormBaseline(cloneDeep(normalizePatientData(INITIAL_PACIENTE_FORM)));
             }
             setShowDeleteConfirm(false);
             setCpfError(null);
             setFieldErrors({});
             setSearchMedico('');
             isFirstRender.current = true;
+        } else {
+            setFormBaseline(null);
         }
     }, [isOpen, paciente]);
 
@@ -173,70 +232,96 @@ export default function PatientDrawer({
 
     const isBrazil = data.pais === 'Brasil';
 
-    // Autosave function
-    const performAutoSave = useCallback(async () => {
-        if (isSavingRef.current) return;
-        // Médico obrigatório para secretária: bloquear se vazio
-        if (medicoRequired && showMedico && !data.medico_id) return;
-        // Validar campos obrigatórios antes de tentar autosave
-        if (!data.nome || data.nome.trim().length < 2) return;
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return;
-        if (!data.data_nascimento) return;
-        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return;
-        if (!data.email1 || !data.email1.trim()) return;
-        
-        // Validar CPF se preenchido
-        if (data.cpf && !validateCPF(data.cpf)) return;
-        
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
-        // Filter out empty telefones
-        const telefonesValidos = data.telefones.filter(t => t.numero && t.numero.trim());
-        
-        const response = await fetch('/api/pacientes/autosave', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                id: currentPacienteId,
-                ...data,
-                telefones: telefonesValidos,
-            }),
-        });
-        
-        if (!response.ok) {
-            if (response.status === 422) {
-                const errData = await response.json();
-                if (errData?.errors?.medico_id) {
-                    setFieldErrors(prev => ({ ...prev, medico_id: errData.errors.medico_id[0] }));
+    const persistedPacienteId = currentPacienteId ?? paciente?.id ?? null;
+    const medicoLocked = Boolean(persistedPacienteId && data.medico_id);
+
+    /** Só em edição: cadastro novo nunca chama o endpoint de rascunho. */
+    const performAutoSave = useCallback(() => {
+        if (!enableAutoSave || !paciente) {
+            return Promise.resolve(undefined);
+        }
+        if (medicoRequired && showMedico && !data.medico_id) {
+            return Promise.resolve(undefined);
+        }
+        if (!data.nome || data.nome.trim().length < 2) return Promise.resolve();
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
+            return Promise.resolve();
+        }
+        if (!data.data_nascimento) return Promise.resolve();
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
+            return Promise.resolve();
+        }
+        if (!data.email1 || !data.email1.trim()) return Promise.resolve();
+        if (data.cpf && !validateCPF(data.cpf)) return Promise.resolve();
+
+        return runExclusive(async () => {
+            const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
+
+            const response = await fetch('/api/pacientes/autosave', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfForRequests,
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    _token: csrfForRequests,
+                    id: paciente.id,
+                    ...data,
+                    telefones: telefonesValidos,
+                }),
+            });
+
+            if (!response.ok) {
+                if (response.status === 422) {
+                    const errData = await response.json();
+                    if (errData?.errors) {
+                        setFieldErrors((prev) => {
+                            const merged = { ...prev };
+                            ['medico_id', 'cpf', 'codigo'].forEach((k) => {
+                                if (errData.errors[k]?.[0]) {
+                                    merged[k] = errData.errors[k][0];
+                                }
+                            });
+                            return merged;
+                        });
+                        if (errData.errors.cpf?.[0]) {
+                            setCpfError(errData.errors.cpf[0]);
+                        }
+                    } else if (errData?.message) {
+                        setFieldErrors((prev) => ({ ...prev, _form: errData.message }));
+                    }
+                    return undefined;
                 }
-                return;
+                throw new Error('Autosave failed');
             }
-            throw new Error('Autosave failed');
-        }
-        
-        const result = await response.json();
-        if (result.id && !currentPacienteId) {
-            setCurrentPacienteId(result.id);
-        }
-        if (result.created_by_name != null || result.updated_by_name != null) {
-            setAuditNames((prev) => ({
-                created: result.created_by_name ?? prev.created,
-                updated: result.updated_by_name ?? prev.updated,
-            }));
-        }
 
-        return result;
-    }, [data, currentPacienteId, medicoRequired, showMedico]);
+            const result = await response.json();
+            if (result.id) {
+                if (!currentPacienteId) {
+                    setCurrentPacienteId(result.id);
+                }
+                currentPacienteIdRef.current = result.id;
+            }
+            if (result.created_by_name != null || result.updated_by_name != null) {
+                setAuditNames((prev) => ({
+                    created: result.created_by_name ?? prev.created,
+                    updated: result.updated_by_name ?? prev.updated,
+                }));
+            }
 
-    // Verificar se todos os campos obrigatórios estão preenchidos para habilitar autosave
+            setFormBaseline(cloneDeep(normalizePatientData(data)));
+
+            return result;
+        });
+    }, [data, currentPacienteId, medicoRequired, showMedico, enableAutoSave, paciente, runExclusive, csrfForRequests]);
+
     const canAutoSave = useCallback(() => {
-        if (!enableAutoSave || !isOpen) return false;
+        if (!enableAutoSave || !isOpen || !paciente) {
+            return false;
+        }
         if (!data.nome || data.nome.trim().length < 2) return false;
         if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
         if (!data.data_nascimento) return false;
@@ -245,14 +330,14 @@ export default function PatientDrawer({
         if (data.cpf && !validateCPF(data.cpf)) return false;
         if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico]);
+    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico, paciente]);
 
-    const { 
+    const {
         lastSaved,
-        lastSavedText, 
-        isSaving: isAutoSaving, 
-        triggerAutoSave, 
-        cancelAutoSave 
+        lastSavedText,
+        isSaving: isAutoSaving,
+        triggerAutoSave,
+        cancelAutoSave,
     } = useAutoSave(performAutoSave, 2000, canAutoSave());
 
     // Trigger autosave when data changes
@@ -266,129 +351,219 @@ export default function PatientDrawer({
         }
     }, [data, isOpen, enableAutoSave, canAutoSave, triggerAutoSave]);
 
-    const handleClose = () => {
+    const forceClose = useCallback(() => {
         cancelAutoSave();
         onClose?.();
         if (lastSaved) {
             router.reload({ only: ['pacientes'] });
         }
-    };
+    }, [cancelAutoSave, onClose, lastSaved]);
 
     const [isSaving, setIsSaving] = useState(false);
-    const isSavingRef = useRef(false);
+
+    const persistPatient = useCallback(() => {
+        if (isManualPersistRef.current) {
+            return Promise.resolve(false);
+        }
+        isManualPersistRef.current = true;
+
+        return runExclusive(async () => {
+            try {
+                cancelAutoSave();
+                setCpfError(null);
+                const newErrors = {};
+                let hasErrors = false;
+
+                if (!data.nome || data.nome.trim().length < 2) {
+                    newErrors.nome = 'O nome completo é obrigatório.';
+                    hasErrors = true;
+                }
+
+                if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
+                    setCpfError('CPF é obrigatório.');
+                    newErrors.cpf = 'CPF é obrigatório.';
+                    hasErrors = true;
+                } else if (!validateCPF(data.cpf)) {
+                    setCpfError('CPF inválido. Por favor, verifique os números digitados.');
+                    newErrors.cpf = 'CPF inválido.';
+                    hasErrors = true;
+                }
+
+                if (!data.data_nascimento) {
+                    newErrors.data_nascimento = 'Data de nascimento é obrigatória.';
+                    hasErrors = true;
+                }
+
+                if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
+                    newErrors.celular = 'Celular é obrigatório.';
+                    hasErrors = true;
+                }
+
+                if (!data.email1 || !data.email1.trim()) {
+                    newErrors.email1 = 'E-mail é obrigatório.';
+                    hasErrors = true;
+                }
+                if (medicoRequired && showMedico && !data.medico_id) {
+                    newErrors.medico_id = 'Selecione o médico responsável.';
+                    hasErrors = true;
+                }
+                if (hasErrors) {
+                    setFieldErrors(newErrors);
+                    return false;
+                }
+
+                setFieldErrors({});
+                setIsSaving(true);
+
+                try {
+                    const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
+                    const id = paciente?.id ?? null;
+                    const url = id ? `/pacientes/${id}` : '/pacientes';
+                    const method = id ? 'PUT' : 'POST';
+
+                    if (import.meta.env.DEV) {
+                        // eslint-disable-next-line no-console
+                        console.groupCollapsed('[paciente] save', { id, method, url });
+                    }
+
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfForRequests,
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual',
+                        body: JSON.stringify({
+                            _token: csrfForRequests,
+                            ...data,
+                            telefones: telefonesValidos,
+                        }),
+                    });
+
+                    const contentType = response.headers.get('content-type') || '';
+                    let body = null;
+                    if (contentType.includes('application/json')) {
+                        try {
+                            body = await response.json();
+                        } catch {
+                            body = null;
+                        }
+                    }
+
+                    if (import.meta.env.DEV) {
+                        // eslint-disable-next-line no-console
+                        console.log({ status: response.status, redirected: response.redirected, body });
+                        // eslint-disable-next-line no-console
+                        console.groupEnd();
+                    }
+
+                    if (response.status === 419) {
+                        setFieldErrors({
+                            _form: 'Não foi possível validar o pedido (sessão/CSRF). Se voltar a acontecer, recarregue a página (F5) e tente de novo.',
+                        });
+                        return false;
+                    }
+
+                    if (response.redirected) {
+                        setFieldErrors({
+                            _form: 'Não foi possível salvar. Verifique os dados (ex.: CPF) e tente novamente.',
+                        });
+                        return false;
+                    }
+
+                    if (response.ok && body?.success === true) {
+                        setFieldErrors({});
+                        setCpfError(null);
+                        flushSync(() => {
+                            setFormBaseline(cloneDeep(normalizePatientData(data)));
+                        });
+                        onSave?.();
+                        return true;
+                    }
+
+                    if (response.status === 422) {
+                        if (body?.errors) {
+                            const backendErrors = {};
+                            Object.keys(body.errors).forEach((key) => {
+                                backendErrors[key] = body.errors[key][0];
+                            });
+                            setFieldErrors((prev) => ({ ...prev, ...backendErrors }));
+                            if (backendErrors.cpf) {
+                                setCpfError(backendErrors.cpf);
+                            }
+                        } else if (body?.message) {
+                            setFieldErrors((prev) => ({ ...prev, _form: body.message }));
+                        }
+                        return false;
+                    }
+
+                    if (body?.message) {
+                        setFieldErrors((prev) => ({ ...prev, _form: body.message }));
+                        return false;
+                    }
+
+                    setFieldErrors((prev) => ({
+                        ...prev,
+                        _form: 'Não foi possível salvar. Tente novamente.',
+                    }));
+                    return false;
+                } catch (error) {
+                    console.error('Error saving patient:', error);
+                    setFieldErrors((prev) => ({
+                        ...prev,
+                        _form: 'Não foi possível salvar. Tente novamente.',
+                    }));
+                    return false;
+                } finally {
+                    setIsSaving(false);
+                }
+            } finally {
+                isManualPersistRef.current = false;
+            }
+        });
+    }, [data, paciente, medicoRequired, showMedico, onSave, cancelAutoSave, runExclusive, csrfForRequests]);
+
+    const saveBeforeClose = useCallback(async () => persistPatient(), [persistPatient]);
+
+    const isDirty = useMemo(() => {
+        if (!isOpen || !formBaseline) return false;
+        return !isEqual(normalizePatientData(data), formBaseline);
+    }, [isOpen, formBaseline, data]);
+
+    /** Mesmas regras que persistPatient / canAutoSave: só habilita Salvar com obrigatórios válidos (como Usuários). */
+    const isManualSaveValid = useMemo(() => {
+        if (!isOpen) return false;
+        if (!data.nome || data.nome.trim().length < 2) return false;
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
+        if (!validateCPF(data.cpf)) return false;
+        if (!data.data_nascimento) return false;
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
+        if (!data.email1 || !data.email1.trim()) return false;
+        if (medicoRequired && showMedico && !data.medico_id) return false;
+        return true;
+    }, [isOpen, data, medicoRequired, showMedico]);
+
+    const {
+        requestClose,
+        showUnsavedModal,
+        savingBeforeLeave,
+        handleUnsavedCancel,
+        handleUnsavedDiscard,
+        handleUnsavedSave,
+    } = useDrawerUnsavedChanges({
+        isOpen,
+        /** Só avisar ao sair com alterações pendentes na edição; inclusão (novo) não abre o modal. */
+        isDirty: isDirty && Boolean(paciente),
+        onConfirmClose: forceClose,
+        saveBeforeClose,
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
-        // Cancelar autosave pendente antes de validar
-        cancelAutoSave();
-        isSavingRef.current = true;
-        
-        // Limpar erros anteriores
-        setCpfError(null);
-        const newErrors = {};
-        let hasErrors = false;
-        
-        // Validar campos obrigatórios
-        if (!data.nome || data.nome.trim().length < 2) {
-            newErrors.nome = 'O nome completo é obrigatório.';
-            hasErrors = true;
-        }
-        
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
-            setCpfError('CPF é obrigatório.');
-            newErrors.cpf = 'CPF é obrigatório.';
-            hasErrors = true;
-        } else if (!validateCPF(data.cpf)) {
-            setCpfError('CPF inválido. Por favor, verifique os números digitados.');
-            newErrors.cpf = 'CPF inválido.';
-            hasErrors = true;
-        }
-        
-        if (!data.data_nascimento) {
-            newErrors.data_nascimento = 'Data de nascimento é obrigatória.';
-            hasErrors = true;
-        }
-        
-        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
-            newErrors.celular = 'Celular é obrigatório.';
-            hasErrors = true;
-        }
-        
-        if (!data.email1 || !data.email1.trim()) {
-            newErrors.email1 = 'E-mail é obrigatório.';
-            hasErrors = true;
-        }
-        if (medicoRequired && showMedico && !data.medico_id) {
-            newErrors.medico_id = 'Selecione o médico responsável.';
-            hasErrors = true;
-        }
-        if (hasErrors) {
-            setFieldErrors(newErrors);
-            return;
-        }
-        
-        setFieldErrors({});
-        setIsSaving(true);
-
-        try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            const telefonesValidos = data.telefones.filter(t => t.numero && t.numero.trim());
-            
-            // Use currentPacienteId if autosave already created the patient
-            const existingId = paciente?.id || currentPacienteId;
-            const url = existingId ? `/pacientes/${existingId}` : '/pacientes';
-            const method = existingId ? 'PUT' : 'POST';
-            
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    ...data,
-                    telefones: telefonesValidos,
-                }),
-            });
-
-            if (response.ok) {
-                setFieldErrors({});
-                setCpfError(null);
-                onSave?.();
-            } else {
-                // Se for erro 419 (CSRF token mismatch), recarregar a página para obter novo token
-                if (response.status === 419) {
-                    window.location.reload();
-                    return;
-                }
-
-                const errorData = await response.json();
-                console.error('Error saving patient:', errorData);
-                
-                // Processar erros de validação do backend
-                if (response.status === 422 && errorData.errors) {
-                    const backendErrors = {};
-                    Object.keys(errorData.errors).forEach(key => {
-                        backendErrors[key] = errorData.errors[key][0];
-                    });
-                    setFieldErrors(backendErrors);
-                    
-                    // Tratar erro de CPF separadamente
-                    if (backendErrors.cpf) {
-                        setCpfError(backendErrors.cpf);
-                    }
-                }
-            }
-    } catch (error) {
-                console.error('Error saving patient:', error);
-            } finally {
-                setIsSaving(false);
-                isSavingRef.current = false;
-            }
+        await persistPatient();
     };
 
     const handleDelete = () => {
@@ -396,7 +571,7 @@ export default function PatientDrawer({
             router.delete(`/pacientes/${paciente.id}`, {
                 onSuccess: () => {
                     onSave?.();
-                    handleClose();
+                    forceClose();
                 },
             });
         }
@@ -427,13 +602,19 @@ export default function PatientDrawer({
     }, [data.cep]);
 
     return (
+        <>
         <Drawer
             isOpen={isOpen}
-            onClose={handleClose}
+            onClose={requestClose}
             title={paciente ? 'Editar Paciente' : 'Novo Paciente'}
         >
-            <form onSubmit={handleSubmit} className="flex flex-col h-full">
+            <form onSubmit={handleSubmit} className="flex flex-col h-full" autoComplete="off">
                 <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+                    {fieldErrors._form && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+                            {fieldErrors._form}
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <Input
@@ -445,6 +626,8 @@ export default function PatientDrawer({
                                 }}
                                 error={fieldErrors.nome || errors.nome}
                                 required
+                                autoComplete="off"
+                                name="revskin_paciente_nome"
                             />
                         </div>
                         <MaskedInput
@@ -454,18 +637,20 @@ export default function PatientDrawer({
                             onChange={(e) => {
                                 setData('cpf', e.target.value);
                                 setCpfError(null);
+                                setFieldErrors((prev) => ({ ...prev, cpf: null }));
                             }}
                             error={cpfError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
                             required
+                            autoComplete="off"
+                            name="revskin_paciente_cpf"
                         />
-                        <Input
+                        <DatePickerField
                             label="Data de Nascimento"
-                            type="date"
                             value={data.data_nascimento}
-                            onChange={(e) => {
-                                setData('data_nascimento', e.target.value);
-                                setFieldErrors(prev => ({ ...prev, data_nascimento: null }));
+                            onChange={(v) => {
+                                setData('data_nascimento', v);
+                                setFieldErrors((prev) => ({ ...prev, data_nascimento: null }));
                             }}
                             error={fieldErrors.data_nascimento || errors.data_nascimento}
                             required
@@ -479,24 +664,33 @@ export default function PatientDrawer({
                                 { value: 'M', label: 'Masculino' },
                                 { value: 'F', label: 'Feminino' },
                             ]}
+                            autoComplete="off"
+                            name="revskin_paciente_sexo"
                         />
-                        <Input
-                            label="E-mail"
-                            type="email"
-                            value={data.email1}
-                            onChange={(e) => {
-                                setData('email1', e.target.value);
-                                setFieldErrors(prev => ({ ...prev, email1: null }));
-                            }}
-                            error={fieldErrors.email1 || errors.email1}
-                            required
-                        />
+                        <div className="col-span-2 sm:col-span-1">
+                            <Input
+                                label="E-mail"
+                                type="email"
+                                value={data.email1}
+                                onChange={(e) => {
+                                    setData('email1', e.target.value);
+                                    setFieldErrors(prev => ({ ...prev, email1: null }));
+                                }}
+                                error={fieldErrors.email1 || errors.email1}
+                                required
+                                autoComplete="off"
+                                inputMode="email"
+                                name="revskin_paciente_email"
+                            />
+                        </div>
                         <div className="col-span-2">
                             <Select
                                 label="País"
                                 value={data.pais}
                                 onChange={(e) => setData('pais', e.target.value)}
                                 options={countries}
+                                autoComplete="off"
+                                name="revskin_paciente_pais"
                             />
                         </div>
                         {isBrazil ? (
@@ -511,6 +705,8 @@ export default function PatientDrawer({
                                 placeholder="(00) 00000-0000"
                                 error={fieldErrors.celular || errors.celular}
                                 required
+                                autoComplete="off"
+                                name="revskin_paciente_celular"
                             />
                         ) : (
                             <Input
@@ -523,6 +719,8 @@ export default function PatientDrawer({
                                 placeholder="Número com código do país"
                                 error={fieldErrors.celular || errors.celular}
                                 required
+                                autoComplete="off"
+                                name="revskin_paciente_celular"
                             />
                         )}
                     </div>
@@ -560,6 +758,8 @@ export default function PatientDrawer({
                                                     { value: 'Recado', label: 'Recado' },
                                                     { value: 'Outro', label: 'Outro' },
                                                 ]}
+                                                autoComplete="off"
+                                                name={`revskin_paciente_tel_tipo_${index}`}
                                             />
                                         </div>
                                         <div className="flex-[2]">
@@ -574,6 +774,8 @@ export default function PatientDrawer({
                                                     value={tel.numero}
                                                     onAccept={(value) => updateTelefone(index, 'numero', value)}
                                                     placeholder="(00) 00000-0000"
+                                                    autoComplete="off"
+                                                    name={`revskin_paciente_tel_extra_${index}`}
                                                 />
                                             ) : (
                                                 <Input
@@ -581,6 +783,8 @@ export default function PatientDrawer({
                                                     value={tel.numero}
                                                     onChange={(e) => updateTelefone(index, 'numero', e.target.value)}
                                                     placeholder="Número com código do país"
+                                                    autoComplete="off"
+                                                    name={`revskin_paciente_tel_extra_${index}`}
                                                 />
                                             )}
                                         </div>
@@ -613,23 +817,55 @@ export default function PatientDrawer({
                                     onChange={(e) => setData('cep', e.target.value)}
                                     onBlur={buscarCep}
                                     placeholder="00000-000"
+                                    autoComplete="off"
+                                    name="revskin_paciente_cep"
                                 />
                                 {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
                             </div>
                             <div className="col-span-4">
-                                <Input label="Endereço" value={data.endereco} onChange={(e) => setData('endereco', e.target.value)} />
+                                <Input
+                                    label="Endereço"
+                                    value={data.endereco}
+                                    onChange={(e) => setData('endereco', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_logradouro"
+                                />
                             </div>
                             <div className="col-span-1">
-                                <Input label="Número" value={data.numero} onChange={(e) => setData('numero', e.target.value)} />
+                                <Input
+                                    label="Número"
+                                    value={data.numero}
+                                    onChange={(e) => setData('numero', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_numero"
+                                />
                             </div>
                             <div className="col-span-2">
-                                <Input label="Complemento" value={data.complemento} onChange={(e) => setData('complemento', e.target.value)} />
+                                <Input
+                                    label="Complemento"
+                                    value={data.complemento}
+                                    onChange={(e) => setData('complemento', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_complemento"
+                                />
                             </div>
                             <div className="col-span-3">
-                                <Input label="Bairro" value={data.bairro} onChange={(e) => setData('bairro', e.target.value)} />
+                                <Input
+                                    label="Bairro"
+                                    value={data.bairro}
+                                    onChange={(e) => setData('bairro', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_bairro"
+                                />
                             </div>
                             <div className="col-span-4">
-                                <Input label="Cidade" value={data.cidade} onChange={(e) => setData('cidade', e.target.value)} />
+                                <Input
+                                    label="Cidade"
+                                    value={data.cidade}
+                                    onChange={(e) => setData('cidade', e.target.value)}
+                                    autoComplete="off"
+                                    name="revskin_paciente_cidade"
+                                />
                             </div>
                             <div className="col-span-2">
                                 {isBrazil ? (
@@ -641,12 +877,16 @@ export default function PatientDrawer({
                                             { value: '', label: 'UF' },
                                             ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))
                                         ]}
+                                        autoComplete="off"
+                                        name="revskin_paciente_uf"
                                     />
                                 ) : (
                                     <Input
                                         label="Estado/Província"
                                         value={data.uf}
                                         onChange={(e) => setData('uf', e.target.value)}
+                                        autoComplete="off"
+                                        name="revskin_paciente_uf"
                                     />
                                 )}
                             </div>
@@ -659,27 +899,56 @@ export default function PatientDrawer({
                             <h3 className="text-sm font-medium text-gray-900 mb-4">Médico Responsável {medicoRequired && <span className="text-red-500">*</span>}</h3>
                             {medicos?.length > 0 ? (
                                 <div>
-                                    <Select
-                                        label=""
-                                        value={data.medico_id ? String(data.medico_id) : ''}
-                                        onChange={(e) => {
-                                            setData('medico_id', e.target.value ? Number(e.target.value) : '');
-                                            setFieldErrors(prev => ({ ...prev, medico_id: null }));
-                                        }}
-                                        options={[
-                                            { value: '', label: 'Selecione o médico' },
-                                            ...medicos.map((m) => ({ value: String(m.id), label: m.nome || m.linked_user?.name || `Médico ${m.id}` })),
-                                        ]}
-                                        error={fieldErrors.medico_id || errors.medico_id}
-                                    />
+                                    {medicoLocked ? (
+                                        <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                            {nomeExibicaoSemTitulo(
+                                                medicos.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                    || selectedMedico?.nome
+                                                    || paciente?.medico?.nome
+                                            ) || '—'}
+                                        </div>
+                                    ) : (
+                                        <Select
+                                            label=""
+                                            value={data.medico_id ? String(data.medico_id) : ''}
+                                            onChange={(e) => {
+                                                setData('medico_id', e.target.value ? Number(e.target.value) : '');
+                                                setFieldErrors(prev => ({ ...prev, medico_id: null }));
+                                            }}
+                                            options={[
+                                                { value: '', label: 'Selecione o médico' },
+                                                ...medicos.map((m) => ({
+                                                    value: String(m.id),
+                                                    label:
+                                                        nomeExibicaoSemTitulo(m.nome || m.linked_user?.name) || `Médico ${m.id}`,
+                                                })),
+                                            ]}
+                                            error={fieldErrors.medico_id || errors.medico_id}
+                                            autoComplete="off"
+                                            name="revskin_paciente_medico_id"
+                                        />
+                                    )}
                                 </div>
                             ) : (
                                 <div>
                                     <div className="relative">
-                                        {selectedMedico ? (
+                                        {medicoLocked && (selectedMedico || data.medico_id) ? (
+                                            <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3">
+                                                <div className="font-medium text-gray-900">
+                                                    {nomeExibicaoSemTitulo(
+                                                        selectedMedico?.nome || paciente?.medico?.nome
+                                                    ) || '—'}
+                                                </div>
+                                                {(selectedMedico?.crm || paciente?.medico?.crm) && (
+                                                    <div className="text-sm text-gray-500">CRM: {selectedMedico?.crm || paciente?.medico?.crm}</div>
+                                                )}
+                                            </div>
+                                        ) : selectedMedico ? (
                                             <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                                                 <div>
-                                                    <div className="font-medium text-gray-900">{selectedMedico.nome}</div>
+                                                    <div className="font-medium text-gray-900">
+                                                        {nomeExibicaoSemTitulo(selectedMedico.nome)}
+                                                    </div>
                                                     {selectedMedico.crm && <div className="text-sm text-gray-500">CRM: {selectedMedico.crm}</div>}
                                                 </div>
                                                 <button
@@ -705,6 +974,8 @@ export default function PatientDrawer({
                                                         value={searchMedico}
                                                         onChange={(e) => setSearchMedico(e.target.value)}
                                                         className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${(fieldErrors.medico_id || errors.medico_id) ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                                        autoComplete="off"
+                                                        name="revskin_paciente_medico_busca"
                                                     />
                                                     {loadingMedicos && (
                                                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -724,7 +995,9 @@ export default function PatientDrawer({
                                                                 onClick={() => selectMedico(medico)}
                                                                 className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                                             >
-                                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                                <div className="font-medium text-gray-900">
+                                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                                </div>
                                                                 <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
                                                             </button>
                                                         ))}
@@ -749,7 +1022,34 @@ export default function PatientDrawer({
                             onChange={(e) => setData('anotacoes', e.target.value)}
                             multiline
                             rows={3}
+                            autoComplete="off"
+                            name="revskin_paciente_anotacoes"
                         />
+                    </div>
+
+                    <div className="border-t pt-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Input
+                                label="Nº Registro"
+                                value={data.codigo}
+                                onChange={(e) => {
+                                    setData('codigo', e.target.value);
+                                    setFieldErrors((prev) => ({ ...prev, codigo: null }));
+                                }}
+                                error={fieldErrors.codigo || errors.codigo}
+                                placeholder="Opcional"
+                                autoComplete="off"
+                                name="revskin_paciente_codigo"
+                            />
+                            <Input
+                                label="Indicado por"
+                                value={data.indicado_por}
+                                onChange={(e) => setData('indicado_por', e.target.value)}
+                                placeholder="Opcional"
+                                autoComplete="off"
+                                name="revskin_paciente_indicado_por"
+                            />
+                        </div>
                     </div>
 
                     {/* Status (edit only) */}
@@ -763,6 +1063,8 @@ export default function PatientDrawer({
                                     { value: '1', label: 'Ativo' },
                                     { value: '0', label: 'Inativo' },
                                 ]}
+                                autoComplete="off"
+                                name="revskin_paciente_ativo"
                             />
                         </div>
                     )}
@@ -823,10 +1125,14 @@ export default function PatientDrawer({
                                     ) : null}
                                 </div>
                             )}
-                            <button type="button" onClick={handleClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            <button type="button" onClick={requestClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancelar
                             </button>
-                            <button type="submit" disabled={isSaving} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                            <button
+                                type="submit"
+                                disabled={isSaving || !isManualSaveValid}
+                                className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 {isSaving ? 'Salvando...' : 'Salvar'}
                             </button>
                         </div>
@@ -834,5 +1140,13 @@ export default function PatientDrawer({
                 </div>
             </form>
         </Drawer>
+        <UnsavedChangesModal
+            open={showUnsavedModal}
+            onCancel={handleUnsavedCancel}
+            onDiscard={handleUnsavedDiscard}
+            onSave={handleUnsavedSave}
+            saving={savingBeforeLeave}
+        />
+        </>
     );
 }

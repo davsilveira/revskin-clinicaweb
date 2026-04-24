@@ -64,6 +64,8 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            /** Sempre recalculado em cada resposta Inertia; o meta do HTML fica congelado após a 1.ª carga, por isso fetches (ex.: drawer) usam isto. */
+            'csrfToken' => fn () => csrf_token(),
             'assetVersion' => fn () => $this->resolveAssetVersion(),
             'auth' => [
                 'user' => $user ? [

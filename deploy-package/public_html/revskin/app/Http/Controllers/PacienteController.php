@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\PacienteTelefone;
+use App\Models\Receita;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
@@ -14,52 +16,97 @@ use Inertia\Response;
 class PacienteController extends Controller
 {
     /**
+     * Trata Nº Registro vazio como null (evita violação de unique com string vazia).
+     */
+    private function normalizePacienteCodigo(array &$validated): void
+    {
+        if (array_key_exists('codigo', $validated) && trim((string) ($validated['codigo'] ?? '')) === '') {
+            $validated['codigo'] = null;
+        }
+    }
+
+    /**
      * Validate CPF digits.
      */
     private function validateCpfDigits(?string $cpf): bool
     {
-        if (!$cpf) {
+        if (! $cpf) {
             return true; // CPF is optional
         }
-        
+
         $cleanCpf = preg_replace('/\D/', '', $cpf);
-        
+
         if (strlen($cleanCpf) !== 11) {
             return false;
         }
-        
+
         // Check if all digits are the same
         if (preg_match('/^(\d)\1+$/', $cleanCpf)) {
             return false;
         }
-        
+
         // Validate first digit
         $sum = 0;
         for ($i = 0; $i < 9; $i++) {
-            $sum += (int)$cleanCpf[$i] * (10 - $i);
+            $sum += (int) $cleanCpf[$i] * (10 - $i);
         }
         $digit = 11 - ($sum % 11);
         if ($digit >= 10) {
             $digit = 0;
         }
-        if ($digit !== (int)$cleanCpf[9]) {
+        if ($digit !== (int) $cleanCpf[9]) {
             return false;
         }
-        
+
         // Validate second digit
         $sum = 0;
         for ($i = 0; $i < 10; $i++) {
-            $sum += (int)$cleanCpf[$i] * (11 - $i);
+            $sum += (int) $cleanCpf[$i] * (11 - $i);
         }
         $digit = 11 - ($sum % 11);
         if ($digit >= 10) {
             $digit = 0;
         }
-        if ($digit !== (int)$cleanCpf[10]) {
+        if ($digit !== (int) $cleanCpf[10]) {
             return false;
         }
-        
+
         return true;
+    }
+
+    /**
+     * Erro de validação após o validate(): requisições com Accept JSON (fetch no drawer) precisam de 422 JSON.
+     * Se devolver only back(), o fetch segue 302, recebe 200 em HTML, e o front trata como "sucesso" falso.
+     */
+    private function jsonOrBackForFieldError(Request $request, string $field, string $message)
+    {
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json(['message' => $message, 'errors' => [$field => [$message]]], 422);
+        }
+
+        return back()->withErrors([$field => $message])->withInput();
+    }
+
+    /**
+     * Filtro textual: nome, CPF (com ou sem pontuação), Nº registro (codigo), telefones, e-mail.
+     */
+    private function applyPacienteTextSearch(Builder $query, string $search): void
+    {
+        $query->where('nome', 'like', "%{$search}%")
+            ->orWhere('cpf', 'like', "%{$search}%")
+            ->orWhere('codigo', 'like', "%{$search}%")
+            ->orWhere('telefone1', 'like', "%{$search}%")
+            ->orWhere('celular', 'like', "%{$search}%")
+            ->orWhere('email1', 'like', "%{$search}%")
+            ->orWhereHas('telefones', fn ($tq) => $tq->where('numero', 'like', "%{$search}%"));
+
+        $digits = preg_replace('/\D/', '', $search);
+        if (strlen($digits) >= 3) {
+            $query->orWhereRaw(
+                "REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cpf, ''), '.', ''), '-', ''), ' ', ''), '/', '') LIKE ?",
+                ['%'.$digits.'%']
+            );
+        }
     }
 
     /**
@@ -69,21 +116,16 @@ class PacienteController extends Controller
     {
         $query = Paciente::with(['medico:id', 'medico.linkedUser:id,name,medico_id', 'telefones', 'createdBy:id,name', 'updatedBy:id,name'])
             ->when($request->search, function ($q, $search) {
-                $q->where(function ($query) use ($search) {
-                    $query->where('nome', 'like', "%{$search}%")
-                        ->orWhere('cpf', 'like', "%{$search}%")
-                        ->orWhere('telefone1', 'like', "%{$search}%")
-                        ->orWhere('celular', 'like', "%{$search}%")
-                        ->orWhere('email1', 'like', "%{$search}%")
-                        ->orWhereHas('telefones', fn($tq) => $tq->where('numero', 'like', "%{$search}%"));
+                $q->where(function (Builder $sub) use ($search) {
+                    $this->applyPacienteTextSearch($sub, $search);
                 });
             })
-            ->when($request->medico_id, fn($q, $medicoId) => $q->where('medico_id', $medicoId));
+            ->when($request->medico_id, fn ($q, $medicoId) => $q->where('medico_id', $medicoId));
 
         // Filter by ativo status - defaults to true (active) if not specified
         if ($request->has('ativo') && $request->ativo !== '' && $request->ativo !== null) {
             $query->where('ativo', $request->boolean('ativo'));
-        } elseif (!$request->has('ativo')) {
+        } elseif (! $request->has('ativo')) {
             // Default to showing only active patients when accessing page directly
             $query->where('ativo', true);
         }
@@ -101,7 +143,18 @@ class PacienteController extends Controller
             $query->whereRaw('1 = 0'); // sem clínica = lista vazia
         }
 
-        $pacientes = $query->orderBy('nome')
+        $ultimaReceitaSub = Receita::query()
+            ->select('id')
+            ->whereColumn('paciente_id', 'pacientes.id')
+            ->orderByDesc('data_receita')
+            ->orderByDesc('id')
+            ->limit(1);
+
+        $pacientes = $query
+            ->addSelect([
+                'ultima_receita_id' => $ultimaReceitaSub,
+            ])
+            ->orderBy('nome')
             ->paginate(15)
             ->withQueryString();
 
@@ -114,7 +167,7 @@ class PacienteController extends Controller
             'tiposTelefone' => PacienteTelefone::getTipos(),
             'isAdmin' => $user->isAdmin(),
             'isSecretaria' => $user->isSecretaria(),
-            'canSelectMedico' => !$user->isMedico(),
+            'canSelectMedico' => ! $user->isMedico(),
             'canAccessAssistente' => $user->isAdmin() || $user->isMedico(),
         ]);
     }
@@ -124,21 +177,17 @@ class PacienteController extends Controller
      */
     private function getMedicosForPacienteForm($user): \Illuminate\Support\Collection
     {
+        $query = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+
         if ($user->isSecretaria() && $user->clinica_id) {
             $ids = $user->getMedicoIdsDaClinica();
-            return Medico::ativo()->whereIn('medicos.id', $ids)
-                ->join('users', 'users.medico_id', '=', 'medicos.id')
-                ->orderBy('users.name')
-                ->select('medicos.id')
-                ->get()
-                ->load('linkedUser:id,name,medico_id');
+            $query->whereIn('medicos.id', $ids);
         }
-        return Medico::ativo()
-            ->join('users', 'users.medico_id', '=', 'medicos.id')
-            ->orderBy('users.name')
-            ->select('medicos.id')
-            ->get()
-            ->load('linkedUser:id,name,medico_id');
+
+        return $query->get()->load('linkedUser:id,name,medico_id');
     }
 
     /**
@@ -184,6 +233,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
+            'codigo' => 'nullable|string|max:255|unique:pacientes,codigo',
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => $medicoRules,
@@ -198,11 +248,14 @@ class PacienteController extends Controller
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
             'medico_id.required' => 'Selecione o médico responsável.',
+            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
+        $this->normalizePacienteCodigo($validated);
+
         // Validate CPF digits
-        if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
-            return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
+        if (! $this->validateCpfDigits($validated['cpf'] ?? null)) {
+            return $this->jsonOrBackForFieldError($request, 'cpf', 'CPF inválido. Por favor, verifique os números digitados.');
         }
 
         // Auto-assign medico if user is medico
@@ -210,9 +263,9 @@ class PacienteController extends Controller
             $validated['medico_id'] = $user->medico_id;
         }
         // Secretária: medico deve pertencer à clínica (validado como required acima)
-        if ($user->isSecretaria() && !empty($validated['medico_id'])) {
-            if (!in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
-                return back()->withErrors(['medico_id' => 'O médico selecionado não pertence à sua clínica.'])->withInput();
+        if ($user->isSecretaria() && ! empty($validated['medico_id'])) {
+            if (! in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
+                return $this->jsonOrBackForFieldError($request, 'medico_id', 'O médico selecionado não pertence à sua clínica.');
             }
         }
 
@@ -251,9 +304,9 @@ class PacienteController extends Controller
     public function show(Request $request, Paciente $paciente): Response
     {
         $user = $request->user();
-        
+
         // Check if user can access this paciente
-        if (!$user->canAccessPaciente($paciente)) {
+        if (! $user->canAccessPaciente($paciente)) {
             abort(403, 'Acesso não autorizado.');
         }
 
@@ -272,9 +325,9 @@ class PacienteController extends Controller
     public function edit(Request $request, Paciente $paciente): Response
     {
         $user = $request->user();
-        
+
         // Check if user can access this paciente
-        if (!$user->canAccessPaciente($paciente)) {
+        if (! $user->canAccessPaciente($paciente)) {
             abort(403, 'Acesso não autorizado.');
         }
 
@@ -316,6 +369,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
+            'codigo' => ['nullable', 'string', 'max:255', Rule::unique('pacientes', 'codigo')->ignore($paciente->id)],
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
@@ -329,29 +383,37 @@ class PacienteController extends Controller
             'data_nascimento.required' => 'A data de nascimento é obrigatória.',
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
+            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
+        $this->normalizePacienteCodigo($validated);
+
         // Validate CPF digits
-        if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
-            return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
+        if (! $this->validateCpfDigits($validated['cpf'] ?? null)) {
+            return $this->jsonOrBackForFieldError($request, 'cpf', 'CPF inválido. Por favor, verifique os números digitados.');
         }
 
         $user = $request->user();
         // Check if user can access this paciente
-        if (!$user->canAccessPaciente($paciente)) {
+        if (! $user->canAccessPaciente($paciente)) {
             abort(403, 'Acesso não autorizado.');
         }
 
         // Secretária: medico_id must be from her clinic
         if ($user->isSecretaria() && isset($validated['medico_id']) && $validated['medico_id'] !== null) {
-            if (!in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
-                return back()->withErrors(['medico_id' => 'O médico selecionado não pertence à sua clínica.'])->withInput();
+            if (! in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
+                return $this->jsonOrBackForFieldError($request, 'medico_id', 'O médico selecionado não pertence à sua clínica.');
             }
         }
 
         // Prevent medico from changing medico_id
         if ($user->isMedico() && $user->medico_id) {
             $validated['medico_id'] = $user->medico_id;
+        }
+
+        // Médico responsável não pode ser trocado após já vinculado (inclusive ADM); só permite definir se ainda for null
+        if ($paciente->medico_id !== null) {
+            unset($validated['medico_id']);
         }
 
         $telefones = $validated['telefones'] ?? [];
@@ -388,7 +450,7 @@ class PacienteController extends Controller
     {
         // Check if user can access this paciente
         $user = $request->user();
-        if (!$user->canAccessPaciente($paciente)) {
+        if (! $user->canAccessPaciente($paciente)) {
             abort(403, 'Acesso não autorizado.');
         }
 
@@ -407,9 +469,8 @@ class PacienteController extends Controller
         $search = $request->get('q', '');
 
         $query = Paciente::ativo()
-            ->where(function ($q) use ($search) {
-                $q->where('nome', 'like', "%{$search}%")
-                    ->orWhere('cpf', 'like', "%{$search}%");
+            ->where(function (Builder $q) use ($search) {
+                $this->applyPacienteTextSearch($q, $search);
             });
 
         // Filter by user access
@@ -442,6 +503,15 @@ class PacienteController extends Controller
             }
         }
 
+        $codigoRule = ['nullable', 'string', 'max:255'];
+        if ($request->filled('codigo')) {
+            if ($request->filled('id')) {
+                $codigoRule[] = Rule::unique('pacientes', 'codigo')->ignore($request->input('id'));
+            } else {
+                $codigoRule[] = 'unique:pacientes,codigo';
+            }
+        }
+
         $validated = $request->validate([
             'id' => 'nullable|exists:pacientes,id',
             'nome' => 'required|string|max:255',
@@ -464,6 +534,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
+            'codigo' => $codigoRule,
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => $medicoRules,
@@ -474,19 +545,32 @@ class PacienteController extends Controller
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
             'medico_id.required' => 'Selecione o médico responsável.',
+            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
+        $this->normalizePacienteCodigo($validated);
+
         // Validate CPF digits if provided
-        if (!empty($validated['cpf']) && !$this->validateCpfDigits($validated['cpf'])) {
-            return response()->json(['error' => 'CPF inválido'], 422);
+        if (! empty($validated['cpf']) && ! $this->validateCpfDigits($validated['cpf'])) {
+            $msg = 'CPF inválido.';
+
+            return response()->json([
+                'message' => $msg,
+                'errors' => ['cpf' => [$msg]],
+            ], 422);
         }
 
         if ($user->isMedico() && $user->medico_id) {
             $validated['medico_id'] = $user->medico_id;
         }
-        if ($user->isSecretaria() && !empty($validated['medico_id'])) {
-            if (!in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
-                return response()->json(['error' => 'O médico selecionado não pertence à sua clínica.'], 422);
+        if ($user->isSecretaria() && ! empty($validated['medico_id'])) {
+            if (! in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
+                $msg = 'O médico selecionado não pertence à sua clínica.';
+
+                return response()->json([
+                    'message' => $msg,
+                    'errors' => ['medico_id' => [$msg]],
+                ], 422);
             }
         }
 
@@ -496,12 +580,16 @@ class PacienteController extends Controller
 
         if ($id) {
             $paciente = Paciente::findOrFail($id);
-            
+
             // Check access
-            if (!$user->canAccessPaciente($paciente)) {
+            if (! $user->canAccessPaciente($paciente)) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
-            
+
+            if ($paciente->medico_id !== null) {
+                unset($validated['medico_id']);
+            }
+
             $paciente->update($validated);
             $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
         } else {
@@ -513,7 +601,7 @@ class PacienteController extends Controller
         }
 
         // Sync telefones
-        if (!empty($telefones)) {
+        if (! empty($telefones)) {
             $paciente->telefones()->delete();
             foreach ($telefones as $index => $telefone) {
                 $paciente->telefones()->create([
@@ -565,7 +653,7 @@ class PacienteController extends Controller
         ]);
 
         // Validate CPF digits
-        if (!$this->validateCpfDigits($validated['cpf'] ?? null)) {
+        if (! $this->validateCpfDigits($validated['cpf'] ?? null)) {
             return response()->json(['error' => 'CPF inválido. Por favor, verifique os números digitados.'], 422);
         }
 
@@ -574,7 +662,7 @@ class PacienteController extends Controller
             $validated['medico_id'] = $user->medico_id;
         } elseif ($user->isSecretaria()) {
             $medicoIds = $user->getMedicoIdsDaClinica();
-            if (!empty($medicoIds)) {
+            if (! empty($medicoIds)) {
                 $validated['medico_id'] = $medicoIds[0];
             }
         }
@@ -632,11 +720,7 @@ class PacienteController extends Controller
 
             return response()->json(['error' => 'Erro ao consultar CEP'], 500);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Erro ao consultar CEP: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Erro ao consultar CEP: '.$e->getMessage()], 500);
         }
     }
 }
-
-
-
-

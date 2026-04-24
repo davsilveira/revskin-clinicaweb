@@ -75,6 +75,19 @@ class PacienteController extends Controller
     }
 
     /**
+     * Erro de validação após o validate(): requisições com Accept JSON (fetch no drawer) precisam de 422 JSON.
+     * Se devolver only back(), o fetch segue 302, recebe 200 em HTML, e o front trata como "sucesso" falso.
+     */
+    private function jsonOrBackForFieldError(Request $request, string $field, string $message)
+    {
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json(['message' => $message, 'errors' => [$field => [$message]]], 422);
+        }
+
+        return back()->withErrors([$field => $message])->withInput();
+    }
+
+    /**
      * Filtro textual: nome, CPF (com ou sem pontuação), Nº registro (codigo), telefones, e-mail.
      */
     private function applyPacienteTextSearch(Builder $query, string $search): void
@@ -242,7 +255,7 @@ class PacienteController extends Controller
 
         // Validate CPF digits
         if (! $this->validateCpfDigits($validated['cpf'] ?? null)) {
-            return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
+            return $this->jsonOrBackForFieldError($request, 'cpf', 'CPF inválido. Por favor, verifique os números digitados.');
         }
 
         // Auto-assign medico if user is medico
@@ -252,7 +265,7 @@ class PacienteController extends Controller
         // Secretária: medico deve pertencer à clínica (validado como required acima)
         if ($user->isSecretaria() && ! empty($validated['medico_id'])) {
             if (! in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
-                return back()->withErrors(['medico_id' => 'O médico selecionado não pertence à sua clínica.'])->withInput();
+                return $this->jsonOrBackForFieldError($request, 'medico_id', 'O médico selecionado não pertence à sua clínica.');
             }
         }
 
@@ -377,7 +390,7 @@ class PacienteController extends Controller
 
         // Validate CPF digits
         if (! $this->validateCpfDigits($validated['cpf'] ?? null)) {
-            return back()->withErrors(['cpf' => 'CPF inválido. Por favor, verifique os números digitados.'])->withInput();
+            return $this->jsonOrBackForFieldError($request, 'cpf', 'CPF inválido. Por favor, verifique os números digitados.');
         }
 
         $user = $request->user();
@@ -389,7 +402,7 @@ class PacienteController extends Controller
         // Secretária: medico_id must be from her clinic
         if ($user->isSecretaria() && isset($validated['medico_id']) && $validated['medico_id'] !== null) {
             if (! in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
-                return back()->withErrors(['medico_id' => 'O médico selecionado não pertence à sua clínica.'])->withInput();
+                return $this->jsonOrBackForFieldError($request, 'medico_id', 'O médico selecionado não pertence à sua clínica.');
             }
         }
 
@@ -539,7 +552,12 @@ class PacienteController extends Controller
 
         // Validate CPF digits if provided
         if (! empty($validated['cpf']) && ! $this->validateCpfDigits($validated['cpf'])) {
-            return response()->json(['error' => 'CPF inválido'], 422);
+            $msg = 'CPF inválido.';
+
+            return response()->json([
+                'message' => $msg,
+                'errors' => ['cpf' => [$msg]],
+            ], 422);
         }
 
         if ($user->isMedico() && $user->medico_id) {
@@ -547,7 +565,12 @@ class PacienteController extends Controller
         }
         if ($user->isSecretaria() && ! empty($validated['medico_id'])) {
             if (! in_array((int) $validated['medico_id'], $user->getMedicoIdsDaClinica(), true)) {
-                return response()->json(['error' => 'O médico selecionado não pertence à sua clínica.'], 422);
+                $msg = 'O médico selecionado não pertence à sua clínica.';
+
+                return response()->json([
+                    'message' => $msg,
+                    'errors' => ['medico_id' => [$msg]],
+                ], 422);
             }
         }
 

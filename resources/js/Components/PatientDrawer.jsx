@@ -1,4 +1,4 @@
-import { useForm, router } from '@inertiajs/react';
+import { useForm, router, usePage } from '@inertiajs/react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import Drawer from '@/Components/Drawer';
@@ -62,7 +62,7 @@ function normalizePatientData(d) {
  * - showMedicoField: boolean - mostrar campo médico (admin e secretária)
  * - medicos: array - lista de médicos para Select (quando fornecida, usa Select em vez de busca)
  * - medicoRequired: boolean - tornar médico obrigatório (secretária) - bloqueia autosave e salvar sem médico
- * - enableAutoSave: boolean - habilitar autosave (default: true)
+ * - enableAutoSave: boolean - em edição (com `paciente`), habilita autosave debounced. Em cadastro novo, não se usa.
  */
 export default function PatientDrawer({
     isOpen,
@@ -76,6 +76,17 @@ export default function PatientDrawer({
     enableAutoSave = true,
 }) {
     const showMedico = showMedicoField ?? isAdmin;
+    const { props: pageProps } = usePage();
+    const csrfForRequests = useMemo(() => {
+        const t = pageProps?.csrfToken;
+        if (typeof t === 'string' && t.length > 0) {
+            return t;
+        }
+        if (typeof document === 'undefined') {
+            return '';
+        }
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }, [pageProps?.csrfToken]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
     const [cpfError, setCpfError] = useState(null);
@@ -94,11 +105,28 @@ export default function PatientDrawer({
     const [auditNames, setAuditNames] = useState({ created: null, updated: null });
     const [formBaseline, setFormBaseline] = useState(null);
 
+    const currentPacienteIdRef = useRef(paciente?.id ?? null);
+    const persistQueueRef = useRef(Promise.resolve());
+    const isManualPersistRef = useRef(false);
+
+    const runExclusive = useCallback((fn) => {
+        const p = persistQueueRef.current
+            .catch(() => {})
+            .then(() => fn());
+        persistQueueRef.current = p;
+        return p;
+    }, []);
+
+    useEffect(() => {
+        currentPacienteIdRef.current = currentPacienteId;
+    }, [currentPacienteId]);
+
     // Initialize form data when paciente changes
     useEffect(() => {
         if (isOpen) {
             if (paciente) {
                 setCurrentPacienteId(paciente.id);
+                currentPacienteIdRef.current = paciente.id;
                 setSelectedMedico(paciente.medico || null);
                 setAuditNames({
                     created: paciente.created_by?.name ?? paciente.createdBy?.name ?? null,
@@ -131,6 +159,7 @@ export default function PatientDrawer({
             } else {
                 reset();
                 setCurrentPacienteId(null);
+                currentPacienteIdRef.current = null;
                 setSelectedMedico(null);
                 setAuditNames({ created: null, updated: null });
                 setFormBaseline(cloneDeep(normalizePatientData(INITIAL_PACIENTE_FORM)));
@@ -206,72 +235,93 @@ export default function PatientDrawer({
     const persistedPacienteId = currentPacienteId ?? paciente?.id ?? null;
     const medicoLocked = Boolean(persistedPacienteId && data.medico_id);
 
-    // Autosave function
-    const performAutoSave = useCallback(async () => {
-        if (isSavingRef.current) return;
-        // Médico obrigatório para secretária: bloquear se vazio
-        if (medicoRequired && showMedico && !data.medico_id) return;
-        // Validar campos obrigatórios antes de tentar autosave
-        if (!data.nome || data.nome.trim().length < 2) return;
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return;
-        if (!data.data_nascimento) return;
-        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return;
-        if (!data.email1 || !data.email1.trim()) return;
-        
-        // Validar CPF se preenchido
-        if (data.cpf && !validateCPF(data.cpf)) return;
-        
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
-        // Filter out empty telefones
-        const telefonesValidos = data.telefones.filter(t => t.numero && t.numero.trim());
-        
-        const response = await fetch('/api/pacientes/autosave', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                id: currentPacienteId,
-                ...data,
-                telefones: telefonesValidos,
-            }),
-        });
-        
-        if (!response.ok) {
-            if (response.status === 422) {
-                const errData = await response.json();
-                if (errData?.errors?.medico_id) {
-                    setFieldErrors(prev => ({ ...prev, medico_id: errData.errors.medico_id[0] }));
+    /** Só em edição: cadastro novo nunca chama o endpoint de rascunho. */
+    const performAutoSave = useCallback(() => {
+        if (!enableAutoSave || !paciente) {
+            return Promise.resolve(undefined);
+        }
+        if (medicoRequired && showMedico && !data.medico_id) {
+            return Promise.resolve(undefined);
+        }
+        if (!data.nome || data.nome.trim().length < 2) return Promise.resolve();
+        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
+            return Promise.resolve();
+        }
+        if (!data.data_nascimento) return Promise.resolve();
+        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
+            return Promise.resolve();
+        }
+        if (!data.email1 || !data.email1.trim()) return Promise.resolve();
+        if (data.cpf && !validateCPF(data.cpf)) return Promise.resolve();
+
+        return runExclusive(async () => {
+            const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
+
+            const response = await fetch('/api/pacientes/autosave', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfForRequests,
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    _token: csrfForRequests,
+                    id: paciente.id,
+                    ...data,
+                    telefones: telefonesValidos,
+                }),
+            });
+
+            if (!response.ok) {
+                if (response.status === 422) {
+                    const errData = await response.json();
+                    if (errData?.errors) {
+                        setFieldErrors((prev) => {
+                            const merged = { ...prev };
+                            ['medico_id', 'cpf', 'codigo'].forEach((k) => {
+                                if (errData.errors[k]?.[0]) {
+                                    merged[k] = errData.errors[k][0];
+                                }
+                            });
+                            return merged;
+                        });
+                        if (errData.errors.cpf?.[0]) {
+                            setCpfError(errData.errors.cpf[0]);
+                        }
+                    } else if (errData?.message) {
+                        setFieldErrors((prev) => ({ ...prev, _form: errData.message }));
+                    }
+                    return undefined;
                 }
-                return;
+                throw new Error('Autosave failed');
             }
-            throw new Error('Autosave failed');
-        }
-        
-        const result = await response.json();
-        if (result.id && !currentPacienteId) {
-            setCurrentPacienteId(result.id);
-        }
-        if (result.created_by_name != null || result.updated_by_name != null) {
-            setAuditNames((prev) => ({
-                created: result.created_by_name ?? prev.created,
-                updated: result.updated_by_name ?? prev.updated,
-            }));
-        }
 
-        setFormBaseline(cloneDeep(normalizePatientData(data)));
+            const result = await response.json();
+            if (result.id) {
+                if (!currentPacienteId) {
+                    setCurrentPacienteId(result.id);
+                }
+                currentPacienteIdRef.current = result.id;
+            }
+            if (result.created_by_name != null || result.updated_by_name != null) {
+                setAuditNames((prev) => ({
+                    created: result.created_by_name ?? prev.created,
+                    updated: result.updated_by_name ?? prev.updated,
+                }));
+            }
 
-        return result;
-    }, [data, currentPacienteId, medicoRequired, showMedico]);
+            setFormBaseline(cloneDeep(normalizePatientData(data)));
 
-    // Verificar se todos os campos obrigatórios estão preenchidos para habilitar autosave
+            return result;
+        });
+    }, [data, currentPacienteId, medicoRequired, showMedico, enableAutoSave, paciente, runExclusive, csrfForRequests]);
+
     const canAutoSave = useCallback(() => {
-        if (!enableAutoSave || !isOpen) return false;
+        if (!enableAutoSave || !isOpen || !paciente) {
+            return false;
+        }
         if (!data.nome || data.nome.trim().length < 2) return false;
         if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
         if (!data.data_nascimento) return false;
@@ -280,7 +330,7 @@ export default function PatientDrawer({
         if (data.cpf && !validateCPF(data.cpf)) return false;
         if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico]);
+    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico, paciente]);
 
     const {
         lastSaved,
@@ -310,120 +360,171 @@ export default function PatientDrawer({
     }, [cancelAutoSave, onClose, lastSaved]);
 
     const [isSaving, setIsSaving] = useState(false);
-    const isSavingRef = useRef(false);
 
-    const persistPatient = useCallback(async () => {
-        cancelAutoSave();
-        isSavingRef.current = true;
-
-        setCpfError(null);
-        const newErrors = {};
-        let hasErrors = false;
-
-        if (!data.nome || data.nome.trim().length < 2) {
-            newErrors.nome = 'O nome completo é obrigatório.';
-            hasErrors = true;
+    const persistPatient = useCallback(() => {
+        if (isManualPersistRef.current) {
+            return Promise.resolve(false);
         }
+        isManualPersistRef.current = true;
 
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
-            setCpfError('CPF é obrigatório.');
-            newErrors.cpf = 'CPF é obrigatório.';
-            hasErrors = true;
-        } else if (!validateCPF(data.cpf)) {
-            setCpfError('CPF inválido. Por favor, verifique os números digitados.');
-            newErrors.cpf = 'CPF inválido.';
-            hasErrors = true;
-        }
-
-        if (!data.data_nascimento) {
-            newErrors.data_nascimento = 'Data de nascimento é obrigatória.';
-            hasErrors = true;
-        }
-
-        if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
-            newErrors.celular = 'Celular é obrigatório.';
-            hasErrors = true;
-        }
-
-        if (!data.email1 || !data.email1.trim()) {
-            newErrors.email1 = 'E-mail é obrigatório.';
-            hasErrors = true;
-        }
-        if (medicoRequired && showMedico && !data.medico_id) {
-            newErrors.medico_id = 'Selecione o médico responsável.';
-            hasErrors = true;
-        }
-        if (hasErrors) {
-            setFieldErrors(newErrors);
-            isSavingRef.current = false;
-            return false;
-        }
-
-        setFieldErrors({});
-        setIsSaving(true);
-
-        try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
-
-            const existingId = paciente?.id || currentPacienteId;
-            const url = existingId ? `/pacientes/${existingId}` : '/pacientes';
-            const method = existingId ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    ...data,
-                    telefones: telefonesValidos,
-                }),
-            });
-
-            if (response.ok) {
-                setFieldErrors({});
+        return runExclusive(async () => {
+            try {
+                cancelAutoSave();
                 setCpfError(null);
-                // Garante que isDirty vire false e o router.on('before') seja removido antes de onSave()
-                // disparar router.get (ex.: refresh na lista de receitas filtradas por paciente).
-                flushSync(() => {
-                    setFormBaseline(cloneDeep(normalizePatientData(data)));
-                });
-                onSave?.();
-                return true;
-            }
+                const newErrors = {};
+                let hasErrors = false;
 
-            if (response.status === 419) {
-                window.location.reload();
-                return false;
-            }
-
-            const errorData = await response.json();
-            console.error('Error saving patient:', errorData);
-
-            if (response.status === 422 && errorData.errors) {
-                const backendErrors = {};
-                Object.keys(errorData.errors).forEach((key) => {
-                    backendErrors[key] = errorData.errors[key][0];
-                });
-                setFieldErrors(backendErrors);
-                if (backendErrors.cpf) {
-                    setCpfError(backendErrors.cpf);
+                if (!data.nome || data.nome.trim().length < 2) {
+                    newErrors.nome = 'O nome completo é obrigatório.';
+                    hasErrors = true;
                 }
+
+                if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
+                    setCpfError('CPF é obrigatório.');
+                    newErrors.cpf = 'CPF é obrigatório.';
+                    hasErrors = true;
+                } else if (!validateCPF(data.cpf)) {
+                    setCpfError('CPF inválido. Por favor, verifique os números digitados.');
+                    newErrors.cpf = 'CPF inválido.';
+                    hasErrors = true;
+                }
+
+                if (!data.data_nascimento) {
+                    newErrors.data_nascimento = 'Data de nascimento é obrigatória.';
+                    hasErrors = true;
+                }
+
+                if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
+                    newErrors.celular = 'Celular é obrigatório.';
+                    hasErrors = true;
+                }
+
+                if (!data.email1 || !data.email1.trim()) {
+                    newErrors.email1 = 'E-mail é obrigatório.';
+                    hasErrors = true;
+                }
+                if (medicoRequired && showMedico && !data.medico_id) {
+                    newErrors.medico_id = 'Selecione o médico responsável.';
+                    hasErrors = true;
+                }
+                if (hasErrors) {
+                    setFieldErrors(newErrors);
+                    return false;
+                }
+
+                setFieldErrors({});
+                setIsSaving(true);
+
+                try {
+                    const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
+                    const id = paciente?.id ?? null;
+                    const url = id ? `/pacientes/${id}` : '/pacientes';
+                    const method = id ? 'PUT' : 'POST';
+
+                    if (import.meta.env.DEV) {
+                        // eslint-disable-next-line no-console
+                        console.groupCollapsed('[paciente] save', { id, method, url });
+                    }
+
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfForRequests,
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual',
+                        body: JSON.stringify({
+                            _token: csrfForRequests,
+                            ...data,
+                            telefones: telefonesValidos,
+                        }),
+                    });
+
+                    const contentType = response.headers.get('content-type') || '';
+                    let body = null;
+                    if (contentType.includes('application/json')) {
+                        try {
+                            body = await response.json();
+                        } catch {
+                            body = null;
+                        }
+                    }
+
+                    if (import.meta.env.DEV) {
+                        // eslint-disable-next-line no-console
+                        console.log({ status: response.status, redirected: response.redirected, body });
+                        // eslint-disable-next-line no-console
+                        console.groupEnd();
+                    }
+
+                    if (response.status === 419) {
+                        setFieldErrors({
+                            _form: 'Não foi possível validar o pedido (sessão/CSRF). Se voltar a acontecer, recarregue a página (F5) e tente de novo.',
+                        });
+                        return false;
+                    }
+
+                    if (response.redirected) {
+                        setFieldErrors({
+                            _form: 'Não foi possível salvar. Verifique os dados (ex.: CPF) e tente novamente.',
+                        });
+                        return false;
+                    }
+
+                    if (response.ok && body?.success === true) {
+                        setFieldErrors({});
+                        setCpfError(null);
+                        flushSync(() => {
+                            setFormBaseline(cloneDeep(normalizePatientData(data)));
+                        });
+                        onSave?.();
+                        return true;
+                    }
+
+                    if (response.status === 422) {
+                        if (body?.errors) {
+                            const backendErrors = {};
+                            Object.keys(body.errors).forEach((key) => {
+                                backendErrors[key] = body.errors[key][0];
+                            });
+                            setFieldErrors((prev) => ({ ...prev, ...backendErrors }));
+                            if (backendErrors.cpf) {
+                                setCpfError(backendErrors.cpf);
+                            }
+                        } else if (body?.message) {
+                            setFieldErrors((prev) => ({ ...prev, _form: body.message }));
+                        }
+                        return false;
+                    }
+
+                    if (body?.message) {
+                        setFieldErrors((prev) => ({ ...prev, _form: body.message }));
+                        return false;
+                    }
+
+                    setFieldErrors((prev) => ({
+                        ...prev,
+                        _form: 'Não foi possível salvar. Tente novamente.',
+                    }));
+                    return false;
+                } catch (error) {
+                    console.error('Error saving patient:', error);
+                    setFieldErrors((prev) => ({
+                        ...prev,
+                        _form: 'Não foi possível salvar. Tente novamente.',
+                    }));
+                    return false;
+                } finally {
+                    setIsSaving(false);
+                }
+            } finally {
+                isManualPersistRef.current = false;
             }
-            return false;
-        } catch (error) {
-            console.error('Error saving patient:', error);
-            return false;
-        } finally {
-            setIsSaving(false);
-            isSavingRef.current = false;
-        }
-    }, [data, paciente?.id, currentPacienteId, medicoRequired, showMedico, onSave, cancelAutoSave]);
+        });
+    }, [data, paciente, medicoRequired, showMedico, onSave, cancelAutoSave, runExclusive, csrfForRequests]);
 
     const saveBeforeClose = useCallback(async () => persistPatient(), [persistPatient]);
 
@@ -454,7 +555,8 @@ export default function PatientDrawer({
         handleUnsavedSave,
     } = useDrawerUnsavedChanges({
         isOpen,
-        isDirty,
+        /** Só avisar ao sair com alterações pendentes na edição; inclusão (novo) não abre o modal. */
+        isDirty: isDirty && Boolean(paciente),
         onConfirmClose: forceClose,
         saveBeforeClose,
     });
@@ -508,6 +610,11 @@ export default function PatientDrawer({
         >
             <form onSubmit={handleSubmit} className="flex flex-col h-full" autoComplete="off">
                 <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+                    {fieldErrors._form && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+                            {fieldErrors._form}
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <Input

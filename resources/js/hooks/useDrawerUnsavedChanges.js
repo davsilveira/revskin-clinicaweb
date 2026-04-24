@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 
 /**
@@ -75,7 +75,7 @@ export default function useDrawerUnsavedChanges({
         }
     }, [saveBeforeClose, onConfirmClose]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!isOpen || !isDirty) return;
 
         const removeListener = router.on('before', (event) => {
@@ -89,7 +89,7 @@ export default function useDrawerUnsavedChanges({
         return removeListener;
     }, [isOpen, isDirty]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!isOpen || !isDirty) return;
 
         const handler = (e) => {
