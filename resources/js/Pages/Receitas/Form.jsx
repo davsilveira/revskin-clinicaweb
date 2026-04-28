@@ -1349,7 +1349,7 @@ function ReceitaFormInner({
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <span className="text-sm text-blue-900">
-                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno; não são enviadas às integrações Tiny nem RD). Elas são gravadas automaticamente alguns segundos após você parar de digitar; use também o botão Salvar anotações acima para gravar na hora.
+                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno da equipe). Elas são gravadas automaticamente alguns segundos após você parar de digitar; use também o botão Salvar anotações acima para gravar na hora.
                                 </span>
                             </div>
                         )}
@@ -1851,7 +1851,7 @@ function ReceitaFormInner({
                                 </div>
                                 
                                 <p className="text-gray-600 mb-6">
-                                    Deseja finalizar esta receita? Após finalizada, ela será enviada ao Call Center e para integrações configuradas (ex.: Tiny / RD). Os produtos e valores prescritos não poderão mais ser alterados; você poderá seguir editando apenas as anotações internas por produto quando precisar.
+                                    Deseja finalizar esta receita? Após finalizada, ela será enviada ao Call Center. Os produtos e valores prescritos não poderão mais ser alterados; você poderá seguir editando apenas as anotações internas por produto quando precisar.
                                 </p>
                                 
                                 <div className="flex justify-end gap-3">
