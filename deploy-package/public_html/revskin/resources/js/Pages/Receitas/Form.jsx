@@ -713,6 +713,23 @@ function ReceitaFormInner({
         }
     };
 
+    const handleSalvarAnotacoes = async () => {
+        try {
+            await saveAnnotationsNow();
+            setToast({
+                message: 'Anotações salvas.',
+                type: 'success',
+                key: Date.now(),
+            });
+        } catch (e) {
+            setToast({
+                message: e?.message || 'Não foi possível salvar as anotações.',
+                type: 'error',
+                key: Date.now(),
+            });
+        }
+    };
+
     const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico && !isCallcenter;
     const canCancel =
         isEditing &&
@@ -862,6 +879,31 @@ function ReceitaFormInner({
                                         Download PDF
                                     </a>
                                 )}
+                                {annotationsEditable && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSalvarAnotacoes}
+                                        disabled={isAnnotationSaving}
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 text-sm border border-emerald-600 text-emerald-900 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-60 font-medium"
+                                    >
+                                        {isAnnotationSaving ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4 text-emerald-700" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                Salvando anotações…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4 shrink-0 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Salvar anotações
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                                 {!isReadOnly && (
                                     <button
                                         type="button"
@@ -965,6 +1007,32 @@ function ReceitaFormInner({
                                         </svg>
                                         Download PDF
                                     </a>
+                                )}
+
+                                {annotationsEditable && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSalvarAnotacoes}
+                                        disabled={isAnnotationSaving}
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 text-sm border border-emerald-600 text-emerald-900 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-60 font-medium"
+                                    >
+                                        {isAnnotationSaving ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4 text-emerald-700" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                Salvando anotações…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4 shrink-0 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Salvar anotações
+                                            </>
+                                        )}
+                                    </button>
                                 )}
 
                                 {isEditing && viewMode && canEdit && (
@@ -1281,7 +1349,7 @@ function ReceitaFormInner({
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <span className="text-sm text-blue-900">
-                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno; não são enviadas às integrações Tiny nem RD).
+                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno; não são enviadas às integrações Tiny nem RD). Elas são gravadas automaticamente alguns segundos após você parar de digitar; use também o botão Salvar anotações acima para gravar na hora.
                                 </span>
                             </div>
                         )}

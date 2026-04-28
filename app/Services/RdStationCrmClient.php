@@ -157,7 +157,10 @@ class RdStationCrmClient
 
     // ─── API Request ────────────────────────────────────────────
 
-    public function makeRequest(string $method, string $endpoint, array $data = [], array $query = []): array
+    /**
+     * @param  bool  $jsonPreserveZeroFraction  quando true, envia floats JSON como `100.0` em vez de `100` — exigência do CRM v2 para `one_time_price`, `price`, etc.
+     */
+    public function makeRequest(string $method, string $endpoint, array $data = [], array $query = [], bool $jsonPreserveZeroFraction = false): array
     {
         $token = $this->obterAccessToken();
 
@@ -177,7 +180,13 @@ class RdStationCrmClient
         Log::debug('RD Station CRM Request', ['method' => $method, 'url' => $url]);
 
         try {
-            $response = $this->executeRequest($method, $url, $data, $token);
+            $dispatch = function () use (&$token, $method, $url, $data, $jsonPreserveZeroFraction): \Illuminate\Http\Client\Response {
+                return $jsonPreserveZeroFraction
+                    ? $this->executeRequestWithPreservedFloatJson($method, $url, $data, $token)
+                    : $this->executeRequest($method, $url, $data, $token);
+            };
+
+            $response = $dispatch();
 
             if ($response->status() === 401) {
                 Log::warning('RD Station CRM 401 - tentando renovar token');
@@ -185,7 +194,7 @@ class RdStationCrmClient
                 $token = $this->obterAccessToken();
 
                 if ($token) {
-                    $response = $this->executeRequest($method, $url, $data, $token);
+                    $response = $dispatch();
                 }
             }
 
@@ -225,6 +234,29 @@ class RdStationCrmClient
             'PATCH' => $http->patch($url, $data),
             'DELETE' => $http->delete($url, $data),
             default => $http->get($url, $data),
+        };
+    }
+
+    /**
+     * Serializa o corpo com JSON_PRESERVE_ZERO_FRACTION para que números “inteiros” em float
+     * (ex.: 100.0) não sejam emitidos como int no JSON, o que o CRM rejeita em campos float.
+     */
+    protected function executeRequestWithPreservedFloatJson(string $method, string $url, array $data, string $token): \Illuminate\Http\Client\Response
+    {
+        $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+
+        $base = Http::timeout(30)
+            ->withToken($token)
+            ->accept('application/json')
+            ->contentType('application/json')
+            ->withBody($json, 'application/json');
+
+        return match (strtoupper($method)) {
+            'POST' => $base->post($url),
+            'PUT' => $base->put($url),
+            'PATCH' => $base->patch($url),
+            'DELETE' => $base->delete($url),
+            default => $this->executeRequest($method, $url, $data, $token),
         };
     }
 
@@ -445,19 +477,19 @@ class RdStationCrmClient
 
     public function criarNegociacao(array $data): array
     {
-        return $this->makeRequest('POST', 'deals', ['data' => $data]);
+        return $this->makeRequest('POST', 'deals', ['data' => $data], [], true);
     }
 
     public function atualizarNegociacao(string $id, array $data): array
     {
-        return $this->makeRequest('PUT', "deals/{$id}", ['data' => $data]);
+        return $this->makeRequest('PUT', "deals/{$id}", ['data' => $data], [], true);
     }
 
     // ─── Deal Products (Produtos na negociação) ─────────────────
 
     public function criarProdutoNegociacao(string $dealId, array $data): array
     {
-        return $this->makeRequest('POST', "deals/{$dealId}/products", ['data' => $data]);
+        return $this->makeRequest('POST', "deals/{$dealId}/products", ['data' => $data], [], true);
     }
 
     // ─── Users (for health check) ───────────────────────────────

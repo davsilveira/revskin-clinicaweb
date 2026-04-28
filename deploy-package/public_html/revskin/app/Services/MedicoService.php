@@ -160,7 +160,6 @@ class MedicoService
 
         return array_values(array_filter($enderecos, function ($e) {
             $nome = trim($e['nome'] ?? '');
-
             return $nome !== '';
         }));
     }

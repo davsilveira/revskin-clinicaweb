@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AssistenteCasoClinico;
 use App\Models\AssistenteRegra;
 use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
+use App\Models\TabelaKarnaugh;
 use App\Services\RegrasCondicionaisEngine;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -68,12 +70,12 @@ class AssistenteReceitaController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-
+        
         // Para admin, fornecer lista de médicos para seleção
         // Para médico, usar seu próprio medico_id
         $medicos = [];
         $currentMedicoId = $user->medico_id;
-
+        
         if ($user->isAdmin()) {
             $medicos = Medico::where('ativo', true)
                 ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
@@ -83,7 +85,7 @@ class AssistenteReceitaController extends Controller
                 ->load('linkedUser:id,name,medico_id')
                 ->map(fn ($m) => [
                     'id' => $m->id,
-                    'label' => ($m->nome ?? $m->apelido ?? 'Médico')." (CRM: {$m->crm})",
+                    'label' => ($m->nome ?? $m->apelido ?? 'Médico') . " (CRM: {$m->crm})"
                 ]);
         }
 
@@ -162,10 +164,10 @@ class AssistenteReceitaController extends Controller
         $paciente = null;
         if ($validated['paciente_id']) {
             $paciente = Paciente::find($validated['paciente_id']);
-
+            
             // Check if user can access this paciente
             $user = $request->user();
-            if ($paciente && ! $user->canAccessPaciente($paciente)) {
+            if ($paciente && !$user->canAccessPaciente($paciente)) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
         }
@@ -201,14 +203,14 @@ class AssistenteReceitaController extends Controller
         $codigoKarnaugh = RegrasCondicionaisEngine::gerarCodigoKarnaugh($validated);
 
         // Usar o motor de regras condicionais
-        $engine = new RegrasCondicionaisEngine;
+        $engine = new RegrasCondicionaisEngine();
         $engine->processar($validated);
 
         // Obter produtos sugeridos através do engine
         $produtosSugeridos = $engine->obterProdutosSugeridos($codigoKarnaugh, $validated);
 
         // Se o engine não retornou produtos (nenhuma tabela cadastrada), usar método legado
-        if (empty($produtosSugeridos) && ! $engine->getTabelaSelecionada()) {
+        if (empty($produtosSugeridos) && !$engine->getTabelaSelecionada()) {
             $produtosSugeridos = $this->processarMetodoLegado($validated, $codigoKarnaugh);
         }
 
@@ -218,14 +220,14 @@ class AssistenteReceitaController extends Controller
             ?? $paciente?->medico_id
             ?? $user->medico_id;
 
-        if (! $medicoId) {
+        if (!$medicoId) {
             return response()->json([
                 'error' => 'Nenhum médico vinculado ao paciente. Selecione um médico primeiro.',
             ], 422);
         }
 
         // Se o paciente não tinha médico vinculado, salvar o vínculo para futuro
-        if ($paciente && ! $paciente->medico_id) {
+        if ($paciente && !$paciente->medico_id) {
             $paciente->update(['medico_id' => $medicoId]);
         }
 
@@ -248,10 +250,10 @@ class AssistenteReceitaController extends Controller
 
             $produto = $item['produto'];
             $valorUnitario = $produto->preco_venda ?? $produto->preco ?? 0;
-
+            
             // Determinar grupo: 'recomendado' (selecionado) ou 'opcional' (não selecionado)
             $grupo = ($item['selecionado'] ?? false) ? 'recomendado' : 'opcional';
-
+            
             // imprimir = true para recomendados, false para opcionais
             $imprimir = $grupo === 'recomendado';
 
@@ -295,14 +297,14 @@ class AssistenteReceitaController extends Controller
 
                 // Resolver TONALITE-__- pelo fototipo selecionado
                 $codigoBusca = $nomeProduto;
-                if (str_contains($nomeProduto, 'TONALITE-__-') && ! empty($validated['fototipo'] ?? null)) {
+                if (str_contains($nomeProduto, 'TONALITE-__-') && !empty($validated['fototipo'] ?? null)) {
                     $fototipoFormatado = str_replace('.', ',', $validated['fototipo']);
-                    $codigoBusca = str_replace('TONALITE-__-', 'TONALITE-'.$fototipoFormatado.'-', $nomeProduto);
+                    $codigoBusca = str_replace('TONALITE-__-', 'TONALITE-' . $fototipoFormatado . '-', $nomeProduto);
                 }
 
                 // Buscar produto por nome ou código
                 $produto = $this->buscarProdutoPorNome($codigoBusca);
-
+                
                 if ($produto) {
                     $produtosSugeridos[] = [
                         'produto_id' => $produto->id,
@@ -334,23 +336,23 @@ class AssistenteReceitaController extends Controller
 
     /**
      * Montar código Karnaugh a partir das condições selecionadas.
-     *
+     * 
      * Formato: {tipoPele}M{manchas}R{rugas}A{acne}
      * Onde tipoPele = PN, PS, PM, PO, PR (2 caracteres)
-     *
+     * 
      * Exemplos: PSM1R1A1, POM2R3A2, PNM1R2A1
      */
     private function montarCodigoKarnaugh(array $condicoes): string
     {
         // Tipo de pele: PN, PS, PM, PO, PR
         $tipoPele = self::TIPO_PELE_MAP[$condicoes['tipo_pele'] ?? 'Normal'] ?? 'PN';
-
+        
         // Manchas: 1, 2 ou 3
         $manchas = self::INTENSIDADE_MAP[$condicoes['manchas'] ?? 'Não'] ?? 1;
-
+        
         // Rugas: 1, 2 ou 3
         $rugas = self::INTENSIDADE_MAP[$condicoes['rugas'] ?? 'Não'] ?? 1;
-
+        
         // Acne: 1, 2 ou 3
         $acne = self::INTENSIDADE_MAP[$condicoes['acne'] ?? 'Não'] ?? 1;
 
@@ -369,7 +371,7 @@ class AssistenteReceitaController extends Controller
             ->where('ativo', true)
             ->first();
 
-        if ($regra && ! empty($regra->produtos)) {
+        if ($regra && !empty($regra->produtos)) {
             return $regra->produtos;
         }
 
@@ -377,12 +379,12 @@ class AssistenteReceitaController extends Controller
         $jsonPath = database_path('seeders/karnaugh_data.json');
         if (file_exists($jsonPath)) {
             $dados = json_decode(file_get_contents($jsonPath), true);
-
+            
             foreach ($dados as $linha) {
                 // Normalizar código (remover espaços, uppercase)
                 $codigoLinha = strtoupper(preg_replace('/\s+/', '', $linha['caso_clinico']));
                 $codigoBusca = strtoupper(preg_replace('/\s+/', '', $codigo));
-
+                
                 if ($codigoLinha === $codigoBusca) {
                     return $linha['produtos'] ?? null;
                 }
@@ -399,7 +401,7 @@ class AssistenteReceitaController extends Controller
     {
         // Limpar o nome
         $nome = trim($nome);
-
+        
         if (empty($nome) || $nome === '-') {
             return null;
         }
@@ -417,14 +419,14 @@ class AssistenteReceitaController extends Controller
         }
 
         // Buscar por nome parcial (LIKE)
-        $produto = Produto::where('nome', 'LIKE', '%'.$nome.'%')->first();
+        $produto = Produto::where('nome', 'LIKE', '%' . $nome . '%')->first();
         if ($produto) {
             return $produto;
         }
 
         // Buscar por nome_completo se existir
-        $produto = Produto::where('nome_completo', 'LIKE', '%'.$nome.'%')->first();
-
+        $produto = Produto::where('nome_completo', 'LIKE', '%' . $nome . '%')->first();
+        
         return $produto;
     }
 
@@ -451,13 +453,13 @@ class AssistenteReceitaController extends Controller
             ?? $paciente?->medico_id
             ?? $user->medico_id;
 
-        if (! $medicoId) {
+        if (!$medicoId) {
             return response()->json([
                 'error' => 'Nenhum médico vinculado ao paciente. Selecione um médico primeiro.',
             ], 422);
         }
 
-        if ($paciente && ! $paciente->medico_id) {
+        if ($paciente && !$paciente->medico_id) {
             $paciente->update(['medico_id' => $medicoId]);
         }
 
@@ -476,7 +478,7 @@ class AssistenteReceitaController extends Controller
                 $produto = \App\Models\Produto::find($item['produto_id']);
                 $valorUnitario = $produto?->preco ?? 0;
             }
-
+            
             $receita->itens()->create([
                 'produto_id' => $item['produto_id'],
                 'local_uso' => $item['local_uso'] ?? null,
@@ -503,7 +505,7 @@ class AssistenteReceitaController extends Controller
     {
         // Carregar regras do banco ou do arquivo JSON inicial
         $regras = AssistenteRegra::orderBy('id')->get();
-
+        
         // Se não houver regras no banco, carregar do arquivo JSON de seed
         if ($regras->isEmpty()) {
             $jsonPath = database_path('seeders/karnaugh_data.json');
@@ -556,7 +558,7 @@ class AssistenteReceitaController extends Controller
                 'ativo' => true,
             ];
 
-            if (! empty($regraData['id']) && AssistenteRegra::find($regraData['id'])) {
+            if (!empty($regraData['id']) && AssistenteRegra::find($regraData['id'])) {
                 AssistenteRegra::find($regraData['id'])->update($data);
             } else {
                 AssistenteRegra::create($data);
@@ -573,29 +575,29 @@ class AssistenteReceitaController extends Controller
     {
         // Normalizar código
         $codigo = strtoupper(preg_replace('/\s+/', '', $codigo));
-
+        
         $condicoes = [];
-
+        
         // Tipo de pele: PSM ou PO
         if (preg_match('/^P(SM|O)/', $codigo, $matches)) {
             $condicoes['tipo_pele'] = $matches[1] === 'SM' ? 'seca_mista' : 'oleosa';
         }
-
+        
         // Manchas: M1, M2 ou M3
         if (preg_match('/M(\d)/', $codigo, $matches)) {
             $condicoes['manchas'] = (int) $matches[1];
         }
-
+        
         // Rugas: R1, R2 ou R3
         if (preg_match('/R(\d)/', $codigo, $matches)) {
             $condicoes['rugas'] = (int) $matches[1];
         }
-
+        
         // Acne: A1, A2 ou A3
         if (preg_match('/A(\d)/', $codigo, $matches)) {
             $condicoes['acne'] = (int) $matches[1];
         }
-
+        
         return $condicoes;
     }
 }
