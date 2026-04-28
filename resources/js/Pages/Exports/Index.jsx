@@ -5,6 +5,7 @@ import PageHeader from '@/Components/PageHeader';
 import Pagination from '@/Components/Pagination';
 import Checkbox from '@/Components/Form/Checkbox';
 import Toast from '@/Components/Toast';
+import DatePickerField from '@/Components/Form/DatePickerField';
 
 export default function ExportsIndex({
     history,
@@ -420,36 +421,30 @@ export default function ExportsIndex({
                     {/* Date filters */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-3">
-                            <label className="block text-sm font-medium text-gray-700">
-                                Data inicial
-                            </label>
-                            <input
-                                type="date"
+                            <DatePickerField
+                                label="Data inicial"
                                 value={form.data.filters.created_from || form.data.filters.data_receita_from || form.data.filters.data_abertura_from || ''}
-                                onChange={(event) => {
+                                onChange={(v) => {
                                     const key = form.data.type === 'receitas' ? 'data_receita_from' : 
                                                form.data.type === 'atendimentos' ? 'data_abertura_from' : 
                                                'created_from';
-                                    handleFilterChange(key, event.target.value);
+                                    handleFilterChange(key, v);
                                 }}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                allowType
                             />
                         </div>
 
                         <div className="space-y-3">
-                            <label className="block text-sm font-medium text-gray-700">
-                                Data final
-                            </label>
-                            <input
-                                type="date"
+                            <DatePickerField
+                                label="Data final"
                                 value={form.data.filters.created_to || form.data.filters.data_receita_to || form.data.filters.data_abertura_to || ''}
-                                onChange={(event) => {
+                                onChange={(v) => {
                                     const key = form.data.type === 'receitas' ? 'data_receita_to' : 
                                                form.data.type === 'atendimentos' ? 'data_abertura_to' : 
                                                'created_to';
-                                    handleFilterChange(key, event.target.value);
+                                    handleFilterChange(key, v);
                                 }}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                allowType
                             />
                         </div>
                     </div>

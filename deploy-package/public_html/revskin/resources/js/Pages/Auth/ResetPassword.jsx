@@ -1,7 +1,9 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { publicAsset } from '@/utils/publicAsset';
 
 export default function ResetPassword({ email, token }) {
+    const { assetVersion } = usePage().props;
     const { data, setData, post, processing, errors } = useForm({
         token: token,
         email: email,
@@ -26,7 +28,7 @@ export default function ResetPassword({ email, token }) {
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center justify-center mb-4">
                             <img
-                                src="/images/logo.jpeg"
+                                src={publicAsset('/images/logo.jpeg', assetVersion)}
                                 alt="ClincaWeb"
                                 className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-zinc-200/90"
                             />

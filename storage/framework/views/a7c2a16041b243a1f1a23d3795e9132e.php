@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Receita <?php echo e($receita->numero); ?></title>
+    <style>
+        @page {
+            margin: 22mm 25mm 20mm 25mm;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'DejaVu Serif', 'Times New Roman', serif;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #1a1a1a;
+            background: #fff;
+        }
+        .container {
+            max-width: 100%;
+            padding: 4mm 15mm 0 15mm;
+        }
+        
+        /* Cabeçalho */
+        /* table: DomPDF trata melhor que flex; logo à esquerda, médico à direita na mesma linha */
+        .cabecalho {
+            margin-bottom: 25px;
+            margin-top: 0;
+            padding-bottom: 18px;
+            padding-top: 0;
+            border-bottom: 1px solid #ddd;
+            display: table;
+            width: 100%;
+        }
+        .cabecalho-logo {
+            display: table-cell;
+            width: 80px;
+            vertical-align: top;
+            padding-right: 20px;
+            padding-top: 0;
+        }
+        .cabecalho-logo-img {
+            max-width: 70px;
+            max-height: 70px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+            margin-top: 2px;
+        }
+        .cabecalho-profissional {
+            display: table-cell;
+            vertical-align: top;
+            width: auto;
+            padding-top: 0;
+        }
+        .nome-profissional {
+            font-size: 15px;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            margin-top: 0;
+            padding-top: 0;
+            line-height: 1.1;
+        }
+        .profissao-especialidade {
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .registro-profissional {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 3px;
+        }
+        .contato-profissional {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Dados do Paciente */
+        .dados-paciente {
+            margin-bottom: 22px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .dados-paciente-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        .paciente-info {
+            font-size: 12px;
+            line-height: 1.7;
+            color: #1a1a1a;
+        }
+        .paciente-info > div {
+            margin-bottom: 4px;
+        }
+        .paciente-info strong {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* Corpo da Receita - Fórmulas */
+        .corpo-receita {
+            margin-bottom: 30px;
+        }
+        .formula {
+            margin-bottom: 20px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .formula:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .formula-nome {
+            font-size: 13px;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 10px;
+        }
+        .formula-composicao {
+            font-size: 11px;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .formula-detalhes {
+            margin-top: 10px;
+        }
+        .formula-detalhe-item {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 5px;
+            line-height: 1.5;
+        }
+        .formula-detalhe-label {
+            font-weight: bold;
+            color: #444;
+        }
+        .modo-uso-label {
+            display: block;
+            margin-bottom: 2px;
+        }
+        .modo-uso-conteudo {
+            margin-top: 2px;
+        }
+        
+        /* Rodapé */
+        .rodape {
+            margin-top: 35px;
+            padding-top: 25px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+        }
+        .assinatura-section {
+            margin-bottom: 20px;
+        }
+        .assinatura-container {
+            display: inline-block;
+            text-align: center;
+        }
+        .assinatura-img {
+            max-height: 55px;
+            max-width: 160px;
+            margin-bottom: 12px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .assinatura-linha {
+            border-top: 1px solid #333;
+            width: 180px;
+            margin: 0 auto 12px;
+        }
+        .assinatura-nome {
+            font-weight: bold;
+            font-size: 12px;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+        .assinatura-registro {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 2px;
+        }
+        .validade {
+            font-size: 11px;
+            color: #555;
+            margin-top: 15px;
+        }
+        .validade-label {
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Cabeçalho -->
+        <div class="cabecalho">
+            <?php if(!empty($clinicaLogoFullPath ?? null)): ?>
+            <div class="cabecalho-logo">
+                <img class="cabecalho-logo-img" src="<?php echo e($clinicaLogoFullPath); ?>" alt="">
+            </div>
+            <?php endif; ?>
+            <div class="cabecalho-profissional">
+                <div class="nome-profissional">
+                    <?php echo e($receita->medico->nome); ?>
+
+                </div>
+                <div class="profissao-especialidade">
+                    Médico
+                    <?php if($receita->medico->especialidade): ?>
+                        <?php echo e($receita->medico->especialidade); ?>
+
+                    <?php endif; ?>
+                </div>
+                <?php if($receita->medico->crm): ?>
+                    <div class="registro-profissional">
+                        CRM
+                        <?php if($receita->medico->uf): ?>
+                            -<?php echo e($receita->medico->uf); ?>
+
+                        <?php endif; ?>
+                        <?php echo e($receita->medico->crm); ?>
+
+                    </div>
+                <?php endif; ?>
+                <?php if($receita->medico->cidade || $receita->medico->uf || $receita->medico->telefone1): ?>
+                    <div class="contato-profissional">
+                        <?php if($receita->medico->cidade): ?>
+                            <?php echo e($receita->medico->cidade); ?>
+
+                        <?php endif; ?>
+                        <?php if($receita->medico->cidade && $receita->medico->uf): ?>
+                            /
+                        <?php endif; ?>
+                        <?php if($receita->medico->uf): ?>
+                            <?php echo e($receita->medico->uf); ?>
+
+                        <?php endif; ?>
+                        <?php if($receita->medico->telefone1): ?>
+                            <?php if($receita->medico->cidade || $receita->medico->uf): ?>
+                                | 
+                            <?php endif; ?>
+                            <?php echo e($receita->medico->telefone1); ?>
+
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Dados do Paciente -->
+        <div class="dados-paciente">
+            <div class="dados-paciente-title">Dados do Paciente</div>
+            <div class="paciente-info">
+                <div>
+                    <strong>Paciente:</strong> <?php echo e($receita->paciente->nome); ?>
+
+                </div>
+                <?php if($receita->paciente->sexo): ?>
+                    <div>
+                        <strong>Sexo:</strong> <?php echo e(ucfirst($receita->paciente->sexo)); ?>
+
+                    </div>
+                <?php endif; ?>
+                <div>
+                    <strong>Data:</strong> <?php echo e($receita->data_receita->format('d/m/Y')); ?>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Corpo da Receita -->
+        <div class="corpo-receita">
+            <div class="formula-nome" style="margin-bottom: 15px; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+                USO TÓPICO
+            </div>
+            <?php $__currentLoopData = $receita->itens; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <div class="formula">
+                    <div class="formula-nome">
+                        <?php echo e($item->produto->nome); ?>
+
+                    </div>
+                    
+                    <?php if($item->produto->descricao): ?>
+                        <div class="formula-composicao">
+                            <?php
+                                $desc = preg_replace("/\r\n|\r|\n/", "\n", $item->produto->descricao);
+                                $desc = str_replace(['\n', '/n'], "\n", $desc);
+                                $desc = preg_replace("/\n{2,}/", "\n", $desc);
+                            ?>
+                            <?php echo nl2br(e($desc)); ?>
+
+                        </div>
+                    <?php endif; ?>
+                    
+                    <div class="formula-detalhes">
+                        <?php if($item->produto->modo_uso): ?>
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label modo-uso-label">Modo de uso:</span>
+                                <?php
+                                    $modo = preg_replace("/\r\n|\r|\n/", "\n", $item->produto->modo_uso);
+                                    $modo = str_replace(['\n', '/n'], "\n", $modo);
+                                    $modo = preg_replace("/\n{2,}/", "\n", $modo);
+                                ?>
+                                <div class="modo-uso-conteudo"><?php echo nl2br(e($modo)); ?></div>
+                            </div>
+                        <?php elseif($item->anotacoes): ?>
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label modo-uso-label">Modo de uso:</span>
+                                <div class="modo-uso-conteudo"><?php echo e($item->anotacoes); ?></div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if($item->quantidade): ?>
+                            <div class="formula-detalhe-item">
+                                <span class="formula-detalhe-label">Quantidade:</span> <?php echo e($item->quantidade); ?>
+
+                                <?php if($item->produto->unidade): ?>
+                                    <?php echo e($item->produto->unidade); ?>
+
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="rodape">
+            <div class="assinatura-section">
+                <div class="assinatura-container">
+                    <?php
+                        $assinaturaPath = null;
+                        if ($receita->medico->assinatura_path) {
+                            $fullPath = storage_path('app/public/' . $receita->medico->assinatura_path);
+                            if (file_exists($fullPath)) {
+                                $assinaturaPath = $fullPath;
+                            }
+                        }
+                    ?>
+                    <?php if($assinaturaPath): ?>
+                        <img class="assinatura-img" src="<?php echo e($assinaturaPath); ?>" alt="Assinatura">
+                    <?php else: ?>
+                        <div class="assinatura-linha"></div>
+                    <?php endif; ?>
+                    
+                    <div class="assinatura-nome">
+                        <?php echo e($receita->medico->nome); ?>
+
+                    </div>
+                    
+                    <?php if($receita->medico->crm): ?>
+                        <div class="assinatura-registro">
+                            CRM
+                            <?php if($receita->medico->uf): ?>
+                                -<?php echo e($receita->medico->uf); ?>
+
+                            <?php endif; ?>
+                            <?php echo e($receita->medico->crm); ?>
+
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php if($receita->medico->especialidade): ?>
+                        <div class="assinatura-registro">
+                            <?php echo e($receita->medico->especialidade); ?>
+
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</body>
+</html>
+<?php /**PATH /Users/darvin/Apps/revskin/resources/views/pdf/receita.blade.php ENDPATH**/ ?>

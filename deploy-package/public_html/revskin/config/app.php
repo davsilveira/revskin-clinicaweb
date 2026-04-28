@@ -89,5 +89,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-];
+    /*
+    |--------------------------------------------------------------------------
+    | Versão de assets estáticos (public/images, etc.)
+    |--------------------------------------------------------------------------
+    |
+    | Usada em ?v= nas URLs para cache bust. Defina ASSET_VERSION no deploy ao
+    | trocar imagens sem novo build; se vazio, usa filemtime do manifest Vite.
+    |
+    */
 
+    'asset_version' => env('ASSET_VERSION'),
+
+];

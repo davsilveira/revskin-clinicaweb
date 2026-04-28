@@ -202,7 +202,9 @@ export default function DashboardLayout({ children }) {
                             {showLabels && <span className="font-medium">Pacientes</span>}
                         </Link>
 
-                        {/* Receitas (medico and admin) */}
+                        {/* Receitas: sem item no menu lateral (acesso por Pacientes / URLs) */}
+
+                        {/* Relatórios e catálogo (médico e admin) */}
                         {(isAdmin || isMedico) && (
                             <>
                                 <Link

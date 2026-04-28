@@ -8,11 +8,33 @@ import 'tippy.js/themes/light-border.css';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
 
+const tippyCopiarProps = {
+    appendTo: () => document.body,
+    popperOptions: { strategy: 'fixed' },
+    zIndex: 9999,
+};
+
+const copiarTippyOk = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Repete a prescrição numa nova receita com a data de hoje.
+    </div>
+);
+
+const copiarTippyBloqueio = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.
+    </div>
+);
+
 export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [showCopiarModal, setShowCopiarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
+
+    const canCopiar = !(receita.receita_origem_id && receita.status === 'aberta');
+    const receitaOrigem = receita.receita_origem;
+    const copiarTippy = canCopiar ? copiarTippyOk : copiarTippyBloqueio;
 
 const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -38,8 +60,18 @@ const formatDate = (dateString) => {
     };
 
     const handleCopiar = () => {
-        router.post(`/receitas/${receita.id}/copiar`);
+        if (!canCopiar) {
+            return;
+        }
+        router.post(`/receitas/${receita.id}/copiar`, {}, { preserveScroll: true });
         setShowCopiarModal(false);
+    };
+
+    const openCopiarModal = () => {
+        if (!canCopiar) {
+            return;
+        }
+        setShowCopiarModal(true);
     };
 
     const handleCancelar = () => {
@@ -70,6 +102,17 @@ const formatDate = (dateString) => {
                             <h1 className="text-2xl font-bold text-gray-900">
                                 {tituloReceitaComSequencia('Receita', receita.numero)}
                             </h1>
+                            {receitaOrigem && (
+                                <div className="mt-2 text-sm text-gray-600 flex flex-wrap items-center gap-1.5">
+                                    <span className="text-gray-500">Duplicada de</span>
+                                    <Link
+                                        href={`/receitas/${receitaOrigem.id}`}
+                                        className="font-medium text-amber-700 hover:text-amber-800 hover:underline"
+                                    >
+                                        {tituloReceitaComSequencia('Receita', receitaOrigem.numero)}
+                                    </Link>
+                                </div>
+                            )}
                             {receita.paciente?.codigo != null && String(receita.paciente.codigo).trim() !== '' && (
                                 <p className="mt-1.5 text-sm text-gray-600">
                                     <span className="text-gray-500">Nº registro </span>
@@ -352,15 +395,28 @@ const formatDate = (dateString) => {
                                     </Link>
                                 )}
 
-                                <button
-                                    onClick={() => setShowCopiarModal(true)}
-                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                <Tippy
+                                    content={copiarTippy}
+                                    placement="top"
+                                    theme="light-border"
+                                    {...tippyCopiarProps}
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                    Copiar Receita
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={openCopiarModal}
+                                        aria-disabled={!canCopiar}
+                                        className={`w-full flex items-center justify-center gap-2 px-3 py-2 border text-sm rounded-lg transition-colors ${
+                                            canCopiar
+                                                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                                : 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50'
+                                        }`}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                        Copiar Receita
+                                    </button>
+                                </Tippy>
 
                                 {receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada') && (
                                     <button

@@ -12,6 +12,7 @@ class ExtrairDadosLegado extends Command
                             {--sql=docs/clinicaweb/database/bkp_cw2_20260325.sql : Arquivo SQL dump do ClinicaWeb}
                             {--output=docs/migration : Diretório de saída para JSONs e CSVs}
                             {--sem-csv : Não gerar arquivos CSV (apenas JSON)}
+                            {--incluir-receitas-canceladas : Incluir receitas com ativo=0 no legado (omitidas por omissão)}
                             {--mapeamento-codigos=docs/sanitization/mapeamento-codigos-legado-base.md : Markdown com tabela legado → base (receitas e preview)}';
 
     protected $description = 'Extrai dados do dump SQL do ClinicaWeb e gera JSON/CSV para revisão. Gera produtos-import-preview.csv com nome/descricao/modo_uso após LegadoProdutoDescricaoParser (igual importação).';
@@ -176,7 +177,7 @@ class ExtrairDadosLegado extends Command
         $this->line("   {$this->count($medicos)} médicos extraídos");
 
         $this->info('4/8 Extraindo usuários...');
-        $users = $this->extrairUsers();
+        $users = $this->extrairUsers($medicos);
         $this->line("   {$this->count($users)} usuários extraídos");
 
         $this->info('5/8 Extraindo pacientes...');
@@ -184,6 +185,9 @@ class ExtrairDadosLegado extends Command
         $this->line("   {$this->count($pacientes)} pacientes extraídos");
 
         $this->info('6/8 Extraindo receitas...');
+        if ($this->option('incluir-receitas-canceladas')) {
+            $this->line('   (modo: incluir receitas canceladas no legado — ativo=0)');
+        }
         $receitas = $this->extrairReceitas();
         $this->line("   {$this->count($receitas)} receitas extraídas");
 
@@ -682,8 +686,20 @@ class ExtrairDadosLegado extends Command
         return $medicos;
     }
 
-    private function extrairUsers(): array
+    /**
+     * @param  array<int, array<string, mixed>>  $medicos  saída de extrairMedicos() para nome canónico por legado_id
+     */
+    private function extrairUsers(array $medicos = []): array
     {
+        $nomeMedicoPorLegadoId = [];
+        foreach ($medicos as $m) {
+            $lid = $m['legado_id'] ?? null;
+            if ($lid === null || $lid === '') {
+                continue;
+            }
+            $nomeMedicoPorLegadoId[(int) $lid] = $m['nome_legado'] ?? '';
+        }
+
         // Build lookup indices
         $rolesById = [];
         foreach ($this->dadosBrutos['role'] ?? [] as $row) {
@@ -730,9 +746,21 @@ class ExtrairDadosLegado extends Command
                 $avisos[] = 'Usuário desativado no sistema antigo';
             }
 
+            $nomeUser = $this->colStr($row, $c, 'nome');
+            if ($newRole === 'medico' && \count($medicoIds) === 1) {
+                $mid = (int) $medicoIds[0];
+                $nomeMedico = $nomeMedicoPorLegadoId[$mid] ?? '';
+                if ($nomeMedico !== '' && $nomeMedico !== $nomeUser) {
+                    $avisos[] = 'Nome no user legado ('.$nomeUser.') substituído pelo cadastro de médico ('.$nomeMedico.').';
+                    $nomeUser = $nomeMedico;
+                } elseif ($nomeMedico !== '') {
+                    $nomeUser = $nomeMedico;
+                }
+            }
+
             $users[] = [
                 'legado_id' => $userId,
-                'nome' => $this->colStr($row, $c, 'nome'),
+                'nome' => $nomeUser,
                 'email' => $email,
                 'username' => $this->colStr($row, $c, 'username'),
                 'role' => $newRole,
@@ -804,9 +832,7 @@ class ExtrairDadosLegado extends Command
             if ($obs) {
                 $anotacoes[] = $obs;
             }
-            if ($amiga) {
-                $anotacoes[] = "Indicação: {$amiga}";
-            }
+            // Indicação vai para indicado_por no JSON; não duplicar em anotacoes
             if ($vip && strtolower($vip) !== 'n' && $vip !== '0') {
                 $anotacoes[] = "VIP: {$vip}";
             }
@@ -820,6 +846,7 @@ class ExtrairDadosLegado extends Command
             $pacientes[] = [
                 'legado_id' => $this->col($row, $c, 'id'),
                 'codigo' => $this->colStr($row, $c, 'nr_registro'),
+                'indicado_por' => $amiga !== '' ? $amiga : null,
                 'nome' => $nome,
                 'data_nascimento' => $this->normalizarData($this->colStr($row, $c, 'dataNascimento')),
                 'sexo' => $this->colStr($row, $c, 'sexo'),
@@ -878,19 +905,38 @@ class ExtrairDadosLegado extends Command
             $produtoByItem[$row[1]] = $row[0];
         }
 
-        // produto indexed by id (we only need codigo)
+        // produto indexed by id: codigo + descricao (nome legível quando sem código)
         $produtosById = [];
+        $produtoDescricaoById = [];
+        $pc = self::COLS_PRODUTO;
         foreach ($this->dadosBrutos['produto'] ?? [] as $row) {
-            $produtosById[$row[self::COLS_PRODUTO['id']]] = $row[self::COLS_PRODUTO['codigo']];
+            $pid = $row[$pc['id']] ?? null;
+            if ($pid === null || $pid === '') {
+                continue;
+            }
+            $cCod = trim((string) ($this->col($row, $pc, 'codigo') ?? ''));
+            $cCq = trim((string) ($this->col($row, $pc, 'codigoCQ') ?? ''));
+            $produtosById[$pid] = $cCod !== '' ? $cCod : ($cCq !== '' ? $cCq : null);
+            $dDesc = $this->colStr($row, $pc, 'descricao');
+            $dNomeGen = $this->colStr($row, $pc, 'nomeGenerico');
+            $produtoDescricaoById[$pid] = ($dDesc !== null && $dDesc !== '')
+                ? $dDesc
+                : (($dNomeGen !== null && $dNomeGen !== '') ? $dNomeGen : null);
         }
 
         $avisosProdutos = [];
         $receitas = [];
 
+        $incluirCanceladas = (bool) $this->option('incluir-receitas-canceladas');
+
         foreach ($this->dadosBrutos['receita'] ?? [] as $row) {
             $c = self::COLS_RECEITA;
             $receitaId = $this->col($row, $c, 'id');
             $ativo = $this->col($row, $c, 'ativo');
+
+            if (! $incluirCanceladas && ! $ativo) {
+                continue;
+            }
 
             $itemIds = $itensByReceita[$receitaId] ?? [];
             $itensExtraidos = [];
@@ -914,11 +960,15 @@ class ExtrairDadosLegado extends Command
                 }
 
                 $ordem++;
+                $descLegado = ($produtoIdLegado !== null && $produtoIdLegado !== '')
+                    ? ($produtoDescricaoById[$produtoIdLegado] ?? null)
+                    : null;
                 $itensExtraidos[] = [
                     'legado_id' => $this->col($itemRow, $ic, 'id'),
                     'legado_produto_id' => $produtoIdLegado,
                     'codigo_produto_legado' => $codigoLegado,
                     'codigo_produto_mapeado' => $codigoMapeado,
+                    'descricao_produto_legado' => $descLegado,
                     'local_uso' => $this->colStr($itemRow, $ic, 'local_uso'),
                     'anotacoes' => $this->colStr($itemRow, $ic, 'anotacoes'),
                     'quantidade' => $this->col($itemRow, $ic, 'quant') ?? 1,
@@ -1003,6 +1053,7 @@ class ExtrairDadosLegado extends Command
         }
 
         $dtaReceitaByReceita = [];
+        $receitaAtivaById = [];
         $cRec = self::COLS_RECEITA;
         foreach ($this->dadosBrutos['receita'] ?? [] as $row) {
             $rid = $this->col($row, $cRec, 'id');
@@ -1010,7 +1061,10 @@ class ExtrairDadosLegado extends Command
                 continue;
             }
             $dtaReceitaByReceita[$rid] = $this->normalizarData($this->colStr($row, $cRec, 'dta_receita'));
+            $receitaAtivaById[$rid] = (bool) $this->col($row, $cRec, 'ativo');
         }
+
+        $incluirReceitasCanceladas = (bool) $this->option('incluir-receitas-canceladas');
 
         $aquisicaoProdutoById = [];
         foreach ($this->dadosBrutos['aquisicao_produto'] ?? [] as $row) {
@@ -1025,6 +1079,8 @@ class ExtrairDadosLegado extends Command
         $skippedSemReceita = 0;
         $skippedSemItem = 0;
         $skippedSemData = 0;
+        $skippedNoLegacyLineMatch = 0;
+        $skippedAmbiguousMultiLine = 0;
 
         $ap = self::COLS_AQUISICAO_PRODUTO;
         $aq = self::COLS_AQUISICAO;
@@ -1074,6 +1130,9 @@ class ExtrairDadosLegado extends Command
 
             $comProduto = [];
             foreach ($candidatas as $recId) {
+                if (! $incluirReceitasCanceladas && ! ($receitaAtivaById[$recId] ?? false)) {
+                    continue;
+                }
                 foreach ($itensByReceita[$recId] ?? [] as $itemId) {
                     $pLeg = $produtoByItem[$itemId] ?? null;
                     if ($pLeg !== null && $pLeg !== '' && (string) $pLeg === (string) $produtoIdLegado) {
@@ -1101,7 +1160,7 @@ class ExtrairDadosLegado extends Command
                 }
             }
 
-            $escolhido = null;
+            $matches = [];
             foreach ($filtradas as $cand) {
                 $itemRow = $itensById[$cand['item_id']] ?? null;
                 if (! $itemRow) {
@@ -1109,13 +1168,23 @@ class ExtrairDadosLegado extends Command
                 }
                 $dtaUlt = $this->normalizarData($this->colStr($itemRow, $ic, 'dta_ult_aquisicao'));
                 if ($dtaUlt === $dataFinal) {
-                    $escolhido = $cand;
-                    break;
+                    $matches[] = $cand;
                 }
             }
-            if ($escolhido === null) {
-                $escolhido = $filtradas[0];
+
+            if (\count($matches) === 0) {
+                $skippedNoLegacyLineMatch++;
+
+                continue;
             }
+
+            if (\count($matches) > 1) {
+                $skippedAmbiguousMultiLine++;
+
+                continue;
+            }
+
+            $escolhido = $matches[0];
 
             $out[] = [
                 'legado_receita_item_id' => (int) $escolhido['item_id'],
@@ -1136,12 +1205,15 @@ class ExtrairDadosLegado extends Command
             $deduped[] = $row;
         }
 
-        if ($skippedSemAtendimento + $skippedSemReceita + $skippedSemItem + $skippedSemData > 0) {
+        if ($skippedSemAtendimento + $skippedSemReceita + $skippedSemItem + $skippedSemData
+            + $skippedNoLegacyLineMatch + $skippedAmbiguousMultiLine > 0) {
             $this->warn(
                 'Item aquisições: sem atendimento='.$skippedSemAtendimento
                 .', sem receita (CC)='.$skippedSemReceita
                 .', sem linha receita/produto='.$skippedSemItem
                 .', sem data='.$skippedSemData
+                .', sem linha com dta_ult_aquisicao = data CC='.$skippedNoLegacyLineMatch
+                .', múltiplas linhas candidatas (ambíguo)='.$skippedAmbiguousMultiLine
             );
         }
 
@@ -1475,7 +1547,7 @@ class ExtrairDadosLegado extends Command
         }
         $this->escreverCsv($outputDir, 'receitas-resumo', $hRecSum, $rowsRecSum);
 
-        $hRecIt = ['receita_legado_id', 'item_legado_id', 'legado_produto_id', 'codigo_produto_legado', 'codigo_produto_mapeado', 'local_uso', 'anotacoes', 'quantidade', 'valor_unitario', 'valor_total', 'data_aquisicao', 'imprimir', 'ordem'];
+        $hRecIt = ['receita_legado_id', 'item_legado_id', 'legado_produto_id', 'codigo_produto_legado', 'codigo_produto_mapeado', 'descricao_produto_legado', 'local_uso', 'anotacoes', 'quantidade', 'valor_unitario', 'valor_total', 'data_aquisicao', 'imprimir', 'ordem'];
         $rowsRecIt = [];
         foreach ($receitas as $r) {
             $rid = $r['legado_id'] ?? '';
@@ -1486,6 +1558,7 @@ class ExtrairDadosLegado extends Command
                     'legado_produto_id' => $it['legado_produto_id'] ?? '',
                     'codigo_produto_legado' => $it['codigo_produto_legado'] ?? '',
                     'codigo_produto_mapeado' => $it['codigo_produto_mapeado'] ?? '',
+                    'descricao_produto_legado' => $it['descricao_produto_legado'] ?? '',
                     'local_uso' => $it['local_uso'] ?? '',
                     'anotacoes' => $it['anotacoes'] ?? '',
                     'quantidade' => $it['quantidade'] ?? '',

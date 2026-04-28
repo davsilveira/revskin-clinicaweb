@@ -3,17 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Medico;
+use App\Models\Paciente;
+use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\ReceitaItem;
 use App\Models\ReceitaItemAquisicao;
-use App\Models\Paciente;
-use App\Models\Produto;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Facades\DB;
 
 class RelatorioController extends Controller
 {
@@ -27,7 +27,7 @@ class RelatorioController extends Controller
         $isMedico = $user->isMedico();
 
         $relatoriosDisponiveis = [];
-        
+
         if ($isAdmin) {
             $relatoriosDisponiveis[] = [
                 'id' => 'receitas-medico',
@@ -37,7 +37,7 @@ class RelatorioController extends Controller
                 'icone' => 'receita',
             ];
         }
-        
+
         if ($isAdmin || $isMedico) {
             $relatoriosDisponiveis[] = [
                 'id' => 'aquisicao-produtos',
@@ -77,9 +77,9 @@ class RelatorioController extends Controller
         if ($request->has('medico_id') || $request->has('data_inicio') || $request->has('page')) {
             $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
                 ->whereIn('status', ['finalizada', 'aberta'])
-                ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
-                ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
-                ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_receita', '<=', $data))
+                ->when($request->medico_id, fn ($q, $id) => $q->where('medico_id', $id))
+                ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
+                ->when($request->data_fim, fn ($q, $data) => $q->whereDate('data_receita', '<=', $data))
                 ->orderBy('data_receita', 'desc');
 
             // Calcular totais antes da paginação (clonar query para não afetar paginação)
@@ -119,9 +119,9 @@ class RelatorioController extends Controller
 
         $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->whereIn('status', ['finalizada', 'aberta'])
-            ->when($request->medico_id, fn($q, $id) => $q->where('medico_id', $id))
-            ->when($request->data_inicio, fn($q, $data) => $q->whereDate('data_receita', '>=', $data))
-            ->when($request->data_fim, fn($q, $data) => $q->whereDate('data_receita', '<=', $data))
+            ->when($request->medico_id, fn ($q, $id) => $q->where('medico_id', $id))
+            ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
+            ->when($request->data_fim, fn ($q, $data) => $q->whereDate('data_receita', '<=', $data))
             ->orderBy('data_receita', 'desc');
 
         $receitas = $query->get();
@@ -161,7 +161,7 @@ class RelatorioController extends Controller
         $isAdmin = $user->isAdmin();
         $isMedico = $user->isMedico();
 
-        if (!$isAdmin && !$isMedico) {
+        if (! $isAdmin && ! $isMedico) {
             abort(403, 'Acesso não autorizado.');
         }
 
@@ -193,27 +193,30 @@ class RelatorioController extends Controller
             ? Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id')
             : collect([]);
         $pacientes = Paciente::ativo()->orderBy('nome')->get(['id', 'nome']);
-        $produtos = Produto::ativo()->orderBy('nome')->get(['id', 'nome']);
+        $produtos = Produto::ativo()->semLegadoSomenteLeitura()->orderBy('nome')->get(['id', 'nome']);
 
         // Preparar datas padrão para o frontend
         $dataInicio = $request->get('data_inicio', now()->subDays(7)->format('Y-m-d'));
         $dataFim = $request->get('data_fim', now()->format('Y-m-d'));
-        
+
         $dados = null;
-        
+
         // Executar query apenas se houver parâmetros de filtro na requisição (usuário clicou em Filtrar)
         // Verifica se há algum parâmetro além dos valores padrão ou outros filtros aplicados
-        $hasFilters = $request->has('data_inicio') || $request->has('data_fim') || 
-                     $request->has('medico_ids') || $request->has('medico_id') || 
+        $hasFilters = $request->has('data_inicio') || $request->has('data_fim') ||
+                     $request->has('medico_ids') || $request->has('medico_id') ||
                      $request->has('paciente_ids') || $request->has('paciente_id') ||
                      $request->has('produto_ids') || $request->has('produto_id');
-        
+
         if ($hasFilters) {
             $request->merge([
                 'data_inicio' => $dataInicio,
                 'data_fim' => $dataFim,
             ]);
             $dados = $this->buscarAquisicoes($request, $medicoIdsFiltro);
+            if (! $isAdmin) {
+                $dados = $this->sanitizarAquisicaoSemValoresMonetarios($dados);
+            }
         }
 
         // Preparar filters para retornar ao frontend (sempre com datas padrão)
@@ -221,7 +224,7 @@ class RelatorioController extends Controller
             'data_inicio' => $dataInicio,
             'data_fim' => $dataFim,
         ];
-        
+
         if ($request->has('medico_ids')) {
             $filters['medico_ids'] = $request->medico_ids;
         }
@@ -252,7 +255,7 @@ class RelatorioController extends Controller
         $isAdmin = $user->isAdmin();
         $isMedico = $user->isMedico();
 
-        if (!$isAdmin && !$isMedico) {
+        if (! $isAdmin && ! $isMedico) {
             abort(403, 'Acesso não autorizado.');
         }
 
@@ -281,6 +284,9 @@ class RelatorioController extends Controller
         }
 
         $dados = $this->buscarAquisicoes($request, $medicoIdsFiltro, false);
+        if (! $isAdmin) {
+            $dados = $this->sanitizarAquisicaoSemValoresMonetarios($dados);
+        }
 
         if ($format === 'pdf') {
             $pdf = Pdf::loadView('pdf.relatorio-aquisicao-produtos', [
@@ -296,7 +302,7 @@ class RelatorioController extends Controller
         if ($format === 'xlsx' || $format === 'csv') {
             return Excel::download(
                 new \App\Exports\AquisicaoProdutosExport($dados, $request->data_inicio, $request->data_fim, $isAdmin),
-                'relatorio-aquisicao-produtos.' . $format
+                'relatorio-aquisicao-produtos.'.$format
             );
         }
 
@@ -315,46 +321,41 @@ class RelatorioController extends Controller
                 'receitaItem.receita.paciente',
                 'receitaItem.receita.medico',
                 'receitaItem.produto',
-                'receitaItem.receita' => function($q) {
+                'receitaItem.receita' => function ($q) {
                     $q->select('id', 'paciente_id', 'medico_id', 'data_receita', 'valor_frete', 'desconto_valor');
-                }
+                },
             ])
-            ->whereHas('receitaItem.receita', function($q) use ($request, $medicoIdsFiltro) {
+            ->whereHas('receitaItem.receita', function ($q) use ($request, $medicoIdsFiltro) {
                 $q->whereIn('status', ['finalizada', 'aberta']);
-                
+
                 if ($medicoIdsFiltro && count($medicoIdsFiltro) > 0) {
                     $q->whereIn('medico_id', $medicoIdsFiltro);
                 }
-                
+
                 $pacienteIds = $request->has('paciente_ids') && is_array($request->paciente_ids) && count($request->paciente_ids) > 0
                     ? $request->paciente_ids
                     : ($request->paciente_id ? [$request->paciente_id] : null);
-                
+
                 if ($pacienteIds) {
                     $q->whereIn('paciente_id', $pacienteIds);
                 }
-                
-                if ($request->data_inicio) {
-                    $q->whereDate('data_receita', '>=', $request->data_inicio);
-                }
-                
-                if ($request->data_fim) {
-                    $q->whereDate('data_receita', '<=', $request->data_fim);
-                }
+
+                // Período do relatório: data da **aquisição** (filtros abaixo em receita_item_aquisicoes).
+                // Não filtrar aqui por data_receita, senão compras no período somem quando a receita é mais antiga.
             })
-            ->when($request->data_inicio, function($q, $data) {
+            ->when($request->data_inicio, function ($q, $data) {
                 $q->whereDate('data_aquisicao', '>=', $data);
             })
-            ->when($request->data_fim, function($q, $data) {
+            ->when($request->data_fim, function ($q, $data) {
                 $q->whereDate('data_aquisicao', '<=', $data);
             })
-            ->when($request->has('produto_ids') && is_array($request->produto_ids) && count($request->produto_ids) > 0, function($q) use ($request) {
-                $q->whereHas('receitaItem', function($subQ) use ($request) {
+            ->when($request->has('produto_ids') && is_array($request->produto_ids) && count($request->produto_ids) > 0, function ($q) use ($request) {
+                $q->whereHas('receitaItem', function ($subQ) use ($request) {
                     $subQ->whereIn('produto_id', $request->produto_ids);
                 });
             })
-            ->when($request->produto_id && !$request->has('produto_ids'), function($q, $produtoId) {
-                $q->whereHas('receitaItem', function($subQ) use ($produtoId) {
+            ->when($request->produto_id && ! $request->has('produto_ids'), function ($q, $produtoId) {
+                $q->whereHas('receitaItem', function ($subQ) use ($produtoId) {
                     $subQ->where('produto_id', $produtoId);
                 });
             });
@@ -363,39 +364,33 @@ class RelatorioController extends Controller
         $queryLegacy = ReceitaItem::query()
             ->with(['receita.paciente', 'receita.medico.linkedUser:id,name,medico_id', 'produto'])
             ->whereNotNull('data_aquisicao')
-            ->whereHas('receita', function($q) use ($request, $medicoIdsFiltro) {
+            ->whereHas('receita', function ($q) use ($request, $medicoIdsFiltro) {
                 $q->whereIn('status', ['finalizada', 'aberta']);
-                
+
                 if ($medicoIdsFiltro && count($medicoIdsFiltro) > 0) {
                     $q->whereIn('medico_id', $medicoIdsFiltro);
                 }
-                
+
                 $pacienteIds = $request->has('paciente_ids') && is_array($request->paciente_ids) && count($request->paciente_ids) > 0
                     ? $request->paciente_ids
                     : ($request->paciente_id ? [$request->paciente_id] : null);
-                
+
                 if ($pacienteIds) {
                     $q->whereIn('paciente_id', $pacienteIds);
                 }
-                
-                if ($request->data_inicio) {
-                    $q->whereDate('data_receita', '>=', $request->data_inicio);
-                }
-                
-                if ($request->data_fim) {
-                    $q->whereDate('data_receita', '<=', $request->data_fim);
-                }
+
+                // Mesma regra: período por data_aquisicao do item (where abaixo), não por data_receita.
             })
-            ->when($request->data_inicio, function($q, $data) {
+            ->when($request->data_inicio, function ($q, $data) {
                 $q->whereDate('data_aquisicao', '>=', $data);
             })
-            ->when($request->data_fim, function($q, $data) {
+            ->when($request->data_fim, function ($q, $data) {
                 $q->whereDate('data_aquisicao', '<=', $data);
             })
-            ->when($request->has('produto_ids') && is_array($request->produto_ids) && count($request->produto_ids) > 0, function($q) use ($request) {
+            ->when($request->has('produto_ids') && is_array($request->produto_ids) && count($request->produto_ids) > 0, function ($q) use ($request) {
                 $q->whereIn('produto_id', $request->produto_ids);
             })
-            ->when($request->produto_id && !$request->has('produto_ids'), function($q, $produtoId) {
+            ->when($request->produto_id && ! $request->has('produto_ids'), function ($q, $produtoId) {
                 $q->where('produto_id', $produtoId);
             })
             ->whereDoesntHave('aquisicoes'); // Excluir itens que já têm aquisições na tabela nova
@@ -406,21 +401,21 @@ class RelatorioController extends Controller
 
         // Agrupar por paciente
         $agrupadoPorPaciente = [];
-        
+
         // Processar aquisições da tabela nova
         foreach ($aquisicoes as $aquisicao) {
             $receitaItem = $aquisicao->receitaItem;
             $receita = $receitaItem->receita;
             $paciente = $receita->paciente;
             $produto = $receitaItem->produto;
-            
-            if (!$paciente || !$produto) {
+
+            if (! $paciente || ! $produto) {
                 continue;
             }
-            
+
             $pacienteId = $paciente->id;
-            
-            if (!isset($agrupadoPorPaciente[$pacienteId])) {
+
+            if (! isset($agrupadoPorPaciente[$pacienteId])) {
                 $agrupadoPorPaciente[$pacienteId] = [
                     'paciente' => [
                         'id' => $paciente->id,
@@ -439,10 +434,10 @@ class RelatorioController extends Controller
                     ],
                 ];
             }
-            
-            $produtoKey = $receitaItem->id . '_' . $aquisicao->data_aquisicao->format('Y-m-d');
-            
-            if (!isset($agrupadoPorPaciente[$pacienteId]['produtos'][$produtoKey])) {
+
+            $produtoKey = $receitaItem->id.'_'.$aquisicao->data_aquisicao->format('Y-m-d');
+
+            if (! isset($agrupadoPorPaciente[$pacienteId]['produtos'][$produtoKey])) {
                 $agrupadoPorPaciente[$pacienteId]['produtos'][$produtoKey] = [
                     'produto_nome' => $produto->nome,
                     'data_receita' => $receita->data_receita->format('d/m/Y'),
@@ -451,32 +446,32 @@ class RelatorioController extends Controller
                     'quantidade' => $receitaItem->quantidade,
                     'valor_total' => $receitaItem->valor_total,
                 ];
-                
+
                 $agrupadoPorPaciente[$pacienteId]['totais']['total'] += $receitaItem->valor_total;
                 $agrupadoPorPaciente[$pacienteId]['totais']['qtd_produtos']++;
             }
-            
+
             // Adicionar receita única para cálculo de frete e desconto
-            if (!in_array($receita->id, $agrupadoPorPaciente[$pacienteId]['receitas_unicas'])) {
+            if (! in_array($receita->id, $agrupadoPorPaciente[$pacienteId]['receitas_unicas'])) {
                 $agrupadoPorPaciente[$pacienteId]['receitas_unicas'][] = $receita->id;
                 $agrupadoPorPaciente[$pacienteId]['totais']['vlr_frete'] += $receita->valor_frete ?? 0;
                 $agrupadoPorPaciente[$pacienteId]['totais']['vlr_desconto'] += $receita->desconto_valor ?? 0;
             }
         }
-        
+
         // Processar itens legacy
         foreach ($legacyItems as $item) {
             $receita = $item->receita;
             $paciente = $receita->paciente;
             $produto = $item->produto;
-            
-            if (!$paciente || !$produto) {
+
+            if (! $paciente || ! $produto) {
                 continue;
             }
-            
+
             $pacienteId = $paciente->id;
-            
-            if (!isset($agrupadoPorPaciente[$pacienteId])) {
+
+            if (! isset($agrupadoPorPaciente[$pacienteId])) {
                 $agrupadoPorPaciente[$pacienteId] = [
                     'paciente' => [
                         'id' => $paciente->id,
@@ -495,10 +490,10 @@ class RelatorioController extends Controller
                     ],
                 ];
             }
-            
-            $produtoKey = $item->id . '_' . ($item->data_aquisicao ? $item->data_aquisicao->format('Y-m-d') : 'legacy');
-            
-            if (!isset($agrupadoPorPaciente[$pacienteId]['produtos'][$produtoKey])) {
+
+            $produtoKey = $item->id.'_'.($item->data_aquisicao ? $item->data_aquisicao->format('Y-m-d') : 'legacy');
+
+            if (! isset($agrupadoPorPaciente[$pacienteId]['produtos'][$produtoKey])) {
                 $agrupadoPorPaciente[$pacienteId]['produtos'][$produtoKey] = [
                     'produto_nome' => $produto->nome,
                     'data_receita' => $receita->data_receita->format('d/m/Y'),
@@ -507,40 +502,112 @@ class RelatorioController extends Controller
                     'quantidade' => $item->quantidade,
                     'valor_total' => $item->valor_total,
                 ];
-                
+
                 $agrupadoPorPaciente[$pacienteId]['totais']['total'] += $item->valor_total;
                 $agrupadoPorPaciente[$pacienteId]['totais']['qtd_produtos']++;
             }
-            
+
             // Adicionar receita única para cálculo de frete e desconto
-            if (!in_array($receita->id, $agrupadoPorPaciente[$pacienteId]['receitas_unicas'])) {
+            if (! in_array($receita->id, $agrupadoPorPaciente[$pacienteId]['receitas_unicas'])) {
                 $agrupadoPorPaciente[$pacienteId]['receitas_unicas'][] = $receita->id;
                 $agrupadoPorPaciente[$pacienteId]['totais']['vlr_frete'] += $receita->valor_frete ?? 0;
                 $agrupadoPorPaciente[$pacienteId]['totais']['vlr_desconto'] += $receita->desconto_valor ?? 0;
             }
         }
-        
-        // Converter arrays associativos em arrays indexados e ordenar por nome do paciente
+
+        // Converter arrays associativos em arrays indexados e ordenar pelo primeiro nome, depois nome completo
         $resultado = collect($agrupadoPorPaciente)
-            ->map(function($pacienteData) {
+            ->map(function ($pacienteData) {
                 $pacienteData['produtos'] = array_values($pacienteData['produtos']);
+                usort($pacienteData['produtos'], function (array $a, array $b): int {
+                    $na = mb_strtolower($a['produto_nome'] ?? '', 'UTF-8');
+                    $nb = mb_strtolower($b['produto_nome'] ?? '', 'UTF-8');
+                    if ($na !== $nb) {
+                        return $na <=> $nb;
+                    }
+                    $tsA = self::timestampFromBrDate($a['data_aquisicao'] ?? null);
+                    $tsB = self::timestampFromBrDate($b['data_aquisicao'] ?? null);
+                    if ($tsA !== $tsB) {
+                        return $tsA <=> $tsB;
+                    }
+
+                    return self::timestampFromBrDate($a['data_receita'] ?? null)
+                        <=> self::timestampFromBrDate($b['data_receita'] ?? null);
+                });
                 unset($pacienteData['receitas_unicas']);
+
                 return $pacienteData;
             })
-            ->sortBy('paciente.nome')
+            ->sortBy(function (array $pacienteData) {
+                $nome = trim((string) ($pacienteData['paciente']['nome'] ?? ''));
+                $primeiro = '';
+                if ($nome !== '') {
+                    $partes = preg_split('/\s+/u', $nome, 2, PREG_SPLIT_NO_EMPTY);
+                    $primeiro = $partes[0] ?? '';
+                }
+
+                return mb_strtolower($primeiro, 'UTF-8')."\0".mb_strtolower($nome, 'UTF-8');
+            })
             ->values()
             ->toArray();
-        
+
         // Calcular totais gerais
         $totaisGerais = [
             'qtd_total_produtos' => collect($resultado)->sum('totais.qtd_produtos'),
             'valor_total_produtos' => collect($resultado)->sum('totais.total'),
         ];
-        
+
         return [
             'pacientes' => $resultado,
             'totais_gerais' => $totaisGerais,
         ];
     }
-}
 
+    /**
+     * Remove valores monetários do relatório de aquisição (médicos não devem ver preços).
+     *
+     * @param  array{pacientes?: array<int, mixed>, totais_gerais?: array<string, mixed>}  $dados
+     * @return array{pacientes?: array<int, mixed>, totais_gerais?: array<string, mixed>}
+     */
+    public function sanitizarAquisicaoSemValoresMonetarios(array $dados): array
+    {
+        if (empty($dados['pacientes']) || ! is_array($dados['pacientes'])) {
+            return $dados;
+        }
+
+        foreach ($dados['pacientes'] as &$pacienteData) {
+            if (! empty($pacienteData['produtos']) && is_array($pacienteData['produtos'])) {
+                foreach ($pacienteData['produtos'] as &$prod) {
+                    unset($prod['valor_unitario'], $prod['valor_total']);
+                }
+                unset($prod);
+            }
+            if (! empty($pacienteData['totais']) && is_array($pacienteData['totais'])) {
+                unset(
+                    $pacienteData['totais']['vlr_frete'],
+                    $pacienteData['totais']['vlr_desconto'],
+                    $pacienteData['totais']['total']
+                );
+            }
+        }
+        unset($pacienteData);
+
+        if (isset($dados['totais_gerais']) && is_array($dados['totais_gerais'])) {
+            unset($dados['totais_gerais']['valor_total_produtos']);
+        }
+
+        return $dados;
+    }
+
+    private static function timestampFromBrDate(?string $dmY): int
+    {
+        if ($dmY === null || $dmY === '') {
+            return 0;
+        }
+        try {
+            return Carbon::createFromFormat('d/m/Y', $dmY)->startOfDay()->timestamp;
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+}

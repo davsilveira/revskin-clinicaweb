@@ -1,17 +1,83 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
+import { persistPacientesIndexQueryFromLocation } from '@/utils/pacientesListNavigation';
 
-export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters, canAccessAssistente = false }) {
+/** Alinha o select de status ao que veio do backend (query / Inertia). */
+function normalizarAtivoFiltro(filtersObj) {
+    if (!filtersObj || !Object.prototype.hasOwnProperty.call(filtersObj, 'ativo')) {
+        return '1';
+    }
+    const val = filtersObj.ativo;
+    if (val === '' || val === null) {
+        return '';
+    }
+    if (val === true || val === 1 || val === '1' || val === 'true') {
+        return '1';
+    }
+    if (val === false || val === 0 || val === '0' || val === 'false') {
+        return '0';
+    }
+    return String(val);
+}
+
+export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters }) {
+    const { auth } = usePage().props;
+    const isCallcenter = auth?.user?.role === 'callcenter';
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingPaciente, setEditingPaciente] = useState(null);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(filters?.search || '');
-    const [status, setStatus] = useState(filters?.ativo ?? '1');
+    const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
+    const [status, setStatus] = useState(() => normalizarAtivoFiltro(filters));
+    const skipNextPacientesFetch = useRef(true);
+
+    // Voltar do navegador / visita Inertia: alinhar ao que veio na URL (deps estáveis para não reiniciar o debounce a cada resposta).
+    useEffect(() => {
+        if (!filters) {
+            return;
+        }
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextStatus = normalizarAtivoFiltro(filters);
+        setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    }, [filters?.search, filters?.ativo]);
+
+    useEffect(() => {
+        persistPacientesIndexQueryFromLocation();
+    }, [filters?.search, filters?.ativo]);
+
+    const runPacientesQuery = useMemo(
+        () =>
+            debounce((term, ativo) => {
+                const params = { ativo };
+                const t = term?.trim();
+                if (t) {
+                    params.search = t;
+                }
+                router.get('/pacientes', params, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['pacientes', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextPacientesFetch.current) {
+            skipNextPacientesFetch.current = false;
+            return;
+        }
+        runPacientesQuery(search, status);
+    }, [search, status, runPacientesQuery]);
+
+    useEffect(() => () => runPacientesQuery.cancel(), [runPacientesQuery]);
 
     const openCreateDrawer = () => {
         setEditingPaciente(null);
@@ -32,24 +98,38 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
         const msg = editingPaciente ? 'Paciente atualizado com sucesso!' : 'Paciente cadastrado com sucesso!';
         closeDrawer();
         setToast({ message: msg, type: 'success' });
-        router.visit('/pacientes', {
-            only: ['pacientes'],
+        const qs = typeof window !== 'undefined' ? window.location.search : '';
+        router.visit(`/pacientes${qs}`, {
+            only: ['pacientes', 'filters'],
             preserveState: true,
             preserveScroll: true,
         });
     };
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        const params = { search, ativo: status };
-        router.get('/pacientes', params, { preserveState: true });
-    };
-
     const pacientesList = pacientes?.data || pacientes || [];
 
     const rowClick = (paciente) => {
-        if (isSecretaria) openEditDrawer(paciente);
-        else router.visit(`/receitas?paciente_id=${paciente.id}`);
+        if (isCallcenter) {
+            const ultimaId = paciente.ultima_receita_id;
+            if (ultimaId) {
+                persistPacientesIndexQueryFromLocation();
+                router.visit(`/receitas/${ultimaId}`);
+                return;
+            }
+            router.visit(`/pacientes/${paciente.id}`);
+            return;
+        }
+        if (isSecretaria) {
+            openEditDrawer(paciente);
+            return;
+        }
+        const ultimaId = paciente.ultima_receita_id;
+        if (ultimaId) {
+            persistPacientesIndexQueryFromLocation();
+            router.visit(`/receitas/${ultimaId}`);
+            return;
+        }
+        openEditDrawer(paciente);
     };
 
     return (
@@ -61,6 +141,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                     title="Pacientes"
                     description="Gerencie os pacientes cadastrados"
                     actions={
+                        !isCallcenter && (
                         <button
                             type="button"
                             onClick={openCreateDrawer}
@@ -71,17 +152,19 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                             </svg>
                             Novo Paciente
                         </button>
+                        )
                     }
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                         <input
                             type="text"
-                            placeholder="Buscar por nome ou CPF..."
+                            placeholder="Buscar por nome, CPF ou Nº registro…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            autoComplete="off"
                         />
                         <select
                             value={status}
@@ -92,13 +175,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                             <option value="1">Ativos</option>
                             <option value="0">Inativos</option>
                         </select>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -109,6 +186,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Registro</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cidade</th>
@@ -127,9 +205,14 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="text-sm font-medium text-gray-900">{paciente.nome}</div>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cpf || '-'}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.celular || paciente.telefone1 || '-'}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cidade ? `${paciente.cidade}/${paciente.uf}` : '-'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 tabular-nums">
+                                                        {paciente.codigo != null && String(paciente.codigo).trim() !== ''
+                                                            ? String(paciente.codigo).trim()
+                                                            : '—'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cpf || '—'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.celular || paciente.telefone1 || '—'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cidade ? `${paciente.cidade}/${paciente.uf}` : '—'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${paciente.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                             {paciente.ativo ? 'Ativo' : 'Inativo'}
@@ -140,6 +223,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             {!isSecretaria && (
                                                                 <Link
                                                                     href={`/receitas?paciente_id=${paciente.id}`}
+                                                                    onClick={() => persistPacientesIndexQueryFromLocation()}
                                                                     className="group relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                                                     aria-label="Ver receitas"
                                                                 >
@@ -151,20 +235,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                                     </span>
                                                                 </Link>
                                                             )}
-                                                            {canAccessAssistente && (
-                                                                <Link
-                                                                    href={`/assistente-receita?paciente_id=${paciente.id}`}
-                                                                    className="group relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                                    aria-label="Assistente de Receitas"
-                                                                >
-                                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                                                    </svg>
-                                                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none whitespace-nowrap z-10">
-                                                                        Assistente de Receitas
-                                                                    </span>
-                                                                </Link>
-                                                            )}
+                                                            {!isCallcenter && (
                                                             <span className="group relative inline-block">
                                                                 <button
                                                                     type="button"
@@ -180,13 +251,14 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                                     Editar
                                                                 </span>
                                                             </span>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                                <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                                     Nenhum paciente encontrado
                                                 </td>
                                             </tr>
@@ -209,7 +281,13 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="min-w-0 flex-1">
                                                             <div className="font-medium text-gray-900">{paciente.nome}</div>
-                                                            <p className="text-sm text-gray-600 mt-1">
+                                                            <p className="text-sm text-gray-600 mt-1 tabular-nums">
+                                                                Nº registro:{' '}
+                                                                {paciente.codigo != null && String(paciente.codigo).trim() !== ''
+                                                                    ? String(paciente.codigo).trim()
+                                                                    : '—'}
+                                                            </p>
+                                                            <p className="text-sm text-gray-600 mt-0.5">
                                                                 {paciente.cpf || '—'} · {paciente.celular || paciente.telefone1 || '—'}
                                                             </p>
                                                             <p className="text-sm text-gray-500 mt-0.5">
@@ -228,6 +306,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     {!isSecretaria && (
                                                         <Link
                                                             href={`/receitas?paciente_id=${paciente.id}`}
+                                                            onClick={() => persistPacientesIndexQueryFromLocation()}
                                                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                                             aria-label="Ver receitas"
                                                         >
@@ -236,17 +315,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             </svg>
                                                         </Link>
                                                     )}
-                                                    {canAccessAssistente && (
-                                                        <Link
-                                                            href={`/assistente-receita?paciente_id=${paciente.id}`}
-                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                                            aria-label="Assistente de Receitas"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                                            </svg>
-                                                        </Link>
-                                                    )}
+                                                    {!isCallcenter && (
                                                     <button
                                                         type="button"
                                                         onClick={() => openEditDrawer(paciente)}
@@ -257,6 +326,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                         </svg>
                                                     </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

@@ -17,7 +17,8 @@ class SyncVendaTinyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 1;
+
     public int $timeout = 300;
 
     public function __construct(
@@ -29,19 +30,21 @@ class SyncVendaTinyJob implements ShouldQueue
     public function handle(): void
     {
         // Verificar se integração está habilitada
-        if (!Setting::get('tiny_enabled', false)) {
+        if (! Setting::get('tiny_enabled', false)) {
             Log::info('Tiny ERP: Sincronização de venda desabilitada', [
                 'atendimento_id' => $this->atendimento->id,
             ]);
+
             return;
         }
 
         $atendimento = $this->atendimento->fresh(['receita.paciente', 'receita.medico', 'receita.itens.produto']);
 
-        if (!$atendimento->receita) {
+        if (! $atendimento->receita) {
             Log::warning('Tiny ERP: Atendimento não possui receita', [
                 'atendimento_id' => $atendimento->id,
             ]);
+
             return;
         }
 
@@ -49,17 +52,17 @@ class SyncVendaTinyJob implements ShouldQueue
         $paciente = $receita->paciente;
 
         // Garantir que paciente está sincronizado no Tiny
-        if (!$paciente->tiny_id) {
+        if (! $paciente->tiny_id) {
             Log::info('Tiny ERP: Paciente não sincronizado, sincronizando primeiro', [
                 'paciente_id' => $paciente->id,
             ]);
-            
+
             $syncClienteJob = new \App\Jobs\SyncClienteTinyJob($paciente);
             $syncClienteJob->handle();
-            
+
             $paciente->refresh();
-            
-            if (!$paciente->tiny_id) {
+
+            if (! $paciente->tiny_id) {
                 Log::error('Tiny ERP: Não foi possível sincronizar paciente antes de criar pedido', [
                     'paciente_id' => $paciente->id,
                 ]);
@@ -67,7 +70,7 @@ class SyncVendaTinyJob implements ShouldQueue
             }
         }
 
-        $client = new TinyErpClient();
+        $client = new TinyErpClient;
 
         // Preparar dados do pedido
         $pedidoData = $this->prepararDadosPedido($atendimento, $receita, $paciente);
@@ -118,11 +121,12 @@ class SyncVendaTinyJob implements ShouldQueue
             $produto = $item->produto;
 
             // Verificar se produto tem tiny_id
-            if (!$produto->tiny_id) {
+            if (! $produto->tiny_id) {
                 Log::warning('Tiny ERP: Produto não possui tiny_id, pulando item', [
                     'produto_id' => $produto->id,
                     'item_id' => $item->id,
                 ]);
+
                 continue;
             }
 
@@ -160,7 +164,7 @@ class SyncVendaTinyJob implements ShouldQueue
         if ($receita->anotacoes) {
             $obs[] = $receita->anotacoes;
         }
-        if (!empty($obs)) {
+        if (! empty($obs)) {
             $dados['observacoes'] = implode(' | ', $obs);
         }
 

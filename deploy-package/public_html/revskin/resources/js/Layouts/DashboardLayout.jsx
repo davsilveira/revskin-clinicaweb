@@ -1,10 +1,10 @@
 import { Link, usePage, router } from '@inertiajs/react';
+import { publicAsset } from '@/utils/publicAsset';
 import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProfileDrawer from '@/Components/ProfileDrawer';
 import {
-    NavIconAssistente,
     NavIconCallcenter,
     NavIconClinicas,
     NavIconExport,
@@ -13,7 +13,6 @@ import {
     NavIconManual,
     NavIconPacientes,
     NavIconProdutos,
-    NavIconReceitas,
     NavIconRelatorios,
     NavIconRegras,
     NavIconSettings,
@@ -24,7 +23,7 @@ const LG_MEDIA = '(min-width: 1024px)';
 
 export default function DashboardLayout({ children }) {
     const page = usePage();
-    const { auth } = page.props;
+    const { auth, assetVersion } = page.props;
     const { url } = page;
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showProfileDrawer, setShowProfileDrawer] = useState(false);
@@ -157,7 +156,7 @@ export default function DashboardLayout({ children }) {
                 >
                     <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
                         <img
-                            src="/images/logo.jpeg"
+                            src={publicAsset('/images/logo.jpeg', assetVersion)}
                             alt="ClincaWeb"
                             className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
                         />
@@ -203,35 +202,11 @@ export default function DashboardLayout({ children }) {
                             {showLabels && <span className="font-medium">Pacientes</span>}
                         </Link>
 
-                        {/* Receitas (medico and admin) */}
+                        {/* Receitas: sem item no menu lateral (acesso por Pacientes / URLs) */}
+
+                        {/* Relatórios e catálogo (médico e admin) */}
                         {(isAdmin || isMedico) && (
                             <>
-                                <Link
-                                    href="/receitas"
-                                    className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
-                                        isActive('/receitas')
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title={!showLabels ? 'Receitas' : undefined}
-                                >
-                                    <NavIconReceitas />
-                                    {showLabels && <span className="font-medium">Receitas</span>}
-                                </Link>
-
-                                <Link
-                                    href="/assistente-receita"
-                                    className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
-                                        isActive('/assistente-receita')
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title={!showLabels ? 'Assistente Receita' : undefined}
-                                >
-                                    <NavIconAssistente />
-                                    {showLabels && <span className="font-medium">Assistente Receita</span>}
-                                </Link>
-
                                 <Link
                                     href="/relatorios"
                                     className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
@@ -485,8 +460,7 @@ export default function DashboardLayout({ children }) {
                                 )}
                             </button>
                             <h2 className="text-base lg:text-lg font-semibold text-gray-900 truncate min-w-0">
-                                <span className="lg:hidden">Olá, {auth.user.name}</span>
-                                <span className="hidden lg:inline">Bem-vindo, {auth.user.name}!</span>
+                                Olá, {auth.user.name}
                             </h2>
                         </div>
 

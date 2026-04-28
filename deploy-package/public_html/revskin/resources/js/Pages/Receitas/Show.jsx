@@ -1,15 +1,40 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
+
+const tippyCopiarProps = {
+    appendTo: () => document.body,
+    popperOptions: { strategy: 'fixed' },
+    zIndex: 9999,
+};
+
+const copiarTippyOk = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Repete a prescrição numa nova receita com a data de hoje.
+    </div>
+);
+
+const copiarTippyBloqueio = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.
+    </div>
+);
 
 export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [showCopiarModal, setShowCopiarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
+
+    const canCopiar = !(receita.receita_origem_id && receita.status === 'aberta');
+    const receitaOrigem = receita.receita_origem;
+    const copiarTippy = canCopiar ? copiarTippyOk : copiarTippyBloqueio;
 
 const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -35,8 +60,18 @@ const formatDate = (dateString) => {
     };
 
     const handleCopiar = () => {
-        router.post(`/receitas/${receita.id}/copiar`);
+        if (!canCopiar) {
+            return;
+        }
+        router.post(`/receitas/${receita.id}/copiar`, {}, { preserveScroll: true });
         setShowCopiarModal(false);
+    };
+
+    const openCopiarModal = () => {
+        if (!canCopiar) {
+            return;
+        }
+        setShowCopiarModal(true);
     };
 
     const handleCancelar = () => {
@@ -55,21 +90,37 @@ const formatDate = (dateString) => {
         <DashboardLayout>
             <div className="p-6">
                 <div className="mb-6">
-                    <Link
-                        href="/receitas"
-                        className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm"
-                    >
+                    <ReceitasIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
-                        Voltar para Receitas
-                    </Link>
+                        Voltar para Receitas do Paciente
+                    </ReceitasIndexBackLink>
                     
                     <div className="flex justify-between items-start mt-2">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">
-                                Receita #{receita.numero}
+                                {tituloReceitaComSequencia('Receita', receita.numero)}
                             </h1>
+                            {receitaOrigem && (
+                                <div className="mt-2 text-sm text-gray-600 flex flex-wrap items-center gap-1.5">
+                                    <span className="text-gray-500">Duplicada de</span>
+                                    <Link
+                                        href={`/receitas/${receitaOrigem.id}`}
+                                        className="font-medium text-amber-700 hover:text-amber-800 hover:underline"
+                                    >
+                                        {tituloReceitaComSequencia('Receita', receitaOrigem.numero)}
+                                    </Link>
+                                </div>
+                            )}
+                            {receita.paciente?.codigo != null && String(receita.paciente.codigo).trim() !== '' && (
+                                <p className="mt-1.5 text-sm text-gray-600">
+                                    <span className="text-gray-500">Nº registro </span>
+                                    <span className="font-semibold text-gray-900 tabular-nums">
+                                        {String(receita.paciente.codigo).trim()}
+                                    </span>
+                                </p>
+                            )}
                             <p className="text-gray-500 mt-1">
                                 Criada em {new Date(receita.created_at).toLocaleDateString('pt-BR')}
                             </p>
@@ -217,20 +268,10 @@ const formatDate = (dateString) => {
                                     </div>
                                 </div>
 
-                                {(receita.anotacoes || receita.anotacoes_paciente) && (
-                                    <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {receita.anotacoes && (
-                                            <div>
-                                                <label className="text-sm text-gray-500">Anotações Internas</label>
-                                                <p className="text-gray-900 whitespace-pre-line mt-1">{receita.anotacoes}</p>
-                                            </div>
-                                        )}
-                                        {receita.anotacoes_paciente && (
-                                            <div>
-                                                <label className="text-sm text-gray-500">Anotações para o Paciente</label>
-                                                <p className="text-gray-900 whitespace-pre-line mt-1">{receita.anotacoes_paciente}</p>
-                                            </div>
-                                        )}
+                                {receita.anotacoes && (
+                                    <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <label className="text-sm text-gray-500">Anotações internas</label>
+                                        <p className="text-gray-900 whitespace-pre-line mt-1">{receita.anotacoes}</p>
                                     </div>
                                 )}
                             </div>
@@ -307,7 +348,7 @@ const formatDate = (dateString) => {
                                 <div>
                                     <label className="text-xs text-gray-500">Médico</label>
                                     <p className="font-medium text-gray-900">
-                                        {receita.medico?.nome || '-'}
+                                        {nomeExibicaoSemTitulo(receita.medico?.nome) || '-'}
                                     </p>
                                     {receita.medico?.crm && (
                                         <p className="text-xs text-gray-500">
@@ -337,9 +378,15 @@ const formatDate = (dateString) => {
                                 )}
 
                                 {receita.status === 'aberta' && (
+                                    <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                                        O PDF fica disponível após <span className="font-medium">finalizar</span> a receita (botão na edição). Depois, use <span className="font-medium">Download PDF</span>.
+                                    </p>
+                                )}
+
+                                {receita.status === 'aberta' && (
                                     <Link
                                         href={`/receitas/${receita.id}/edit`}
-                                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+                                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -348,15 +395,28 @@ const formatDate = (dateString) => {
                                     </Link>
                                 )}
 
-                                <button
-                                    onClick={() => setShowCopiarModal(true)}
-                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                <Tippy
+                                    content={copiarTippy}
+                                    placement="top"
+                                    theme="light-border"
+                                    {...tippyCopiarProps}
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                    Copiar Receita
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={openCopiarModal}
+                                        aria-disabled={!canCopiar}
+                                        className={`w-full flex items-center justify-center gap-2 px-3 py-2 border text-sm rounded-lg transition-colors ${
+                                            canCopiar
+                                                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                                : 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50'
+                                        }`}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                        Copiar Receita
+                                    </button>
+                                </Tippy>
 
                                 {receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada') && (
                                     <button
@@ -385,7 +445,9 @@ const formatDate = (dateString) => {
                                         >
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="text-sm font-medium text-gray-900">#{r.numero}</span>
+                                                    <span className="text-sm font-medium text-gray-900 tabular-nums">
+                                                        {tituloReceitaComSequencia('Receita', r.numero)}
+                                                    </span>
                                                     <span
                                                         className={`px-1.5 py-0.5 text-xs rounded ${
                                                             r.status === 'finalizada'

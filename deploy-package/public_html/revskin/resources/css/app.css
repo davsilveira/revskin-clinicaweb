@@ -1,2 +1,19 @@
 @import "tailwindcss";
 
+.login-hero-panel {
+    display: none;
+    position: relative;
+    overflow: hidden;
+    height: 100vh;
+    min-height: 100vh;
+    flex-shrink: 0;
+    background-size: cover !important;
+    background-position: center top !important;
+    background-repeat: no-repeat !important;
+}
+
+@media (min-width: 64rem) {
+    .login-hero-panel {
+        display: block;
+    }
+}

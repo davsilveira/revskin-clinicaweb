@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Input from '@/Components/Form/Input';
+import DatePickerField from '@/Components/Form/DatePickerField';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
 import Toast from '@/Components/Toast';
@@ -624,13 +625,13 @@ export default function InfosimplesTools({ infosimples, history: initialHistory,
                                             disabled={loading.cpf || integrationDisabled}
                                         />
 
-                                        <Input
-                                            type="date"
+                                        <DatePickerField
                                             label="Data de nascimento"
                                             value={cpfForm.birthdate}
-                                            onChange={(event) => setCpfForm((prev) => ({ ...prev, birthdate: event.target.value }))}
+                                            onChange={(v) => setCpfForm((prev) => ({ ...prev, birthdate: v }))}
                                             error={firstError(errors.cpf, 'birthdate')}
                                             disabled={loading.cpf || integrationDisabled}
+                                            allowType
                                         />
 
                                         <button

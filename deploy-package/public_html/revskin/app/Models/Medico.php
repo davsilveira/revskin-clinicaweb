@@ -147,7 +147,9 @@ class Medico extends Model
      */
     public function getNomeAttribute(): ?string
     {
-        return $this->linkedUser?->name;
+        return $this->linkedUser?->name
+            ?? $this->apelido
+            ?? ($this->crm ? "Médico {$this->crm}" : null);
     }
 
     /**

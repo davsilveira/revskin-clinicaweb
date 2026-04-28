@@ -29,12 +29,14 @@ class Produto extends Model
         'tiny_id',
         'tiny_sync_at',
         'ativo',
+        'legado_somente_leitura',
     ];
 
     protected function casts(): array
     {
         return [
             'ativo' => 'boolean',
+            'legado_somente_leitura' => 'boolean',
             'preco' => 'decimal:2',
             'preco_custo' => 'decimal:2',
             'estoque_minimo' => 'integer',
@@ -56,6 +58,14 @@ class Produto extends Model
     public function scopeAtivo($query)
     {
         return $query->where('ativo', true);
+    }
+
+    /**
+     * Exclui produtos criados só para migração legada (listagem catálogo / receitas novas).
+     */
+    public function scopeSemLegadoSomenteLeitura($query)
+    {
+        return $query->where('legado_somente_leitura', false);
     }
 
     /**

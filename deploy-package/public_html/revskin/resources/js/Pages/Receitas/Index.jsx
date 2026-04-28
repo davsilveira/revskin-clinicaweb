@@ -1,24 +1,131 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
+import PatientDrawer from '@/Components/PatientDrawer';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
+import PacientesIndexBackLink from '@/Components/PacientesIndexBackLink';
+import { persistReceitasIndexQueryFromLocation } from '@/utils/receitasListNavigation';
 
-export default function ReceitasIndex({ receitas, pacientes, filters }) {
+function buildReceitasIndexParams(term, st, pacId) {
+    const params = {};
+    const t = (term ?? '').trim();
+    if (t) {
+        params.search = t;
+    }
+    if (st !== undefined && st !== null && st !== '') {
+        params.status = st;
+    }
+    if (pacId) {
+        params.paciente_id = pacId;
+    }
+    return params;
+}
+
+export default function ReceitasIndex({
+    receitas,
+    filters,
+    pacienteFiltrado = null,
+    medicosPacienteDrawer = [],
+    receitasIndexIsAdmin = false,
+    receitasIndexIsSecretaria = false,
+    receitasIndexCanSelectMedico = true,
+}) {
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
-    const [search, setSearch] = useState(filters?.search || '');
-    const [status, setStatus] = useState(filters?.status || '');
+    const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
+    const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
+    const [status, setStatus] = useState(() =>
+        filters?.paciente_id ? '' : filters?.status != null ? String(filters.status) : ''
+    );
     const pacienteId = filters?.paciente_id;
+    const listagemPorPaciente = Boolean(pacienteId);
+    const receitasQuerySearch = listagemPorPaciente ? '' : search;
+    const receitasQueryStatus = listagemPorPaciente ? '' : status;
+    const skipNextReceitasFetch = useRef(true);
+
+    useEffect(() => {
+        if (!filters) {
+            return;
+        }
+        const patientScoped = Boolean(filters.paciente_id);
+        const nextSearch = patientScoped
+            ? ''
+            : filters.search != null && filters.search !== ''
+              ? String(filters.search)
+              : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextStatus = patientScoped
+            ? ''
+            : filters.status != null
+              ? String(filters.status)
+              : '';
+        setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    }, [filters?.search, filters?.status, filters?.paciente_id]);
+
+    useEffect(() => {
+        persistReceitasIndexQueryFromLocation();
+    }, [filters?.search, filters?.status, filters?.paciente_id]);
+
+    const runReceitasQuery = useMemo(
+        () =>
+            debounce((term, st, pacId) => {
+                router.get('/receitas', buildReceitasIndexParams(term, st, pacId), {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['receitas', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextReceitasFetch.current) {
+            skipNextReceitasFetch.current = false;
+            return;
+        }
+        runReceitasQuery(receitasQuerySearch, receitasQueryStatus, pacienteId);
+    }, [receitasQuerySearch, receitasQueryStatus, pacienteId, runReceitasQuery]);
+
+    useEffect(() => () => runReceitasQuery.cancel(), [runReceitasQuery]);
+
+    const telefonesExibicao = (p) => {
+        if (!p) return [];
+        const out = [];
+        if (p.celular) out.push(p.celular);
+        if (p.telefone1) out.push(p.telefone1);
+        (p.telefones || []).forEach((t) => {
+            if (t?.numero) {
+                out.push(t.tipo ? `${t.tipo}: ${t.numero}` : t.numero);
+            }
+        });
+        return [...new Set(out)];
+    };
+
+    const refreshReceitasIndex = () => {
+        runReceitasQuery.cancel();
+        router.get('/receitas', buildReceitasIndexParams(receitasQuerySearch, receitasQueryStatus, pacienteId), {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['receitas', 'filters'],
+        });
+    };
 
     const handleSearch = (e) => {
         e.preventDefault();
-        const params = { search, status };
-        if (pacienteId) params.paciente_id = pacienteId;
-        router.get('/receitas', params, { preserveState: true });
+        runReceitasQuery.cancel();
+        router.get('/receitas', buildReceitasIndexParams(receitasQuerySearch, receitasQueryStatus, pacienteId), {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['receitas', 'filters'],
+        });
     };
 
-    const getStatusBadge = (status) => {
+    const getStatusBadge = (statusVal) => {
         const badges = {
             aberta: 'bg-gray-100 text-gray-800',
             finalizada: 'bg-green-100 text-green-800',
@@ -30,75 +137,150 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
             cancelada: 'Cancelada',
         };
         return (
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${badges[status] || 'bg-gray-100'}`}>
-                {labels[status] || status}
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${badges[statusVal] || 'bg-gray-100'}`}>
+                {labels[statusVal] || statusVal}
             </span>
         );
     };
 
     const receitasList = receitas?.data || [];
 
-    const rowVisit = (id) => router.visit(`/receitas/${id}`);
+    const rowVisit = (id) => {
+        persistReceitasIndexQueryFromLocation();
+        router.visit(`/receitas/${id}`);
+    };
 
     return (
         <DashboardLayout>
             <Head title="Receitas" />
 
             <div className="py-4 lg:py-6 px-0">
+                {pacienteFiltrado && (
+                    <div className="mb-4">
+                        <PacientesIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Voltar para Pacientes
+                        </PacientesIndexBackLink>
+                    </div>
+                )}
                 <PageHeader
                     title="Receitas"
                     description="Gerencie as receitas médicas"
                     actions={
                         <>
                             <Link
-                                href="/assistente-receita"
-                                className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                </svg>
-                                Assistente
-                            </Link>
-                            <Link
-                                href="/receitas/create"
+                                href={
+                                    pacienteFiltrado
+                                        ? `/assistente-receita?paciente_id=${pacienteFiltrado.id}`
+                                        : '/assistente-receita'
+                                }
                                 className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Nova Receita
+                                Assistente de Receita
                             </Link>
                         </>
                     }
                 />
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                        <input
-                            type="text"
-                            placeholder="Buscar por paciente..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                        <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        >
-                            <option value="">Todos os status</option>
-                            <option value="aberta">Aberta</option>
-                            <option value="finalizada">Finalizada</option>
-                            <option value="cancelada">Cancelada</option>
-                        </select>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                        >
-                            Filtrar
-                        </button>
-                    </form>
-                </div>
+                {pacienteFiltrado && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 mb-6">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm flex-1 min-w-0">
+                                <div className="space-y-3">
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Paciente
+                                        </span>
+                                        <span className="text-gray-900 font-semibold">{pacienteFiltrado.nome}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Nº Registro
+                                        </span>
+                                        <span className="text-gray-900">
+                                            {pacienteFiltrado.codigo != null && String(pacienteFiltrado.codigo).trim() !== ''
+                                                ? String(pacienteFiltrado.codigo).trim()
+                                                : '—'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Médico
+                                        </span>
+                                        <span className="text-gray-900">
+                                            {nomeExibicaoSemTitulo(
+                                                pacienteFiltrado.medico?.linkedUser?.name ||
+                                                    pacienteFiltrado.medico?.linked_user?.name ||
+                                                    pacienteFiltrado.medico?.apelido
+                                            ) || '—'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                            Indicado por
+                                        </span>
+                                        <span className="text-gray-900">{pacienteFiltrado.indicado_por || '—'}</span>
+                                    </div>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <span className="text-gray-500 block text-xs font-medium uppercase tracking-wide">
+                                        Telefones
+                                    </span>
+                                    <span className="text-gray-900">
+                                        {telefonesExibicao(pacienteFiltrado).length
+                                            ? telefonesExibicao(pacienteFiltrado).join(' · ')
+                                            : '—'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPatientDrawerOpen(true)}
+                                className="shrink-0 min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg text-gray-800 font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Editar paciente
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {!listagemPorPaciente && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                        <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                            <input
+                                type="text"
+                                placeholder="Buscar por paciente..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                autoComplete="off"
+                            />
+                            <select
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value)}
+                                className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            >
+                                <option value="">Todos os status</option>
+                                <option value="aberta">Aberta</option>
+                                <option value="finalizada">Finalizada</option>
+                                <option value="cancelada">Cancelada</option>
+                            </select>
+                            <button
+                                type="submit"
+                                className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                                Filtrar
+                            </button>
+                        </form>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <ResponsiveEntityList
@@ -108,7 +290,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Código
+                                                {listagemPorPaciente ? 'Receita' : 'Código'}
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Paciente
@@ -139,7 +321,9 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                 >
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-sm font-medium text-gray-900">
-                                                            {receita.numero}
+                                                            {listagemPorPaciente
+                                                                ? sequenciaNumeroReceita(receita.numero)
+                                                                : receita.numero}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -168,8 +352,9 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                         <div className="flex items-center justify-end gap-1">
                                                             <Link
                                                                 href={`/receitas/${receita.id}`}
+                                                                onClick={() => persistReceitasIndexQueryFromLocation()}
                                                                 className="inline-flex p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                                aria-label="Ver receita"
+                                                                aria-label={isMedico ? 'Visualizar receita' : 'Ver receita'}
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -188,9 +373,10 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                                     </svg>
                                                                 </a>
-                                                            ) : (
+                                                            ) : !isMedico ? (
                                                                 <Link
                                                                     href={`/receitas/${receita.id}/edit`}
+                                                                    onClick={() => persistReceitasIndexQueryFromLocation()}
                                                                     className="inline-flex p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                                                     aria-label="Editar receita"
                                                                 >
@@ -198,7 +384,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                                     </svg>
                                                                 </Link>
-                                                            )}
+                                                            ) : null}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -232,7 +418,11 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                 >
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="min-w-0 flex-1">
-                                                            <div className="font-medium text-gray-900">{receita.numero}</div>
+                                                            <div className="font-medium text-gray-900">
+                                                                {listagemPorPaciente
+                                                                    ? sequenciaNumeroReceita(receita.numero)
+                                                                    : receita.numero}
+                                                            </div>
                                                             <div className="text-sm font-medium text-gray-900 mt-1 break-words">
                                                                 {receita.paciente?.nome || '—'}
                                                             </div>
@@ -258,8 +448,9 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                 >
                                                     <Link
                                                         href={`/receitas/${receita.id}`}
+                                                        onClick={() => persistReceitasIndexQueryFromLocation()}
                                                         className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                                        aria-label="Ver receita"
+                                                        aria-label={isMedico ? 'Visualizar receita' : 'Ver receita'}
                                                     >
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -278,9 +469,10 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                             </svg>
                                                         </a>
-                                                    ) : (
+                                                    ) : !isMedico ? (
                                                         <Link
                                                             href={`/receitas/${receita.id}/edit`}
+                                                            onClick={() => persistReceitasIndexQueryFromLocation()}
                                                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                                             aria-label="Editar receita"
                                                         >
@@ -288,7 +480,7 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                             </svg>
                                                         </Link>
-                                                    )}
+                                                    ) : null}
                                                 </div>
                                             </div>
                                         </div>
@@ -331,6 +523,21 @@ export default function ReceitasIndex({ receitas, pacientes, filters }) {
                     )}
                 </div>
             </div>
+
+            <PatientDrawer
+                isOpen={patientDrawerOpen}
+                onClose={() => setPatientDrawerOpen(false)}
+                paciente={pacienteFiltrado}
+                onSave={() => {
+                    setPatientDrawerOpen(false);
+                    refreshReceitasIndex();
+                }}
+                isAdmin={receitasIndexIsAdmin}
+                showMedicoField={receitasIndexCanSelectMedico}
+                medicos={medicosPacienteDrawer}
+                medicoRequired={receitasIndexIsSecretaria}
+                enableAutoSave
+            />
         </DashboardLayout>
     );
 }

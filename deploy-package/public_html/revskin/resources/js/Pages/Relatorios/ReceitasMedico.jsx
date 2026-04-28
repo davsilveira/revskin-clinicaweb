@@ -6,6 +6,8 @@ import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Pagination from '@/Components/Pagination';
 import ExportConfirmModal from '@/Components/ExportConfirmModal';
 import Toast from '@/Components/Toast';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import DatePickerField from '@/Components/Form/DatePickerField';
 
 export default function ReceitasMedico({ medicos, dados, filters }) {
     const { auth, flash } = usePage().props || {};
@@ -139,33 +141,29 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                 <option value="">Todos os médicos</option>
                                 {medicos?.map((medico) => (
                                     <option key={medico.id} value={medico.id}>
-                                        {medico.nome}
+                                        {nomeExibicaoSemTitulo(medico.nome)}
                                     </option>
                                 ))}
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Data Início
-                            </label>
-                            <input
-                                type="date"
+                            <DatePickerField
+                                label="Data Início"
                                 value={dataInicio}
-                                onChange={(e) => setDataInicio(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                onChange={setDataInicio}
+                                allowType
+                                compact
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Data Fim
-                            </label>
-                            <input
-                                type="date"
+                            <DatePickerField
+                                label="Data Fim"
                                 value={dataFim}
-                                onChange={(e) => setDataFim(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                onChange={setDataFim}
+                                allowType
+                                compact
                             />
                         </div>
 
@@ -295,7 +293,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                             </Link>
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                            {receita.medico?.nome || '-'}
+                                                            {nomeExibicaoSemTitulo(receita.medico?.nome) || '-'}
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                             {receita.paciente?.nome || '-'}
@@ -360,9 +358,9 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                     </div>
                                                     <p
                                                         className="text-sm text-gray-800 mt-2 truncate"
-                                                        title={receita.medico?.nome || ''}
+                                                        title={nomeExibicaoSemTitulo(receita.medico?.nome) || ''}
                                                     >
-                                                        {receita.medico?.nome || '—'}
+                                                        {nomeExibicaoSemTitulo(receita.medico?.nome) || '—'}
                                                     </p>
                                                     <p className="text-sm text-gray-600 mt-1 break-words">{receita.paciente?.nome || '—'}</p>
                                                     <p className="text-sm text-gray-500 mt-2">

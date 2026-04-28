@@ -21,7 +21,8 @@ class ProcessWebhookTinyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 1;
+
     public int $timeout = 120;
 
     public function __construct(
@@ -42,10 +43,11 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
         $receita = Receita::where('tiny_pedido_id', $this->pedidoId)->first();
 
-        if (!$receita) {
+        if (! $receita) {
             Log::warning('Tiny ERP: Receita não encontrada para pedido', [
                 'tiny_pedido_id' => $this->pedidoId,
             ]);
+
             return;
         }
 
@@ -84,7 +86,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
             $this->processarCancelamento($receita);
         }
 
-        if (!$isFinalizada && !$isCancelada) {
+        if (! $isFinalizada && ! $isCancelada) {
             Log::info('Tiny ERP: Situação não é finalizada nem cancelada, nada a fazer');
         }
 
@@ -99,7 +101,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
     {
         Log::info('Tiny ERP: marcarItensVendidos iniciado', ['receita_id' => $receita->id]);
 
-        $client = new TinyErpClient();
+        $client = new TinyErpClient;
         $result = $client->obterPedido((int) $this->pedidoId);
 
         if ($result['status'] !== 'success') {
@@ -107,6 +109,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
                 'tiny_pedido_id' => $this->pedidoId,
                 'error' => $result['message'] ?? 'Erro desconhecido',
             ]);
+
             return;
         }
 

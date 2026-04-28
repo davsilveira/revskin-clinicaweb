@@ -45,23 +45,21 @@ function userFormComparable(d) {
     };
 }
 
-function roleFilterFromFilters(filters, tinyEnabled) {
+function roleFilterFromFilters(filters) {
     const r = filters?.role;
     if (!r || r === '') return 'all';
-    if (tinyEnabled && r === 'callcenter') return 'all';
     return r;
 }
 
 export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     const { props } = usePage();
     const auth = props.auth || {};
-    const tinyEnabled = auth.tinyEnabled || false;
     const serverErrors = props.errors || {};
 
     const [search, setSearch] = useState(() =>
         filters.search != null && filters.search !== '' ? String(filters.search) : ''
     );
-    const [roleFilter, setRoleFilter] = useState(() => roleFilterFromFilters(filters, tinyEnabled));
+    const [roleFilter, setRoleFilter] = useState(() => roleFilterFromFilters(filters));
     const skipNextUsersFetch = useRef(true);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
@@ -79,9 +77,9 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     useEffect(() => {
         const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
         setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-        const nextRole = roleFilterFromFilters(filters, tinyEnabled);
+        const nextRole = roleFilterFromFilters(filters);
         setRoleFilter((prev) => (prev === nextRole ? prev : nextRole));
-    }, [filters?.search, filters?.role, tinyEnabled]);
+    }, [filters?.search, filters?.role]);
 
     const [formBaseline, setFormBaseline] = useState(null);
 
@@ -406,7 +404,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             <option value="admin">Administrador</option>
                             <option value="medico">Médico</option>
                             <option value="secretaria">Secretária</option>
-                            {!tinyEnabled && <option value="callcenter">Call Center</option>}
+                            <option value="callcenter">Call Center</option>
                         </select>
                     </div>
                 </div>
@@ -535,7 +533,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                         { value: 'callcenter', label: 'Call Center' },
                                         { value: 'secretaria', label: 'Secretária' },
                                         { value: 'admin', label: 'Administrador' },
-                                    ].filter((o) => (tinyEnabled ? o.value !== 'callcenter' : true))}
+                                    ]}
                                 />
 
                                 <Input

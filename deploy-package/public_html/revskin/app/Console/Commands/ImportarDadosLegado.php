@@ -298,6 +298,17 @@ class ImportarDadosLegado extends Command
                 ? User::find($this->getMapping('users', $item['legado_id']))
                 : null;
 
+            // Vários users legado (ex.: usernames distintos) para o mesmo médico → um único User no novo sistema
+            if (! $existente && ($item['role'] ?? '') === 'medico' && ! empty($item['legado_medico_ids'])) {
+                $medicoIdNovo = $this->getMapping('medicos', $item['legado_medico_ids'][0]);
+                if ($medicoIdNovo) {
+                    $existente = User::query()
+                        ->where('role', 'medico')
+                        ->where('medico_id', $medicoIdNovo)
+                        ->first();
+                }
+            }
+
             if (! $existente && ! empty($item['email'])) {
                 $existente = User::where('email', $item['email'])->first();
             }
@@ -405,7 +416,8 @@ class ImportarDadosLegado extends Command
                 $medicoId = $this->getMapping('medicos', $item['legado_medico_id']);
 
                 $paciente = Paciente::create([
-                    'codigo' => $item['codigo'],
+                    'codigo' => $item['codigo'] ?? null,
+                    'indicado_por' => $item['indicado_por'] ?? null,
                     'nome' => $item['nome'],
                     'data_nascimento' => $item['data_nascimento'],
                     'sexo' => $item['sexo'],
@@ -512,6 +524,10 @@ class ImportarDadosLegado extends Command
         $receitasSemProduto = 0;
 
         foreach ($dados as $item) {
+            if (($item['status'] ?? '') === 'cancelada') {
+                continue;
+            }
+
             $pacienteId = $this->getMapping('pacientes', $item['legado_paciente_id']);
             $medicoId = $this->getMapping('medicos', $item['legado_medico_id']);
 
@@ -553,6 +569,9 @@ class ImportarDadosLegado extends Command
                 $receita->ativo = true;
                 $receita->saveQuietly();
 
+                $separadorOrdem = $this->detectarSeparadorGrupoLegado($item['itens']);
+
+                $ordemNova = 0;
                 foreach ($item['itens'] as $receitaItem) {
                     $produtoId = $this->resolverProdutoIdItemLegadoJson($receitaItem, $produtoCache);
 
@@ -562,6 +581,7 @@ class ImportarDadosLegado extends Command
                         continue;
                     }
 
+                    $ordemNova++;
                     $ri = new ReceitaItem;
                     $ri->receita_id = $receita->id;
                     $ri->produto_id = $produtoId;
@@ -572,8 +592,10 @@ class ImportarDadosLegado extends Command
                     $ri->valor_total = ($receitaItem['quantidade'] ?? 1) * ($receitaItem['valor_unitario'] ?? 0);
                     $ri->data_aquisicao = $receitaItem['data_aquisicao'];
                     $ri->imprimir = $receitaItem['imprimir'];
-                    $ri->ordem = $receitaItem['ordem'];
-                    $ri->grupo = 'recomendado';
+                    $ri->ordem = $ordemNova;
+                    $ri->grupo = ($separadorOrdem !== null && $receitaItem['ordem'] >= $separadorOrdem)
+                        ? 'opcional'
+                        : 'recomendado';
                     $ri->saveQuietly();
                     $this->setMapping('receita_itens', $receitaItem['legado_id'], $ri->id);
                 }
@@ -597,16 +619,84 @@ class ImportarDadosLegado extends Command
     }
 
     /**
+     * Encontra o separador entre recomendados e complementares usando o maior
+     * bloco contiguo de linhas em branco. Em caso de empate, usa o primeiro.
+     */
+    private function detectarSeparadorGrupoLegado(array $itens): ?int
+    {
+        $sorted = $itens;
+        usort($sorted, fn ($a, $b) => ((int) $a['ordem']) - ((int) $b['ordem']));
+
+        $runs = [];
+        $currentLen = 0;
+        $currentStartIdx = 0;
+
+        foreach ($sorted as $idx => $ri) {
+            $code = trim((string) ($ri['codigo_produto_legado'] ?? ''));
+            $isBlank = $code === '' || in_array($code, ['...', 'W-AMOSTRA'], true);
+
+            if ($isBlank) {
+                if ($currentLen === 0) {
+                    $currentStartIdx = $idx;
+                }
+                $currentLen++;
+            } else {
+                if ($currentLen > 0) {
+                    $runs[] = [
+                        'len' => $currentLen,
+                        'startIdx' => $currentStartIdx,
+                        'ordem' => (int) $sorted[$currentStartIdx]['ordem'],
+                    ];
+                    $currentLen = 0;
+                }
+            }
+        }
+
+        $validRuns = array_filter($runs, function ($run) use ($sorted) {
+            for ($j = 0; $j < $run['startIdx']; $j++) {
+                $c = trim((string) ($sorted[$j]['codigo_produto_legado'] ?? ''));
+                if ($c !== '' && ! in_array($c, ['...', 'W-AMOSTRA'], true)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        if (empty($validRuns)) {
+            return null;
+        }
+
+        $maxLen = max(array_column($validRuns, 'len'));
+        foreach ($validRuns as $run) {
+            if ($run['len'] === $maxLen) {
+                return $run['ordem'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param  \Illuminate\Support\Collection  $produtoCache  keyBy codigo
      */
     private function resolverProdutoIdItemLegadoJson(array $receitaItem, $produtoCache): ?int
     {
         $legado = trim((string) ($receitaItem['codigo_produto_legado'] ?? ''));
-        $codigoBusca = $legado !== ''
-            ? LegadoCodigoProdutoMapeamento::paraBase($legado, $this->mapeamentoCodigoLegadoBase)
-            : trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
+        $codigoMapeado = trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
+        $codigoBusca = '';
+        if ($legado !== '') {
+            $codigoBusca = LegadoCodigoProdutoMapeamento::paraBase($legado, $this->mapeamentoCodigoLegadoBase);
+        } elseif ($codigoMapeado !== '') {
+            $codigoBusca = $codigoMapeado;
+        }
 
         if ($codigoBusca === '') {
+            return null;
+        }
+
+        $codigosIgnorar = ['...', 'W-AMOSTRA'];
+        if (in_array($codigoBusca, $codigosIgnorar, true)) {
             return null;
         }
 
@@ -620,7 +710,44 @@ class ImportarDadosLegado extends Command
             }
         }
 
-        return $produto?->id;
+        if (! $produto && $legado !== '' && $legado !== $codigoBusca) {
+            $produto = $produtoCache->get($legado);
+            if (! $produto) {
+                $produto = Produto::where('codigo', $legado)->first();
+            }
+            if ($produto) {
+                $produtoCache->put($produto->codigo, $produto);
+            }
+        }
+
+        if ($produto) {
+            return $produto->id;
+        }
+
+        $descLegado = trim((string) ($receitaItem['descricao_produto_legado'] ?? ''));
+        if ($descLegado !== '') {
+            $nome = mb_substr($descLegado, 0, 255);
+        } elseif ($legado !== '') {
+            $nome = mb_substr($legado, 0, 255);
+        } else {
+            $nome = mb_substr('Produto legado '.$codigoBusca, 0, 255);
+        }
+
+        $codigoNovo = $legado !== '' ? mb_substr($legado, 0, 255) : $codigoBusca;
+        if ($codigoNovo !== $codigoBusca && ($produtoCache->has($codigoNovo) || Produto::where('codigo', $codigoNovo)->exists())) {
+            $codigoNovo = $codigoBusca;
+        }
+
+        $novo = Produto::create([
+            'codigo' => $codigoNovo,
+            'nome' => $nome,
+            'legado_somente_leitura' => true,
+            'ativo' => true,
+            'preco' => (float) ($receitaItem['valor_unitario'] ?? 0),
+        ]);
+        $produtoCache->put($novo->codigo, $novo);
+
+        return $novo->id;
     }
 
     /**

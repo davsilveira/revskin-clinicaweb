@@ -6,8 +6,11 @@ import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import ExportConfirmModal from '@/Components/ExportConfirmModal';
 import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import DatePickerField from '@/Components/Form/DatePickerField';
 
-export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados, filters, isAdmin, isMedico }) {
+export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados, filters, isAdmin }) {
+    const mostrarValoresMonetarios = isAdmin;
     const { auth, flash } = usePage().props || {};
     const [toast, setToast] = useState(null);
     const [exportModal, setExportModal] = useState({ open: false, format: null });
@@ -309,26 +312,6 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
         return cpf;
     };
 
-    const parseDdMmYyyy = (str) => {
-        if (!str) return 0;
-        const [dd, mm, yyyy] = String(str).split('/');
-        return new Date(yyyy, (parseInt(mm, 10) || 1) - 1, parseInt(dd, 10) || 1).getTime();
-    };
-
-    const ultimaModificacaoPorProduto = (produtos) => {
-        if (!produtos?.length) return {};
-        const map = {};
-        produtos.forEach((p) => {
-            const nome = p.produto_nome;
-            const d = p.data_receita;
-            const t = parseDdMmYyyy(d);
-            if (!map[nome] || t > (map[nome].t || 0)) map[nome] = { t, data: d };
-        });
-        const out = {};
-        Object.keys(map).forEach((k) => { out[k] = map[k].data; });
-        return out;
-    };
-
     return (
         <DashboardLayout>
             {toast && (
@@ -369,26 +352,22 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                         {/* Datas primeiro */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Data Início
-                                </label>
-                                <input
-                                    type="date"
+                                <DatePickerField
+                                    label="Data Início"
                                     value={dataInicio}
-                                    onChange={(e) => setDataInicio(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    onChange={setDataInicio}
+                                    allowType
+                                    compact
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Data Fim
-                                </label>
-                                <input
-                                    type="date"
+                                <DatePickerField
+                                    label="Data Fim"
                                     value={dataFim}
-                                    onChange={(e) => setDataFim(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    onChange={setDataFim}
+                                    allowType
+                                    compact
                                 />
                             </div>
 
@@ -401,6 +380,13 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                 </button>
                             </div>
                         </div>
+                        <p className="text-xs text-gray-500 mb-4">
+                            O período do filtro usa a <span className="font-medium text-gray-600">data da manipulação (aquisição)</span>. Cada linha exibe também a{' '}
+                            <span className="font-medium text-gray-600">data da receita</span> utilizada naquela venda.
+                            {!mostrarValoresMonetarios && (
+                                <> Perfil <span className="font-medium text-gray-600">médico</span> não exibe preços nem totais em dinheiro (tela, PDF e Excel).</>
+                            )}
+                        </p>
 
                         {/* Mais Filtros */}
                         <div className="pt-4">
@@ -437,7 +423,7 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                             key={medico.id}
                                                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm"
                                                         >
-                                                            <span>{medico.nome}</span>
+                                                            <span>{nomeExibicaoSemTitulo(medico.nome)}</span>
                                                             {medico.crm && <span className="text-blue-600 text-xs">CRM: {medico.crm}</span>}
                                                             <button
                                                                 type="button"
@@ -479,7 +465,9 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                                 onClick={() => addMedico(medico)}
                                                                 className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                                             >
-                                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                                <div className="font-medium text-gray-900">
+                                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                                </div>
                                                                 <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
                                                             </button>
                                                         ))}
@@ -668,14 +656,19 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                             
                             {dados && dados.pacientes && dados.pacientes.length > 0 && (
                                 <div className="p-6 space-y-6">
-                                    {dados.pacientes?.map((pacienteData, index) => (
+                                    {dados.pacientes?.map((pacienteData) => (
                                         <div key={pacienteData.paciente.id} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-                                            {/* Cabeçalho do Paciente: Nome, CPF, Dra. (só admin) */}
+                                            {/* Cabeçalho do Paciente: Nome, CPF, médico (só admin) */}
                                             <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                                     <h3 className="text-lg font-semibold text-gray-900">
                                                         {pacienteData.paciente.nome}
                                                     </h3>
+                                                    {pacienteData.paciente.telefone && (
+                                                        <span className="text-sm text-gray-600">
+                                                            {formatPhone(pacienteData.paciente.telefone)}
+                                                        </span>
+                                                    )}
                                                     {pacienteData.paciente.cpf && (
                                                         <span className="text-sm text-gray-600">
                                                             CPF: {formatCpf(pacienteData.paciente.cpf)}
@@ -683,82 +676,173 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                                                     )}
                                                     {isAdmin && pacienteData.paciente.medico_nome && (
                                                         <span className="text-sm text-gray-600">
-                                                            Dra. {pacienteData.paciente.medico_nome}
+                                                            {nomeExibicaoSemTitulo(pacienteData.paciente.medico_nome)}
                                                         </span>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            {(() => {
-                                                const ultimaMod = ultimaModificacaoPorProduto(pacienteData.produtos);
-                                                return (
-                                                    <ResponsiveEntityList
-                                                        desktop={
-                                                            <div className="overflow-x-auto">
-                                                                <table className="min-w-full divide-y divide-gray-200">
-                                                                    <thead className="bg-gray-50">
-                                                                        <tr>
-                                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                                Produto
-                                                                            </th>
-                                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                                Última Modificação
-                                                                            </th>
-                                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                                Aquisições no Período
+                                            <ResponsiveEntityList
+                                                desktop={
+                                                    <div className="overflow-x-auto">
+                                                        <table className="min-w-full divide-y divide-gray-200">
+                                                            <thead className="bg-gray-50">
+                                                                <tr>
+                                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                        Produto
+                                                                    </th>
+                                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                        Data da receita
+                                                                    </th>
+                                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                        Data da manipulação
+                                                                    </th>
+                                                                    {mostrarValoresMonetarios && (
+                                                                        <>
+                                                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                Vlr. unit.
                                                                             </th>
                                                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                                 Qtd
                                                                             </th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="bg-white divide-y divide-gray-200">
-                                                                        {pacienteData.produtos?.map((produto, prodIndex) => (
-                                                                            <tr key={prodIndex} className="hover:bg-gray-50">
-                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                                                    {produto.produto_nome}
-                                                                                </td>
-                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                                    {ultimaMod[produto.produto_nome] ?? produto.data_receita}
-                                                                                </td>
-                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                                    {produto.data_aquisicao}
+                                                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                Total
+                                                                            </th>
+                                                                        </>
+                                                                    )}
+                                                                    {!mostrarValoresMonetarios && (
+                                                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                            Qtd
+                                                                        </th>
+                                                                    )}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                                {pacienteData.produtos?.map((produto, prodIndex) => (
+                                                                    <tr key={prodIndex} className="hover:bg-gray-50">
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                                            {produto.produto_nome}
+                                                                        </td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                                            {produto.data_receita}
+                                                                        </td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                                            {produto.data_aquisicao}
+                                                                        </td>
+                                                                        {mostrarValoresMonetarios && (
+                                                                            <>
+                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right tabular-nums">
+                                                                                    {formatCurrency(Number(produto.valor_unitario))}
                                                                                 </td>
                                                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
                                                                                     {produto.quantidade}
                                                                                 </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        }
-                                                        mobile={
-                                                            <div className="divide-y divide-gray-200 bg-white">
-                                                                {pacienteData.produtos?.map((produto, prodIndex) => (
-                                                                    <div key={prodIndex} className="p-4 max-w-full">
-                                                                        <div className="font-medium text-gray-900 break-words">{produto.produto_nome}</div>
-                                                                        <dl className="mt-2 space-y-1 text-sm text-gray-600">
-                                                                            <div>
-                                                                                <dt className="inline text-gray-500">Últ. modificação: </dt>
-                                                                                <dd className="inline">{ultimaMod[produto.produto_nome] ?? produto.data_receita}</dd>
-                                                                            </div>
-                                                                            <div>
-                                                                                <dt className="inline text-gray-500">Aquisição no período: </dt>
-                                                                                <dd className="inline">{produto.data_aquisicao}</dd>
-                                                                            </div>
-                                                                            <div>
-                                                                                <dt className="inline text-gray-500">Qtd: </dt>
-                                                                                <dd className="inline font-medium text-gray-900">{produto.quantidade}</dd>
-                                                                            </div>
-                                                                        </dl>
-                                                                    </div>
+                                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right tabular-nums">
+                                                                                    {formatCurrency(Number(produto.valor_total))}
+                                                                                </td>
+                                                                            </>
+                                                                        )}
+                                                                        {!mostrarValoresMonetarios && (
+                                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                                                                                {produto.quantidade}
+                                                                            </td>
+                                                                        )}
+                                                                    </tr>
                                                                 ))}
+                                                            </tbody>
+                                                            <tfoot>
+                                                                {mostrarValoresMonetarios ? (
+                                                                    <tr className="bg-gray-200 text-gray-900 border-t border-gray-300">
+                                                                        <td
+                                                                            colSpan={3}
+                                                                            className="px-6 py-3 text-sm font-medium text-left align-middle"
+                                                                        >
+                                                                            Qtd. Produtos: {pacienteData.totais?.qtd_produtos ?? 0}
+                                                                        </td>
+                                                                        <td className="px-6 py-3 text-sm text-right tabular-nums align-middle whitespace-nowrap">
+                                                                            Vlr. Frete:{' '}
+                                                                            {formatCurrency(Number(pacienteData.totais?.vlr_frete ?? 0))}
+                                                                        </td>
+                                                                        <td className="px-6 py-3 text-sm text-center tabular-nums align-middle whitespace-nowrap">
+                                                                            Vlr. Desconto:{' '}
+                                                                            {formatCurrency(Number(pacienteData.totais?.vlr_desconto ?? 0))}
+                                                                        </td>
+                                                                        <td className="px-6 py-3 text-sm text-right font-semibold tabular-nums align-middle whitespace-nowrap">
+                                                                            Total:{' '}
+                                                                            {formatCurrency(Number(pacienteData.totais?.total ?? 0))}
+                                                                        </td>
+                                                                    </tr>
+                                                                ) : (
+                                                                    <tr className="bg-gray-200 text-gray-900 border-t border-gray-300">
+                                                                        <td
+                                                                            colSpan={4}
+                                                                            className="px-6 py-3 text-sm font-medium text-left align-middle"
+                                                                        >
+                                                                            Qtd. Produtos: {pacienteData.totais?.qtd_produtos ?? 0}
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </tfoot>
+                                                        </table>
+                                                    </div>
+                                                }
+                                                mobile={
+                                                    <div className="divide-y divide-gray-200 bg-white">
+                                                        {pacienteData.produtos?.map((produto, prodIndex) => (
+                                                            <div key={prodIndex} className="p-4 max-w-full">
+                                                                <div className="font-medium text-gray-900 break-words">{produto.produto_nome}</div>
+                                                                <dl className="mt-2 space-y-1 text-sm text-gray-600">
+                                                                    <div>
+                                                                        <dt className="inline text-gray-500">Data da receita: </dt>
+                                                                        <dd className="inline">{produto.data_receita}</dd>
+                                                                    </div>
+                                                                    <div>
+                                                                        <dt className="inline text-gray-500">Data da manipulação: </dt>
+                                                                        <dd className="inline">{produto.data_aquisicao}</dd>
+                                                                    </div>
+                                                                    {mostrarValoresMonetarios && (
+                                                                        <div>
+                                                                            <dt className="inline text-gray-500">Vlr. unit.: </dt>
+                                                                            <dd className="inline tabular-nums">{formatCurrency(Number(produto.valor_unitario))}</dd>
+                                                                        </div>
+                                                                    )}
+                                                                    <div>
+                                                                        <dt className="inline text-gray-500">Qtd: </dt>
+                                                                        <dd className="inline font-medium text-gray-900">{produto.quantidade}</dd>
+                                                                    </div>
+                                                                    {mostrarValoresMonetarios && (
+                                                                        <div>
+                                                                            <dt className="inline text-gray-500">Total: </dt>
+                                                                            <dd className="inline font-medium text-gray-900 tabular-nums">{formatCurrency(Number(produto.valor_total))}</dd>
+                                                                        </div>
+                                                                    )}
+                                                                </dl>
                                                             </div>
-                                                        }
-                                                    />
-                                                );
-                                            })()}
+                                                        ))}
+                                                        <div className="bg-gray-200 text-gray-900 border-t border-gray-300 px-4 py-3 text-sm">
+                                                            <div className="font-medium">
+                                                                Qtd. Produtos: {pacienteData.totais?.qtd_produtos ?? 0}
+                                                            </div>
+                                                            {mostrarValoresMonetarios && (
+                                                                <>
+                                                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 tabular-nums mt-2">
+                                                                        <div className="text-gray-700">
+                                                                            Vlr. Frete: {formatCurrency(Number(pacienteData.totais?.vlr_frete ?? 0))}
+                                                                        </div>
+                                                                        <div className="text-gray-700 text-right">
+                                                                            Vlr. Desconto:{' '}
+                                                                            {formatCurrency(Number(pacienteData.totais?.vlr_desconto ?? 0))}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="mt-2 pt-2 border-t border-gray-300 text-right font-semibold tabular-nums">
+                                                                        Total: {formatCurrency(Number(pacienteData.totais?.total ?? 0))}
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                }
+                                            />
                                         </div>
                                     ))}
                                 </div>

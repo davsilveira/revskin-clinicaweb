@@ -17,7 +17,8 @@ class SyncProdutosTinyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 1;
+
     public int $timeout = 600;
 
     public function __construct()
@@ -27,12 +28,13 @@ class SyncProdutosTinyJob implements ShouldQueue
 
     public function handle(): void
     {
-        if (!Setting::get('tiny_enabled', false)) {
+        if (! Setting::get('tiny_enabled', false)) {
             Log::info('Tiny ERP: Sincronização de produtos desabilitada');
+
             return;
         }
 
-        $client = new TinyErpClient();
+        $client = new TinyErpClient;
         $isV2 = $client->isV2();
         $synced = 0;
         $errors = 0;
@@ -43,8 +45,9 @@ class SyncProdutosTinyJob implements ShouldQueue
         $apenasClinicaweb = Setting::get('tiny_sync_apenas_clinicaweb', true);
         $idTag = $apenasClinicaweb && $isV2 ? $this->obterIdTagClinicaweb($client) : null;
 
-        if ($apenasClinicaweb && $isV2 && !$idTag) {
+        if ($apenasClinicaweb && $isV2 && ! $idTag) {
             Log::error('Tiny ERP: Sincronização filtrada por tag "clinicaweb" ativa, mas tag não encontrada. Configure a tag ou desative tiny_sync_apenas_clinicaweb.');
+
             return;
         }
 
@@ -122,6 +125,7 @@ class SyncProdutosTinyJob implements ShouldQueue
         $result = $client->pesquisarTags('clinicaweb');
         if ($result['status'] !== 'success') {
             Log::warning('Tiny ERP: Erro ao pesquisar tag clinicaweb', ['message' => $result['message'] ?? '']);
+
             return null;
         }
 
@@ -132,6 +136,7 @@ class SyncProdutosTinyJob implements ShouldQueue
                 $id = (int) ($tag['id'] ?? 0);
                 if ($id > 0) {
                     Setting::set('tiny_clinicaweb_tag_id', $id, 'tiny');
+
                     return $id;
                 }
             }
@@ -143,7 +148,7 @@ class SyncProdutosTinyJob implements ShouldQueue
     protected function sincronizarProduto(array $produtoData): void
     {
         $tinyId = $produtoData['id'] ?? null;
-        if (!$tinyId) {
+        if (! $tinyId) {
             return;
         }
 
@@ -152,7 +157,7 @@ class SyncProdutosTinyJob implements ShouldQueue
         $precos = $produtoData['precos'] ?? [];
 
         $produto = Produto::where('tiny_id', $tinyId)->first();
-        if (!$produto && $sku) {
+        if (! $produto && $sku) {
             $produto = Produto::where('codigo', $sku)->first();
         }
 
@@ -175,7 +180,7 @@ class SyncProdutosTinyJob implements ShouldQueue
             }
             $produto->update($dados);
         } else {
-            $dados['codigo'] = $sku ?: ('TINY-' . $tinyId);
+            $dados['codigo'] = $sku ?: ('TINY-'.$tinyId);
             $dados['nome'] = $descricao;
             Produto::create($dados);
         }

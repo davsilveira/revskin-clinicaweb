@@ -85,6 +85,12 @@ export default function ProductItemsEditor({
 }) {
     const lastItemRef = useRef(null);
 
+    const isItemLegado = (item) => {
+        if (!item?.produto_id) return false;
+        const p = produtos.find((x) => String(x.id) === String(item.produto_id));
+        return Boolean(p?.legado_somente_leitura);
+    };
+
     // Funções de manipulação de itens
     const addItem = () => {
         const newItens = [
@@ -107,6 +113,7 @@ export default function ProductItemsEditor({
     };
 
     const removeItem = (index) => {
+        if (isItemLegado(itens[index])) return;
         const newItens = [...itens];
         newItens.splice(index, 1);
         onItensChange(newItens);
@@ -115,6 +122,9 @@ export default function ProductItemsEditor({
     const updateItem = (index, field, value) => {
         const newItens = [...itens];
         const currentItem = newItens[index];
+        if (isItemLegado(currentItem)) {
+            return;
+        }
         newItens[index] = { ...currentItem, [field]: value };
 
         // Se mudou o produto, atualiza o preco e local_uso padrao
@@ -123,58 +133,28 @@ export default function ProductItemsEditor({
             if (produto) {
                 newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
-                
-                // Buscar dados de aquisição se disponíveis
-                if (itensComAquisicoes[currentItem.id]) {
-                    const dadosAquisicao = itensComAquisicoes[currentItem.id];
-                    newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                    newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
-                }
+                newItens[index].ultima_aquisicao = null;
+                newItens[index].datas_aquisicao = [];
             }
         }
 
-        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, buscar
+        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição: só mesma linha (id + produto)
         if (field === 'imprimir' && value === true && currentItem.produto_id && !currentItem.ultima_aquisicao) {
-            // Primeiro tentar buscar pelo ID do item nos itensComAquisicoes
             const itemId = currentItem.id;
             if (itemId && itensComAquisicoes[itemId]) {
                 const dadosAquisicao = itensComAquisicoes[itemId];
                 newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
                 newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
             } else if (itensOriginais.length > 0) {
-                // Buscar nos itens originais por produto_id
-                const itemOriginal = itensOriginais.find(i => 
-                    i.produto_id === currentItem.produto_id && 
-                    (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
+                const itemOriginal = itensOriginais.find(
+                    (i) =>
+                        i.id === currentItem.id &&
+                        String(i.produto_id) === String(currentItem.produto_id) &&
+                        (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
                 );
-                
                 if (itemOriginal) {
                     newItens[index].ultima_aquisicao = itemOriginal.ultima_aquisicao;
                     newItens[index].datas_aquisicao = itemOriginal.datas_aquisicao || [];
-                }
-            } else {
-                // Buscar em todos os itens atuais que têm o mesmo produto_id e já têm dados de aquisição
-                const itensComMesmoProduto = itens.filter(i => 
-                    i.produto_id === currentItem.produto_id && 
-                    (i.ultima_aquisicao || i.datas_aquisicao?.length > 0)
-                );
-                
-                if (itensComMesmoProduto.length > 0) {
-                    const primeiroItem = itensComMesmoProduto[0];
-                    newItens[index].ultima_aquisicao = primeiroItem.ultima_aquisicao;
-                    newItens[index].datas_aquisicao = primeiroItem.datas_aquisicao || [];
-                } else {
-                    // Tentar buscar nos itensComAquisicoes por produto_id
-                    const itemComAquisicao = Object.entries(itensComAquisicoes).find(([key, _]) => {
-                        const originalItem = itens.find(i => i.id === parseInt(key));
-                        return originalItem && originalItem.produto_id === currentItem.produto_id;
-                    });
-                    
-                    if (itemComAquisicao) {
-                        const [, dadosAquisicao] = itemComAquisicao;
-                        newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                        newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao || [];
-                    }
                 }
             }
         }
@@ -213,15 +193,19 @@ export default function ProductItemsEditor({
         const ultimaAquisicao = aquisicaoData?.ultima_aquisicao || item.ultima_aquisicao;
         const datasAquisicao = aquisicaoData?.datas_aquisicao || item.datas_aquisicao || [];
         const temHistorico = datasAquisicao.length > 1;
+        const legado = isItemLegado(item);
+        const rowDisabled = readOnly || legado;
 
         return (
             <div 
                 key={index} 
                 ref={isLastItem ? lastItemRef : null}
                 className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${
-                    item.imprimir 
-                        ? (item.grupo === 'opcional' ? 'hover:bg-gray-50' : 'hover:bg-emerald-50/50') 
-                        : 'bg-gray-50 opacity-50'
+                    legado
+                        ? 'bg-red-50 border border-red-100'
+                        : item.imprimir 
+                          ? (item.grupo === 'opcional' ? 'hover:bg-gray-50' : 'hover:bg-emerald-50/50') 
+                          : 'bg-gray-50 opacity-50'
                 }`}
             >
                 {/* Checkbox */}
@@ -229,7 +213,7 @@ export default function ProductItemsEditor({
                     type="checkbox"
                     checked={item.imprimir}
                     onChange={(e) => updateItem(index, 'imprimir', e.target.checked)}
-                    disabled={readOnly}
+                    disabled={rowDisabled}
                     className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
                 />
                 
@@ -238,7 +222,7 @@ export default function ProductItemsEditor({
                     value={item.produto_id}
                     onChange={(val) => updateItem(index, 'produto_id', val)}
                     produtos={produtos}
-                    disabled={readOnly}
+                    disabled={rowDisabled}
                     className="flex-[3]"
                 />
                 
@@ -248,7 +232,7 @@ export default function ProductItemsEditor({
                     placeholder="Anotações..."
                     value={item.anotacoes || ''}
                     onChange={(e) => updateItem(index, 'anotacoes', e.target.value)}
-                    disabled={readOnly}
+                    disabled={rowDisabled}
                     className="flex-[2] min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
                 />
                 
@@ -308,7 +292,7 @@ export default function ProductItemsEditor({
                     min="1"
                     value={item.quantidade}
                     onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                    disabled={readOnly || !item.imprimir}
+                    disabled={rowDisabled || !item.imprimir}
                     className={`w-14 flex-shrink-0 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
                 />
                 
@@ -320,7 +304,7 @@ export default function ProductItemsEditor({
                 )}
                 
                 {/* Remover */}
-                {!readOnly && (
+                {!readOnly && !legado && (
                     <button 
                         type="button" 
                         onClick={() => removeItem(index)} 

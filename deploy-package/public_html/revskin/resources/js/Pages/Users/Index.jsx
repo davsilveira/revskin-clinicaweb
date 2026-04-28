@@ -1,29 +1,66 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
+import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
+import cloneDeep from 'lodash/cloneDeep';
+import isEqual from 'lodash/isEqual';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MedicoFormFields from '@/Components/MedicoFormFields';
 import Pagination from '@/Components/Pagination';
 
+function userFormComparable(d) {
+    return {
+        name: d.name ?? '',
+        email: d.email ?? '',
+        password: d.password ?? '',
+        role: d.role,
+        clinica_id: d.clinica_id ?? '',
+        is_active: d.is_active,
+        crm: d.crm ?? '',
+        uf_crm: d.uf_crm ?? '',
+        especialidade: d.especialidade ?? '',
+        telefone: d.telefone ?? '',
+        celular: d.celular ?? '',
+        clinica_ids: [...(d.clinica_ids || [])].slice().sort((a, b) => a - b),
+        assinatura: d.assinatura ? 1 : 0,
+        remover_assinatura: !!d.remover_assinatura,
+        ativo: d.ativo,
+        enderecos: (d.enderecos || []).map((e) => ({
+            nome: e.nome ?? '',
+            cep: e.cep ?? '',
+            endereco: e.endereco ?? '',
+            numero: e.numero ?? '',
+            complemento: e.complemento ?? '',
+            bairro: e.bairro ?? '',
+            cidade: e.cidade ?? '',
+            uf: e.uf ?? '',
+        })),
+    };
+}
+
+function roleFilterFromFilters(filters) {
+    const r = filters?.role;
+    if (!r || r === '') return 'all';
+    return r;
+}
+
 export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     const { props } = usePage();
     const auth = props.auth || {};
-    const tinyEnabled = auth.tinyEnabled || false;
     const serverErrors = props.errors || {};
 
-    const [search, setSearch] = useState(filters.search || '');
-    const [roleFilter, setRoleFilter] = useState(() => {
-        const r = filters.role || 'all';
-        if (tinyEnabled && r === 'callcenter') {
-            return 'all';
-        }
-        return r;
-    });
+    const [search, setSearch] = useState(() =>
+        filters.search != null && filters.search !== '' ? String(filters.search) : ''
+    );
+    const [roleFilter, setRoleFilter] = useState(() => roleFilterFromFilters(filters));
+    const skipNextUsersFetch = useRef(true);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -38,10 +75,13 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     );
 
     useEffect(() => {
-        setSearch(filters.search || '');
-        const r = filters.role || 'all';
-        setRoleFilter(tinyEnabled && r === 'callcenter' ? 'all' : r);
-    }, [filters.search, filters.role, tinyEnabled]);
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+        const nextRole = roleFilterFromFilters(filters);
+        setRoleFilter((prev) => (prev === nextRole ? prev : nextRole));
+    }, [filters?.search, filters?.role]);
+
+    const [formBaseline, setFormBaseline] = useState(null);
 
     const { data, setData, setError, clearErrors, processing, errors, reset } = useForm({
         name: '',
@@ -74,6 +114,11 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         setEditingUser(user);
         setShowDeleteConfirm(false);
         const medico = user.medico;
+        const rawEnderecos = medico?.enderecos || [];
+        const enderecoUf = (rawEnderecos[0]?.uf || '').trim().toUpperCase();
+        const ufCrmFromMedico = (medico?.uf_crm || '').trim();
+        const uf_crm =
+            ufCrmFromMedico || (enderecoUf.length === 2 ? enderecoUf : '');
         setData({
             name: user.name,
             email: user.email,
@@ -82,7 +127,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
             clinica_id: user.clinica_id ? String(user.clinica_id) : '',
             is_active: user.is_active,
             crm: medico?.crm || '',
-            uf_crm: medico?.uf_crm || '',
+            uf_crm,
             especialidade: medico?.especialidade || '',
             telefone: medico?.telefone1 || '',
             celular: medico?.telefone2 || '',
@@ -90,7 +135,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
             assinatura: null,
             remover_assinatura: false,
             ativo: medico?.ativo ?? true,
-            enderecos: medico?.enderecos?.map(e => ({
+            enderecos: rawEnderecos.map(e => ({
                 nome: e.nome || '',
                 cep: e.cep || '',
                 endereco: e.endereco || '',
@@ -104,12 +149,20 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         setDrawerOpen(true);
     };
 
-    const closeDrawer = () => {
+    const forceCloseDrawer = () => {
         setDrawerOpen(false);
         setEditingUser(null);
         setShowDeleteConfirm(false);
         reset();
     };
+
+    useEffect(() => {
+        if (!drawerOpen) {
+            setFormBaseline(null);
+            return;
+        }
+        setFormBaseline(cloneDeep(userFormComparable(data)));
+    }, [drawerOpen, editingUser?.id]);
 
     const validateBaseFields = () => {
         const errs = {};
@@ -124,7 +177,13 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         const errs = {};
         if (!data.crm?.trim()) errs.crm = 'O CRM é obrigatório.';
         if (!data.uf_crm?.trim()) errs.uf_crm = 'A UF do CRM é obrigatória.';
-        if (!data.celular?.replace(/\D/g, '')) errs.celular = 'O celular é obrigatório.';
+        const telDigits = (data.telefone || '').replace(/\D/g, '');
+        const celDigits = (data.celular || '').replace(/\D/g, '');
+        if (telDigits.length < 10 && celDigits.length < 10) {
+            const msg = 'Informe telefone ou celular com DDD (mínimo 10 dígitos).';
+            errs.telefone = msg;
+            errs.celular = msg;
+        }
         return errs;
     };
 
@@ -138,66 +197,132 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         return true;
     }, [data, editingUser]);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-
-        clearErrors();
-        const baseErrs = validateBaseFields();
-        if (Object.keys(baseErrs).length > 0) {
-            setError(baseErrs);
-            return;
-        }
-
-        let submitData = { ...data };
-        if (isMedico(data.role)) {
-            submitData.enderecos = (data.enderecos || []).filter(ev => ev.nome && ev.nome.trim());
-            submitData.email = data.email;
-
-            const medicoErrs = validateMedicoFields();
-            if (Object.keys(medicoErrs).length > 0) {
-                setError(medicoErrs);
+    const trySaveUser = useCallback(
+        ({ onSuccess, onError, onInvalid }) => {
+            clearErrors();
+            const baseErrs = validateBaseFields();
+            if (Object.keys(baseErrs).length > 0) {
+                setError(baseErrs);
+                onInvalid?.();
                 return;
             }
-        }
 
-        const options = {
-            forceFormData: isMedico(data.role),
-            preserveScroll: true,
+            let submitData = { ...data };
+            if (isMedico(data.role)) {
+                submitData.enderecos = (data.enderecos || []).filter((ev) => ev.nome && ev.nome.trim());
+                submitData.email = data.email;
+
+                const medicoErrs = validateMedicoFields();
+                if (Object.keys(medicoErrs).length > 0) {
+                    setError(medicoErrs);
+                    onInvalid?.();
+                    return;
+                }
+            }
+
+            const options = {
+                forceFormData: isMedico(data.role),
+                preserveScroll: true,
+                onSuccess,
+                onError,
+            };
+
+            if (editingUser) {
+                router.put(`/users/${editingUser.id}`, submitData, options);
+            } else {
+                router.post('/users', submitData, options);
+            }
+        },
+        [data, editingUser, clearErrors, setError]
+    );
+
+    const isDirty = useMemo(() => {
+        if (!drawerOpen || !formBaseline) return false;
+        return !isEqual(userFormComparable(data), formBaseline);
+    }, [drawerOpen, formBaseline, data]);
+
+    const saveBeforeClose = useCallback(
+        () =>
+            new Promise((resolve) => {
+                trySaveUser({
+                    onSuccess: () => resolve(true),
+                    onError: () => resolve(false),
+                    onInvalid: () => resolve(false),
+                });
+            }),
+        [trySaveUser]
+    );
+
+    const {
+        requestClose,
+        showUnsavedModal,
+        savingBeforeLeave,
+        handleUnsavedCancel,
+        handleUnsavedDiscard,
+        handleUnsavedSave,
+    } = useDrawerUnsavedChanges({
+        isOpen: drawerOpen,
+        isDirty,
+        onConfirmClose: forceCloseDrawer,
+        saveBeforeClose,
+    });
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        trySaveUser({
             onSuccess: () => {
-                closeDrawer();
-                setToast({ message: editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!', type: 'success' });
+                forceCloseDrawer();
+                setToast({
+                    message: editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!',
+                    type: 'success',
+                });
             },
-        };
-
-        if (editingUser) {
-            router.put(`/users/${editingUser.id}`, submitData, options);
-        } else {
-            router.post('/users', submitData, options);
-        }
+        });
     };
 
     const handleDelete = () => {
         if (editingUser) {
             router.delete(`/users/${editingUser.id}`, {
                 onSuccess: () => {
-                    closeDrawer();
+                    forceCloseDrawer();
                     setToast({ message: 'Usuário excluído com sucesso!', type: 'success' });
                 },
             });
         }
     };
 
-    const buildQuery = (extra = {}) => {
-        const q = { ...extra };
-        if (search?.trim()) q.search = search.trim();
-        if (roleFilter && roleFilter !== 'all') q.role = roleFilter;
-        return q;
-    };
+    const buildQuery = useCallback(
+        (extra = {}) => {
+            const q = { ...extra };
+            if (search?.trim()) q.search = search.trim();
+            if (roleFilter && roleFilter !== 'all') q.role = roleFilter;
+            return q;
+        },
+        [search, roleFilter]
+    );
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        router.get('/users', buildQuery(), { preserveState: true });
-    };
+    const runUsersQuery = useMemo(
+        () =>
+            debounce((query) => {
+                router.get('/users', query, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['users', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextUsersFetch.current) {
+            skipNextUsersFetch.current = false;
+            return;
+        }
+        runUsersQuery(buildQuery());
+    }, [search, roleFilter, buildQuery, runUsersQuery]);
+
+    useEffect(() => () => runUsersQuery.cancel(), [runUsersQuery]);
 
     const handleToggleStatus = (user) => {
         router.put(`/users/${user.id}`, {
@@ -261,12 +386,13 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                         <input
                             type="text"
                             placeholder="Buscar por nome ou e-mail..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            autoComplete="off"
                             className="w-full min-w-0 flex-1 sm:min-w-[200px] px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                         />
                         <select
@@ -278,15 +404,9 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             <option value="admin">Administrador</option>
                             <option value="medico">Médico</option>
                             <option value="secretaria">Secretária</option>
-                            {!tinyEnabled && <option value="callcenter">Call Center</option>}
+                            <option value="callcenter">Call Center</option>
                         </select>
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -387,7 +507,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
 
             <Drawer
                 isOpen={drawerOpen}
-                onClose={closeDrawer}
+                onClose={requestClose}
                 title={editingUser ? 'Editar Usuário' : 'Novo Usuário'}
                 width={drawerWidth}
             >
@@ -400,10 +520,11 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                     value={data.role}
                                     onChange={(e) => {
                                         const newRole = e.target.value;
-                                        setData({
+                                        setData((prev) => ({
+                                            ...prev,
                                             role: newRole,
-                                            clinica_id: newRole === 'secretaria' ? data.clinica_id : '',
-                                        });
+                                            clinica_id: newRole === 'secretaria' ? prev.clinica_id : '',
+                                        }));
                                     }}
                                     error={errors.role}
                                     required
@@ -412,7 +533,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                         { value: 'callcenter', label: 'Call Center' },
                                         { value: 'secretaria', label: 'Secretária' },
                                         { value: 'admin', label: 'Administrador' },
-                                    ].filter((o) => (tinyEnabled ? o.value !== 'callcenter' : true))}
+                                    ]}
                                 />
 
                                 <Input
@@ -511,7 +632,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             </div>
 
                             <div className="flex items-center gap-3">
-                                <button type="button" onClick={closeDrawer} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50">
+                                <button type="button" onClick={requestClose} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50">
                                     Cancelar
                                 </button>
                                 <button type="submit" disabled={!isFormValid || processing} className="px-8 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -522,6 +643,14 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                     </div>
                 </form>
             </Drawer>
+
+            <UnsavedChangesModal
+                open={showUnsavedModal}
+                onCancel={handleUnsavedCancel}
+                onDiscard={handleUnsavedDiscard}
+                onSave={handleUnsavedSave}
+                saving={savingBeforeLeave}
+            />
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </DashboardLayout>

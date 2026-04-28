@@ -101,6 +101,9 @@ class ProcessRelatorioExportJob implements ShouldQueue
         $laravelRequest = Request::create('/internal', 'GET', $filters);
         $relatorioController = app(RelatorioController::class);
         $dados = $relatorioController->buscarAquisicoes($laravelRequest, $medicoIdsFiltro, false);
+        if (! $isAdmin) {
+            $dados = $relatorioController->sanitizarAquisicaoSemValoresMonetarios($dados);
+        }
 
         $dataInicio = $filters['data_inicio'] ?? now()->format('Y-m-d');
         $dataFim = $filters['data_fim'] ?? now()->format('Y-m-d');

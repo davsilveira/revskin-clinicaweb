@@ -654,6 +654,7 @@ export default function PatientDrawer({
                             }}
                             error={fieldErrors.data_nascimento || errors.data_nascimento}
                             required
+                            allowType
                         />
                         <Select
                             label="Sexo"

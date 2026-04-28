@@ -19,6 +19,7 @@ class Receita extends Model
         'data_receita',
         'paciente_id',
         'medico_id',
+        'receita_origem_id',
         'anotacoes',
         'anotacoes_paciente',
         'subtotal',
@@ -62,6 +63,22 @@ class Receita extends Model
     public function medico(): BelongsTo
     {
         return $this->belongsTo(Medico::class);
+    }
+
+    /**
+     * Receita a partir da qual esta foi criada (duplicação / copiar).
+     */
+    public function receitaOrigem(): BelongsTo
+    {
+        return $this->belongsTo(Receita::class, 'receita_origem_id');
+    }
+
+    /**
+     * Receitas criadas a partir desta.
+     */
+    public function receitasDuplicadas(): HasMany
+    {
+        return $this->hasMany(Receita::class, 'receita_origem_id');
     }
 
     /**
@@ -160,16 +177,6 @@ class Receita extends Model
     {
         $count = static::where('paciente_id', $pacienteId)->count();
 
-        return $pacienteId . '-' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
+        return $pacienteId.'-'.str_pad($count + 1, 4, '0', STR_PAD_LEFT);
     }
 }
-
-
-
-
-
-
-
-
-
-

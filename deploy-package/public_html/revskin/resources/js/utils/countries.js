@@ -1,4 +1,4 @@
-export const countries = [
+const raw = [
     { value: 'Brasil', label: 'Brasil' },
     { value: 'Portugal', label: 'Portugal' },
     { value: 'Estados Unidos', label: 'Estados Unidos' },
@@ -23,5 +23,12 @@ export const countries = [
     { value: 'Australia', label: 'Austrália' },
     { value: 'Outro', label: 'Outro' },
 ];
+
+const brasil = raw.filter((c) => c.value === 'Brasil');
+const outros = raw
+    .filter((c) => c.value !== 'Brasil')
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+
+export const countries = [...brasil, ...outros];
 
 export default countries;

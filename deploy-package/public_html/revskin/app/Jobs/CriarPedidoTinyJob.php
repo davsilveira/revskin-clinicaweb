@@ -17,7 +17,8 @@ class CriarPedidoTinyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 1;
+
     public int $timeout = 300;
 
     public function __construct(
@@ -33,23 +34,25 @@ class CriarPedidoTinyJob implements ShouldQueue
             'receita_numero' => $this->receita->numero,
         ]);
 
-        if (!Setting::get('tiny_enabled', false)) {
+        if (! Setting::get('tiny_enabled', false)) {
             Log::info('Tiny ERP: Criação de pedido desabilitada', [
                 'receita_id' => $this->receita->id,
             ]);
+
             return;
         }
 
         $receita = $this->receita->fresh(['paciente', 'medico', 'itens.produto']);
 
-        if (!$receita->paciente) {
+        if (! $receita->paciente) {
             Log::warning('Tiny ERP: Receita não possui paciente', [
                 'receita_id' => $receita->id,
             ]);
+
             return;
         }
 
-        $client = new TinyErpClient();
+        $client = new TinyErpClient;
         $paciente = $receita->paciente;
 
         if ($client->isV2()) {
@@ -72,7 +75,7 @@ class CriarPedidoTinyJob implements ShouldQueue
             'observacoes' => $this->buildObservacoes($receita),
             'obs_internas' => $this->buildObsInternas($receita),
             'marcadores' => ['ClinicaWeb'],
-            'numero_pedido_ecommerce' => $receita->numero ?? 'REC-' . $receita->id,
+            'numero_pedido_ecommerce' => $receita->numero ?? 'REC-'.$receita->id,
             'ecommerce' => 'ClinicaWeb',
             'data' => $receita->data_receita?->format('Y-m-d') ?? now()->format('Y-m-d'),
             'itens' => $itens,
@@ -128,7 +131,7 @@ class CriarPedidoTinyJob implements ShouldQueue
 
     protected function criarPedidoV3(TinyErpClient $client, Receita $receita, \App\Models\Paciente $paciente): void
     {
-        if (!$paciente->tiny_id) {
+        if (! $paciente->tiny_id) {
             Log::info('Tiny ERP: Paciente não sincronizado, sincronizando primeiro', [
                 'paciente_id' => $paciente->id,
             ]);
@@ -138,7 +141,7 @@ class CriarPedidoTinyJob implements ShouldQueue
 
             $paciente->refresh();
 
-            if (!$paciente->tiny_id) {
+            if (! $paciente->tiny_id) {
                 Log::error('Tiny ERP: Não foi possível sincronizar paciente antes de criar pedido', [
                     'paciente_id' => $paciente->id,
                 ]);
@@ -189,14 +192,16 @@ class CriarPedidoTinyJob implements ShouldQueue
                 'valorUnitario' => $preco,
             ];
         }
+
         return $itens;
     }
 
     protected function buildObsInternas(Receita $receita): string
     {
         if ($receita->medico) {
-            return 'Médico: ' . $receita->medico->nome;
+            return 'Médico: '.$receita->medico->nome;
         }
+
         return 'Médico não informado';
     }
 
@@ -205,11 +210,12 @@ class CriarPedidoTinyJob implements ShouldQueue
         $itens = [];
         foreach ($receita->itens->where('imprimir', true) as $item) {
             $produto = $item->produto;
-            if (!$produto || !$produto->tiny_id) {
+            if (! $produto || ! $produto->tiny_id) {
                 Log::warning('Tiny ERP: Produto sem tiny_id, pulando item', [
                     'produto_id' => $produto?->id,
                     'item_id' => $item->id,
                 ]);
+
                 continue;
             }
             $preco = (float) ($produto->preco_venda ?? $produto->preco ?? $item->valor_unitario ?? 0);
@@ -231,7 +237,7 @@ class CriarPedidoTinyJob implements ShouldQueue
             'observacoes' => $this->buildObservacoes($receita),
             'obs_internas' => $this->buildObsInternas($receita),
             'marcadores' => ['ClinicaWeb'],
-            'numero_pedido_ecommerce' => $receita->numero ?? 'REC-' . $receita->id,
+            'numero_pedido_ecommerce' => $receita->numero ?? 'REC-'.$receita->id,
             'ecommerce' => 'ClinicaWeb',
             'itens' => $itens,
         ];

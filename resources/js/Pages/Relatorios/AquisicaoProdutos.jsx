@@ -7,6 +7,7 @@ import ExportConfirmModal from '@/Components/ExportConfirmModal';
 import Toast from '@/Components/Toast';
 import debounce from 'lodash/debounce';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import DatePickerField from '@/Components/Form/DatePickerField';
 
 export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados, filters, isAdmin }) {
     const mostrarValoresMonetarios = isAdmin;
@@ -351,26 +352,22 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
                         {/* Datas primeiro */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Data Início
-                                </label>
-                                <input
-                                    type="date"
+                                <DatePickerField
+                                    label="Data Início"
                                     value={dataInicio}
-                                    onChange={(e) => setDataInicio(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    onChange={setDataInicio}
+                                    allowType
+                                    compact
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Data Fim
-                                </label>
-                                <input
-                                    type="date"
+                                <DatePickerField
+                                    label="Data Fim"
                                     value={dataFim}
-                                    onChange={(e) => setDataFim(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    onChange={setDataFim}
+                                    allowType
+                                    compact
                                 />
                             </div>
 

@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import debounce from 'lodash/debounce';
 import DashboardLayout from '@/Layouts/DashboardLayout';
@@ -27,6 +27,8 @@ function normalizarAtivoFiltro(filtersObj) {
 }
 
 export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters }) {
+    const { auth } = usePage().props;
+    const isCallcenter = auth?.user?.role === 'callcenter';
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingPaciente, setEditingPaciente] = useState(null);
     const [toast, setToast] = useState(null);
@@ -107,6 +109,16 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     const pacientesList = pacientes?.data || pacientes || [];
 
     const rowClick = (paciente) => {
+        if (isCallcenter) {
+            const ultimaId = paciente.ultima_receita_id;
+            if (ultimaId) {
+                persistPacientesIndexQueryFromLocation();
+                router.visit(`/receitas/${ultimaId}`);
+                return;
+            }
+            router.visit(`/pacientes/${paciente.id}`);
+            return;
+        }
         if (isSecretaria) {
             openEditDrawer(paciente);
             return;
@@ -129,6 +141,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                     title="Pacientes"
                     description="Gerencie os pacientes cadastrados"
                     actions={
+                        !isCallcenter && (
                         <button
                             type="button"
                             onClick={openCreateDrawer}
@@ -139,6 +152,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                             </svg>
                             Novo Paciente
                         </button>
+                        )
                     }
                 />
 
@@ -221,6 +235,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                                     </span>
                                                                 </Link>
                                                             )}
+                                                            {!isCallcenter && (
                                                             <span className="group relative inline-block">
                                                                 <button
                                                                     type="button"
@@ -236,6 +251,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                                     Editar
                                                                 </span>
                                                             </span>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -299,6 +315,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             </svg>
                                                         </Link>
                                                     )}
+                                                    {!isCallcenter && (
                                                     <button
                                                         type="button"
                                                         onClick={() => openEditDrawer(paciente)}
@@ -309,6 +326,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                         </svg>
                                                     </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

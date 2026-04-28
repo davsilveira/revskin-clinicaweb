@@ -1,10 +1,12 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function PacienteShow({ paciente }) {
+    const { auth } = usePage().props;
+    const isCallcenter = auth?.user?.role === 'callcenter';
     const [toast, setToast] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -194,12 +196,14 @@ export default function PacienteShow({ paciente }) {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">Últimas Receitas</h2>
-                        <Link
-                            href={`/receitas/create?paciente_id=${paciente.id}`}
-                            className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
-                        >
-                            Nova Receita
-                        </Link>
+                        {!isCallcenter && (
+                            <Link
+                                href={`/receitas/create?paciente_id=${paciente.id}`}
+                                className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                                Assistente de Receita
+                            </Link>
+                        )}
                     </div>
                     {paciente.receitas && paciente.receitas.length > 0 ? (
                         <div className="overflow-x-auto">

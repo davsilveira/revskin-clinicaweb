@@ -1,9 +1,12 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
 export default function PacienteShow({ paciente }) {
+    const { auth } = usePage().props;
+    const isCallcenter = auth?.user?.role === 'callcenter';
     const [toast, setToast] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -115,12 +118,18 @@ export default function PacienteShow({ paciente }) {
                                 <dd className="text-gray-900 font-medium">{paciente.cpf || '-'}</dd>
                             </div>
                             <div className="flex justify-between">
+                                <dt className="text-gray-500">Nº Registro</dt>
+                                <dd className="text-gray-900 font-medium">{paciente.codigo || '-'}</dd>
+                            </div>
+                            <div className="flex justify-between">
                                 <dt className="text-gray-500">RG</dt>
                                 <dd className="text-gray-900 font-medium">{paciente.rg || '-'}</dd>
                             </div>
                             <div className="flex justify-between">
                                 <dt className="text-gray-500">Médico</dt>
-                                <dd className="text-gray-900 font-medium">{paciente.medico?.nome || '-'}</dd>
+                                <dd className="text-gray-900 font-medium">
+                                    {nomeExibicaoSemTitulo(paciente.medico?.nome) || '-'}
+                                </dd>
                             </div>
                         </dl>
                     </div>
@@ -187,12 +196,14 @@ export default function PacienteShow({ paciente }) {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">Últimas Receitas</h2>
-                        <Link
-                            href={`/receitas/create?paciente_id=${paciente.id}`}
-                            className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
-                        >
-                            Nova Receita
-                        </Link>
+                        {!isCallcenter && (
+                            <Link
+                                href={`/receitas/create?paciente_id=${paciente.id}`}
+                                className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                                Assistente de Receita
+                            </Link>
+                        )}
                     </div>
                     {paciente.receitas && paciente.receitas.length > 0 ? (
                         <div className="overflow-x-auto">
@@ -211,7 +222,9 @@ export default function PacienteShow({ paciente }) {
                                         <tr key={receita.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 text-sm text-gray-900">{receita.numero}</td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{formatDate(receita.data_receita)}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-900">{receita.medico?.nome || '-'}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-900">
+                                                {nomeExibicaoSemTitulo(receita.medico?.nome) || '-'}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                                     receita.status === 'finalizada' ? 'bg-green-100 text-green-800' :

@@ -17,7 +17,8 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 1;
+
     public int $timeout = 300;
 
     public function __construct(
@@ -28,23 +29,25 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
 
     public function handle(): void
     {
-        if (!Setting::get('rd_enabled', false)) {
+        if (! Setting::get('rd_enabled', false)) {
             Log::info('RD Station CRM: Integração desabilitada', [
                 'receita_id' => $this->receita->id,
             ]);
+
             return;
         }
 
         $receita = $this->receita->fresh(['paciente', 'medico.linkedUser', 'itens.produto']);
 
-        if (!$receita->paciente) {
+        if (! $receita->paciente) {
             Log::warning('RD Station CRM: Receita não possui paciente', [
                 'receita_id' => $receita->id,
             ]);
+
             return;
         }
 
-        $client = new RdStationCrmClient();
+        $client = new RdStationCrmClient;
         $paciente = $receita->paciente;
 
         $ownerId = trim(Setting::get('rd_owner_id', '') ?? '');
@@ -77,13 +80,13 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
                 'error' => $orgResult['message'] ?? 'Erro desconhecido',
                 'response' => $orgResult,
             ]);
-            throw new \Exception('Erro ao criar organização no RD Station: ' . ($orgResult['message'] ?? ''));
+            throw new \Exception('Erro ao criar organização no RD Station: '.($orgResult['message'] ?? ''));
         }
 
         $orgData = $orgResult['data']['data'] ?? $orgResult['data'] ?? [];
         $organizationId = $orgData['id'] ?? null;
 
-        if (!$organizationId) {
+        if (! $organizationId) {
             Log::error('RD Station CRM: [Etapa 1/4] ID da organização não encontrado na resposta', [
                 'response' => $orgResult,
             ]);
@@ -111,8 +114,8 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
 
         Log::debug('RD Station CRM: [Etapa 2/4] Upsert contato', [
             'nome' => $paciente->nome,
-            'telefone' => $telefone ? '***' . substr($telefone, -4) : null,
-            'email' => $email ? '***@' . (explode('@', $email)[1] ?? '') : null,
+            'telefone' => $telefone ? '***'.substr($telefone, -4) : null,
+            'email' => $email ? '***@'.(explode('@', $email)[1] ?? '') : null,
             'organization_id' => $organizationId,
         ]);
 
@@ -125,13 +128,13 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
                 'status_code' => $contactResult['status_code'] ?? null,
                 'response' => $contactResult,
             ]);
-            throw new \Exception('Erro ao criar contato no RD Station: ' . ($contactResult['message'] ?? ''));
+            throw new \Exception('Erro ao criar contato no RD Station: '.($contactResult['message'] ?? ''));
         }
 
         $contactData = $contactResult['data']['data'] ?? $contactResult['data'] ?? [];
         $contactId = $contactData['id'] ?? null;
 
-        if (!$contactId) {
+        if (! $contactId) {
             Log::error('RD Station CRM: [Etapa 2/4] ID do contato não encontrado na resposta', [
                 'response' => $contactResult,
             ]);
@@ -151,10 +154,12 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
         $receitaFieldId = Setting::get('rd_receita_field_id', '699efc3a13a467001cb81ea1');
 
         $medicoNome = $receita->medico?->nome ?? 'Não informado';
-        $receitaNumero = $receita->numero ?? 'REC-' . $receita->id;
+        $receitaNumero = $receita->numero ?? 'REC-'.$receita->id;
 
         $medicoFieldKey = $client->resolverChaveCustomField($medicoFieldId);
         $receitaFieldKey = $client->resolverChaveCustomField($receitaFieldId);
+
+        $valorNegociacao = round(floatval($receita->valor_total ?? 0), 2);
 
         $dealData = [
             'name' => "Receita #{$receitaNumero} - {$paciente->nome}",
@@ -163,8 +168,7 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
             'owner_id' => $ownerId,
             'organization_id' => $organizationId,
             'contact_ids' => [$contactId],
-            'one_time_price' => (float) $receita->valor_total,
-            'total_price' => (float) $receita->valor_total,
+            'one_time_price' => $valorNegociacao,
             'custom_fields' => [
                 $medicoFieldKey => $medicoNome,
                 $receitaFieldKey => $receitaNumero,
@@ -181,13 +185,13 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
                 'status_code' => $dealResult['status_code'] ?? null,
                 'response' => $dealResult,
             ]);
-            throw new \Exception('Erro ao criar negociação no RD Station: ' . ($dealResult['message'] ?? ''));
+            throw new \Exception('Erro ao criar negociação no RD Station: '.($dealResult['message'] ?? ''));
         }
 
         $dealResponseData = $dealResult['data']['data'] ?? $dealResult['data'] ?? [];
         $dealId = $dealResponseData['id'] ?? null;
 
-        if (!$dealId) {
+        if (! $dealId) {
             Log::error('RD Station CRM: [Etapa 3/4] ID da negociação não encontrado na resposta', [
                 'response' => $dealResult,
             ]);
@@ -213,7 +217,7 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
 
             $productData = [
                 'product_id' => $produtoPadraoId,
-                'price' => (float) $receita->valor_total,
+                'price' => $valorNegociacao,
                 'quantity' => 1,
                 'discount' => 0,
                 'discount_type' => 'amount',

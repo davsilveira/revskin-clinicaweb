@@ -523,6 +523,7 @@ export default function AssistenteReceitaIndex({
                                             }}
                                             required
                                             error={fieldErrors.data_nascimento}
+                                            allowType
                                         />
                                     </div>
                                     <div>

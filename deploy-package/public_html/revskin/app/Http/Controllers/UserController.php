@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Clinica;
-use App\Models\Setting;
 use App\Models\User;
 use App\Services\MedicoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -78,10 +78,7 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $allowedRoles = ['admin', 'medico', 'secretaria'];
-        if (! Setting::get('tiny_enabled', false)) {
-            $allowedRoles[] = 'callcenter';
-        }
+        $allowedRoles = ['admin', 'medico', 'secretaria', 'callcenter'];
 
         $userRules = [
             'name' => 'required|string|max:255',
@@ -92,10 +89,6 @@ class UserController extends Controller
         ];
 
         $isMedico = $request->input('role') === 'medico';
-
-        if (Setting::get('tiny_enabled', false) && $request->input('role') === 'callcenter') {
-            return redirect()->back()->withErrors(['role' => 'Não é possível cadastrar usuários Call Center quando a integração Tiny está ativa.'])->withInput();
-        }
 
         if ($isMedico) {
             $userRules = array_merge($userRules, MedicoService::validationRules());
@@ -113,10 +106,15 @@ class UserController extends Controller
             'role.in' => 'O perfil selecionado é inválido.',
             'crm.required' => 'O CRM é obrigatório.',
             'uf_crm.required' => 'A UF do CRM é obrigatória.',
-            'celular.required' => 'O celular é obrigatório.',
         ];
 
-        $validated = $request->validate($userRules, $messages);
+        if ($isMedico) {
+            $validator = Validator::make($request->all(), $userRules, $messages);
+            $validator->after(fn ($v) => MedicoService::validateTelefoneOuCelular($v));
+            $validated = $validator->validate();
+        } else {
+            $validated = $request->validate($userRules, $messages);
+        }
 
         if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
             return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();
@@ -159,14 +157,7 @@ class UserController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        $tinyEnabled = Setting::get('tiny_enabled', false);
-        $allowedRoles = ['admin', 'medico', 'secretaria'];
-        if (! $tinyEnabled) {
-            $allowedRoles[] = 'callcenter';
-        } elseif ($user->role === 'callcenter') {
-            // Permitir manter callcenter ao editar usuário existente (ex: alterar nome), mas não atribuir a novos
-            $allowedRoles[] = 'callcenter';
-        }
+        $allowedRoles = ['admin', 'medico', 'secretaria', 'callcenter'];
 
         $userRules = [
             'name' => 'required|string|max:255',
@@ -177,11 +168,6 @@ class UserController extends Controller
         ];
 
         $isMedico = $request->input('role') === 'medico';
-
-        // Bloquear atribuição de callcenter quando Tiny ativo (exceto manter em edição de usuário já callcenter)
-        if ($tinyEnabled && $request->input('role') === 'callcenter' && $user->role !== 'callcenter') {
-            return redirect()->back()->withErrors(['role' => 'Não é possível cadastrar usuários Call Center quando a integração Tiny está ativa.'])->withInput();
-        }
 
         if ($isMedico) {
             $userRules = array_merge($userRules, MedicoService::validationRules());
@@ -197,10 +183,15 @@ class UserController extends Controller
             'role.in' => 'O perfil selecionado é inválido.',
             'crm.required' => 'O CRM é obrigatório.',
             'uf_crm.required' => 'A UF do CRM é obrigatória.',
-            'celular.required' => 'O celular é obrigatório.',
         ];
 
-        $validated = $request->validate($userRules, $messages);
+        if ($isMedico) {
+            $validator = Validator::make($request->all(), $userRules, $messages);
+            $validator->after(fn ($v) => MedicoService::validateTelefoneOuCelular($v));
+            $validated = $validator->validate();
+        } else {
+            $validated = $request->validate($userRules, $messages);
+        }
 
         if ($validated['role'] === 'secretaria' && empty($validated['clinica_id'])) {
             return redirect()->back()->withErrors(['clinica_id' => 'A clínica é obrigatória para o perfil Secretária.'])->withInput();

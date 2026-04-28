@@ -5,15 +5,20 @@ namespace App\Exports;
 use App\Models\Medico;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ReceitasMedicoExport implements FromCollection, WithHeadings, WithMapping, WithStyles, WithTitle
+class ReceitasMedicoExport implements FromCollection, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected Collection $receitas;
+
     protected ?Medico $medico;
 
     public function __construct(Collection $receitas, ?Medico $medico = null)
@@ -50,10 +55,10 @@ class ReceitasMedicoExport implements FromCollection, WithHeadings, WithMapping,
             $receita->paciente->nome,
             $receita->medico->nome,
             $receita->status_label,
-            'R$ ' . number_format($receita->subtotal, 2, ',', '.'),
-            'R$ ' . number_format($receita->desconto_valor, 2, ',', '.'),
-            'R$ ' . number_format($receita->valor_frete, 2, ',', '.'),
-            'R$ ' . number_format($receita->valor_total, 2, ',', '.'),
+            'R$ '.number_format($receita->subtotal, 2, ',', '.'),
+            'R$ '.number_format($receita->desconto_valor, 2, ',', '.'),
+            'R$ '.number_format($receita->valor_frete, 2, ',', '.'),
+            'R$ '.number_format($receita->valor_total, 2, ',', '.'),
         ];
     }
 
@@ -61,33 +66,39 @@ class ReceitasMedicoExport implements FromCollection, WithHeadings, WithMapping,
     {
         return [
             1 => [
-                'font' => ['bold' => true],
-                'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '059669'],
-                ],
                 'font' => [
                     'bold' => true,
                     'color' => ['rgb' => 'FFFFFF'],
                 ],
+                'fill' => [
+                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '059669'],
+                ],
             ],
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $lastRow = $sheet->getHighestRow();
+                $lastCol = $sheet->getHighestColumn();
+                if ($lastRow < 1) {
+                    return;
+                }
+                $sheet->getStyle('A1:'.$lastCol.$lastRow)->getAlignment()
+                    ->setWrapText(true)
+                    ->setVertical(Alignment::VERTICAL_TOP);
+            },
         ];
     }
 
     public function title(): string
     {
         return $this->medico
-            ? 'Receitas - ' . substr($this->medico->nome, 0, 20)
+            ? 'Receitas - '.substr($this->medico->nome, 0, 20)
             : 'Receitas por Médico';
     }
 }
-
-
-
-
-
-
-
-
-
-

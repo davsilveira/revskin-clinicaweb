@@ -23,3 +23,6 @@ Schedule::job(new SyncProdutosTinyJob)->dailyAt('00:00')->name('tiny-sync-produt
 
 // Tiny → ClincaWeb: contatos alterados no ERP (API V2)
 Schedule::job(new PullPacientesTinyJob)->dailyAt('04:00')->name('tiny-pull-pacientes-04h');
+
+// Reenvio automático de jobs falhos (RD/Tiny): 5 min + 12 h (ver IntegrationJobFailureRetryService)
+Schedule::command('integration:retry-failed')->everyMinute()->name('integration-retry-failed');

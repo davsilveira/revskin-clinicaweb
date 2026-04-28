@@ -119,7 +119,6 @@ export default function MedicoFormFields({
                     onAccept={(value) => setData('celular', value)}
                     mask="(00) 00000-0000"
                     placeholder="(00) 00000-0000"
-                    required
                     error={errors.celular}
                 />
             </div>

@@ -7,7 +7,6 @@ use App\Models\Medico;
 use App\Models\Produto;
 use App\Models\ReceitaItemAquisicao;
 use App\Models\Setting;
-use App\Support\ReceitaProdutoLegadoGuard;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -92,169 +91,26 @@ class CallCenterController extends Controller
             });
         }
 
-        $statusOptions = AtendimentoCallcenter::getStatusOptions();
+        $produtoColumns = ['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade'];
         $produtos = Produto::ativo()
             ->semLegadoSomenteLeitura()
             ->orderBy('codigo')
-            ->get(['id', 'codigo', 'nome', 'preco', 'local_uso', 'anotacoes', 'legado_somente_leitura']);
-        $produtos->each(function ($produto) {
+            ->get($produtoColumns);
+        if ($atendimento->receita?->itens) {
+            $legadoIds = $atendimento->receita->itens->pluck('produto_id')->filter()->diff($produtos->pluck('id'));
+            if ($legadoIds->isNotEmpty()) {
+                $produtos = $produtos->concat(Produto::whereIn('id', $legadoIds)->get($produtoColumns));
+            }
+        }
+        $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
+
+            return $produto;
         });
 
         return Inertia::render('CallCenter/Show', [
             'atendimento' => $atendimento,
-            'statusOptions' => $statusOptions,
             'produtos' => $produtos,
-        ]);
-    }
-
-    /**
-     * Update the receita items for an atendimento.
-     */
-    public function updateReceita(Request $request, AtendimentoCallcenter $atendimento)
-    {
-        // Block changes when atendimento is in production, finalized or cancelled
-        if (in_array($atendimento->status, ['em_producao', 'finalizado', 'cancelado'])) {
-            return back()->with('error', 'Não é possível alterar produtos de um atendimento em produção ou finalizado.');
-        }
-
-        $validated = $request->validate([
-            'itens' => 'array',
-            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
-            'itens.*.produto_id' => 'nullable|exists:produtos,id',
-            'itens.*.local_uso' => 'nullable|string|max:255',
-            'itens.*.anotacoes' => 'nullable|string|max:500',
-            'itens.*.quantidade' => 'required|integer|min:1',
-            'itens.*.valor_unitario' => 'required|numeric|min:0',
-            'itens.*.imprimir' => 'boolean',
-            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
-            'desconto_percentual' => 'nullable|numeric|min:0|max:100',
-            'desconto_motivo' => 'nullable|string|max:255',
-            'valor_frete' => 'nullable|numeric|min:0',
-            'valor_caixa' => 'nullable|numeric|min:0',
-            'anotacoes' => 'nullable|string',
-        ]);
-
-        $receita = $atendimento->receita;
-        if (! $receita) {
-            return back()->with('error', 'Receita não encontrada');
-        }
-
-        ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens'] ?? []);
-
-        // Update receita fields
-        $receita->update([
-            'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
-            'desconto_motivo' => $validated['desconto_motivo'] ?? '',
-            'valor_frete' => $validated['valor_frete'] ?? 0,
-            'valor_caixa' => $validated['valor_caixa'] ?? 0,
-            'anotacoes' => $validated['anotacoes'] ?? $receita->anotacoes,
-        ]);
-
-        // Delete existing items and recreate
-        $receita->itens()->delete();
-
-        foreach ($validated['itens'] ?? [] as $ordem => $itemData) {
-            if (empty($itemData['produto_id'])) {
-                continue;
-            }
-
-            $receita->itens()->create([
-                'produto_id' => $itemData['produto_id'],
-                'local_uso' => $itemData['local_uso'] ?? '',
-                'anotacoes' => $itemData['anotacoes'] ?? '',
-                'quantidade' => $itemData['quantidade'],
-                'valor_unitario' => $itemData['valor_unitario'],
-                'valor_total' => $itemData['quantidade'] * $itemData['valor_unitario'],
-                'imprimir' => $itemData['imprimir'] ?? true,
-                'grupo' => $itemData['grupo'] ?? 'recomendado',
-                'ordem' => $ordem,
-            ]);
-        }
-
-        // Recalculate totals
-        $receita->refresh();
-        $receita->calcularTotais();
-
-        // Update atendimento timestamp
-        $atendimento->update([
-            'data_alteracao' => now(),
-            'usuario_alteracao_id' => $request->user()->id,
-        ]);
-
-        return back()->with('success', 'Produtos atualizados com sucesso!');
-    }
-
-    /**
-     * Autosave receita items (API endpoint).
-     */
-    public function autosaveReceita(Request $request, AtendimentoCallcenter $atendimento)
-    {
-        // Block changes when atendimento is in production, finalized or cancelled
-        if (in_array($atendimento->status, ['em_producao', 'finalizado', 'cancelado'])) {
-            return response()->json(['error' => 'Não é possível alterar produtos de um atendimento em produção ou finalizado.'], 403);
-        }
-
-        $validated = $request->validate([
-            'itens' => 'array',
-            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
-            'itens.*.produto_id' => 'nullable|exists:produtos,id',
-            'itens.*.local_uso' => 'nullable|string|max:255',
-            'itens.*.anotacoes' => 'nullable|string|max:500',
-            'itens.*.quantidade' => 'required|integer|min:1',
-            'itens.*.valor_unitario' => 'required|numeric|min:0',
-            'itens.*.imprimir' => 'boolean',
-            'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
-            'desconto_percentual' => 'nullable|numeric|min:0|max:100',
-            'desconto_motivo' => 'nullable|string|max:255',
-            'valor_frete' => 'nullable|numeric|min:0',
-            'valor_caixa' => 'nullable|numeric|min:0',
-        ]);
-
-        $receita = $atendimento->receita;
-        if (! $receita) {
-            return response()->json(['error' => 'Receita não encontrada'], 404);
-        }
-
-        ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens'] ?? []);
-
-        // Update receita fields
-        $receita->update([
-            'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
-            'desconto_motivo' => $validated['desconto_motivo'] ?? '',
-            'valor_frete' => $validated['valor_frete'] ?? 0,
-            'valor_caixa' => $validated['valor_caixa'] ?? 0,
-        ]);
-
-        // Delete existing items and recreate
-        $receita->itens()->delete();
-
-        foreach ($validated['itens'] ?? [] as $ordem => $itemData) {
-            if (empty($itemData['produto_id'])) {
-                continue;
-            }
-
-            $receita->itens()->create([
-                'produto_id' => $itemData['produto_id'],
-                'local_uso' => $itemData['local_uso'] ?? '',
-                'anotacoes' => $itemData['anotacoes'] ?? '',
-                'quantidade' => $itemData['quantidade'],
-                'valor_unitario' => $itemData['valor_unitario'],
-                'valor_total' => $itemData['quantidade'] * $itemData['valor_unitario'],
-                'imprimir' => $itemData['imprimir'] ?? true,
-                'grupo' => $itemData['grupo'] ?? 'recomendado',
-                'ordem' => $ordem,
-            ]);
-        }
-
-        // Recalculate totals
-        $receita->refresh();
-        $receita->calcularTotais();
-
-        return response()->json([
-            'success' => true,
-            'receita_id' => $receita->id,
-            'valor_total' => $receita->valor_total,
         ]);
     }
 

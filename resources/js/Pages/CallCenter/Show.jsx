@@ -1,90 +1,53 @@
 import { Link, router } from '@inertiajs/react';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import ProductItemsEditor from '@/Components/Receita/ProductItemsEditor';
 import AcompanhamentoSection from '@/Components/CallCenter/AcompanhamentoSection';
 import PatientDrawer from '@/Components/PatientDrawer';
-import useAutoSave from '@/hooks/useAutoSave';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
-export default function CallCenterShow({ atendimento, statusOptions, produtos }) {
-    const isFirstRender = useRef(true);
+export default function CallCenterShow({ atendimento, produtos }) {
     const [showProducaoModal, setShowProducaoModal] = useState(false);
     const [producaoAcompanhamento, setProducaoAcompanhamento] = useState('');
     const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
 
-    // State for acompanhamento
     const [acompProcessing, setAcompProcessing] = useState(false);
 
-    // Form for receita items
-    const [itens, setItens] = useState(
-        atendimento.receita?.itens?.map(item => ({
-            id: item.id,
-            produto_id: item.produto_id,
-            local_uso: item.local_uso || '',
-            anotacoes: item.anotacoes || '',
-            quantidade: item.quantidade,
-            valor_unitario: parseFloat(item.valor_unitario) || 0,
-            imprimir: item.imprimir ?? true,
-            grupo: item.grupo || 'recomendado',
-            ultima_aquisicao: item.ultima_aquisicao,
-            datas_aquisicao: item.datas_aquisicao || [],
-        })) || []
-    );
-
-    // Map acquisition data by item ID
-    const itensComAquisicoes = {};
-    atendimento.receita?.itens?.forEach(item => {
-        if (item.id) {
-            itensComAquisicoes[item.id] = {
+    const itens = useMemo(
+        () =>
+            (atendimento.receita?.itens || []).map((item) => ({
+                id: item.id,
+                produto_id: item.produto_id,
+                local_uso: item.local_uso || '',
+                anotacoes: item.anotacoes || '',
+                quantidade: item.quantidade,
+                valor_unitario: parseFloat(item.valor_unitario) || 0,
+                imprimir: item.imprimir ?? true,
+                grupo: item.grupo || 'recomendado',
                 ultima_aquisicao: item.ultima_aquisicao,
                 datas_aquisicao: item.datas_aquisicao || [],
-            };
-        }
-    });
-    const [descontoPercentual, setDescontoPercentual] = useState(atendimento.receita?.desconto_percentual || 0);
-    const [descontoMotivo, setDescontoMotivo] = useState(atendimento.receita?.desconto_motivo || '');
-    const [valorFrete, setValorFrete] = useState(atendimento.receita?.valor_frete || 0);
-    const [valorCaixa, setValorCaixa] = useState(atendimento.receita?.valor_caixa || 0);
+            })),
+        [atendimento.receita?.itens]
+    );
 
-    // Autosave function
-    const performAutoSave = useCallback(async () => {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
-        const response = await fetch(`/api/callcenter/${atendimento.id}/autosave`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify({
-                itens,
-                desconto_percentual: descontoPercentual,
-                desconto_motivo: descontoMotivo,
-                valor_frete: valorFrete,
-                valor_caixa: valorCaixa,
-            }),
+    const itensComAquisicoes = useMemo(() => {
+        const map = {};
+        atendimento.receita?.itens?.forEach((item) => {
+            if (item.id) {
+                map[item.id] = {
+                    ultima_aquisicao: item.ultima_aquisicao,
+                    datas_aquisicao: item.datas_aquisicao || [],
+                };
+            }
         });
-        
-        if (!response.ok) throw new Error('Autosave failed');
-        return await response.json();
-    }, [itens, descontoPercentual, descontoMotivo, valorFrete, valorCaixa, atendimento.id]);
+        return map;
+    }, [atendimento.receita?.itens]);
 
-    const { 
-        lastSavedText, 
-        isSaving: isAutoSaving, 
-        triggerAutoSave,
-    } = useAutoSave(performAutoSave, 2000, true);
-
-    // Trigger autosave when data changes
-    useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return;
-        }
-        triggerAutoSave();
-    }, [itens, descontoPercentual, descontoMotivo, valorFrete, valorCaixa]);
+    const receita = atendimento.receita;
+    const descontoPercentual = receita?.desconto_percentual || 0;
+    const descontoMotivo = receita?.desconto_motivo || '';
+    const valorFrete = receita?.valor_frete || 0;
+    const valorCaixa = receita?.valor_caixa || 0;
 
     const handleAddAcompanhamento = (tipo, descricao) => {
         setAcompProcessing(true);
@@ -120,8 +83,8 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
         return new Date(dateString).toLocaleDateString('pt-BR');
     };
 
-    const canSendToProduction = atendimento.status !== 'em_producao' && 
-                                 atendimento.status !== 'finalizado' && 
+    const canSendToProduction = atendimento.status !== 'em_producao' &&
+                                 atendimento.status !== 'finalizado' &&
                                  atendimento.status !== 'cancelado';
 
     return (
@@ -144,7 +107,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                     Atendimento #{atendimento.id}
                                 </h1>
                                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                                    <Link 
+                                    <Link
                                         href={`/receitas/${atendimento.receita?.id}`}
                                         className="hover:text-emerald-600 flex items-center gap-1"
                                     >
@@ -158,35 +121,13 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-3">
-                            {/* Autosave indicator */}
-                            {(isAutoSaving || lastSavedText) && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1">
-                                    {isAutoSaving ? (
-                                        <>
-                                            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            <span>Salvando...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            <span>Salvo às {lastSavedText}</span>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                            
-                            {/* Gerar PDF */}
                             {atendimento.receita?.id && (
                                 <a
                                     href={`/receitas/${atendimento.receita.id}/pdf`}
                                     target="_blank"
+                                    rel="noreferrer"
                                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 font-medium"
                                 >
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -196,7 +137,6 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                 </a>
                             )}
 
-                            {/* Alterar Status para Produzir - Main CTA */}
                             {canSendToProduction && (
                                 <button
                                     onClick={() => setShowProducaoModal(true)}
@@ -214,7 +154,6 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
 
                 {/* Upper Section - 2 Columns */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-                    {/* Acompanhamento + Histórico */}
                     <div className="lg:col-span-9">
                         <AcompanhamentoSection
                             acompanhamentos={atendimento.acompanhamentos || []}
@@ -223,7 +162,6 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                         />
                     </div>
 
-                    {/* Info Paciente + Contato */}
                     <div className="lg:col-span-3">
                         <div className="bg-white rounded-lg border border-gray-200 p-4">
                             <div className="flex items-center justify-between mb-3">
@@ -238,7 +176,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                     Editar
                                 </button>
                             </div>
-                            
+
                             <div className="space-y-3 text-sm">
                                 <div>
                                     <span className="text-gray-500">Nome:</span>
@@ -250,8 +188,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                         {nomeExibicaoSemTitulo(atendimento.medico?.nome) || '-'}
                                     </p>
                                 </div>
-                                
-                                {/* Telefones */}
+
                                 <div className="pt-2 border-t border-gray-100">
                                     <span className="text-gray-500">Contato:</span>
                                     <div className="mt-1 space-y-1">
@@ -270,6 +207,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                             <a
                                                 href={`https://wa.me/55${formatPhone(atendimento.paciente.celular)}`}
                                                 target="_blank"
+                                                rel="noreferrer"
                                                 className="flex items-center gap-2 text-green-600 hover:text-green-700"
                                             >
                                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -303,30 +241,29 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                     </div>
                 </div>
 
-                {/* Products Section - Full Width */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-3">Proposta (somente leitura)</h2>
                     <ProductItemsEditor
                         itens={itens}
-                        onItensChange={setItens}
+                        onItensChange={() => {}}
                         produtos={produtos}
                         descontoPercentual={descontoPercentual}
-                        onDescontoPercentualChange={setDescontoPercentual}
+                        onDescontoPercentualChange={() => {}}
                         descontoMotivo={descontoMotivo}
-                        onDescontoMotivoChange={setDescontoMotivo}
+                        onDescontoMotivoChange={() => {}}
                         valorFrete={valorFrete}
-                        onValorFreteChange={setValorFrete}
+                        onValorFreteChange={() => {}}
                         valorCaixa={valorCaixa}
-                        onValorCaixaChange={setValorCaixa}
+                        onValorCaixaChange={() => {}}
                         showPrices={true}
                         showGroups={true}
-                        readOnly={['em_producao', 'finalizado', 'cancelado'].includes(atendimento.status)}
+                        readOnly={true}
                         itensComAquisicoes={itensComAquisicoes}
                         itensOriginais={atendimento.receita?.itens || []}
                     />
                 </div>
             </div>
 
-            {/* Patient Drawer */}
             <PatientDrawer
                 isOpen={patientDrawerOpen}
                 onClose={() => setPatientDrawerOpen(false)}
@@ -339,17 +276,14 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                 enableAutoSave={false}
             />
 
-            {/* Modal de Confirmação - Enviar para Produção */}
             {showProducaoModal && (
                 <div className="fixed inset-0 z-50 overflow-y-auto">
                     <div className="flex min-h-full items-center justify-center p-4">
-                        {/* Backdrop */}
-                        <div 
+                        <div
                             className="fixed inset-0 bg-black/50 transition-opacity"
                             onClick={() => setShowProducaoModal(false)}
                         />
-                        
-                        {/* Modal */}
+
                         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 transform transition-all">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -359,7 +293,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                 </div>
                                 <h3 className="text-lg font-semibold text-gray-900">Enviar para Produção</h3>
                             </div>
-                            
+
                             <p className="text-gray-600 mb-4">
                                 Deseja enviar esta proposta comercial para produção? Após confirmado, o status será alterado para "Em Produção".
                             </p>
@@ -376,7 +310,7 @@ export default function CallCenterShow({ atendimento, statusOptions, produtos })
                                     placeholder="Adicione uma observação sobre o envio para produção..."
                                 />
                             </div>
-                            
+
                             <div className="flex justify-end gap-3">
                                 <button
                                     type="button"

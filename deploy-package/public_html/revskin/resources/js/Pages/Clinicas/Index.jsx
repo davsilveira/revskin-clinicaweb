@@ -1,23 +1,52 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import Drawer from '@/Components/Drawer';
 import Toast from '@/Components/Toast';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
+import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
+import cloneDeep from 'lodash/cloneDeep';
+import isEqual from 'lodash/isEqual';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import debounce from 'lodash/debounce';
 import { validateCNPJ } from '@/utils/validations';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+
+function clinicaComparable(d, medicoIds) {
+    const ids = medicoIds ?? d.medico_ids ?? [];
+    return {
+        nome: d.nome ?? '',
+        cnpj: d.cnpj ?? '',
+        email: d.email ?? '',
+        telefone: d.telefone ?? '',
+        cep: d.cep ?? '',
+        endereco: d.endereco ?? '',
+        numero: d.numero ?? '',
+        complemento: d.complemento ?? '',
+        bairro: d.bairro ?? '',
+        cidade: d.cidade ?? '',
+        uf: d.uf ?? '',
+        ativo: d.ativo,
+        medico_ids: [...ids].slice().sort((a, b) => a - b),
+        new_logo: d.logo ? 1 : 0,
+        remover_logo: !!d.remover_logo,
+    };
+}
 
 export default function ClinicasIndex({ clinicas, filters }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingClinica, setEditingClinica] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(filters?.search || '');
+    const [search, setSearch] = useState(() =>
+        filters?.search != null && filters.search !== '' ? String(filters.search) : ''
+    );
     const [loadingCep, setLoadingCep] = useState(false);
+    const skipNextClinicasFetch = useRef(true);
 
     // Medico search states
     const [searchMedico, setSearchMedico] = useState('');
@@ -26,6 +55,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const [selectedMedicos, setSelectedMedicos] = useState([]);
     const [loadingMedicos, setLoadingMedicos] = useState(false);
     const [cnpjError, setCnpjError] = useState('');
+    const [formBaseline, setFormBaseline] = useState(null);
 
     const { data, setData, processing, errors, reset } = useForm({
         nome: '',
@@ -76,6 +106,38 @@ export default function ClinicasIndex({ clinicas, filters }) {
         }
     }, [searchMedico, searchMedicosApi]);
 
+    useEffect(() => {
+        if (!filters) return;
+        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
+        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    }, [filters?.search]);
+
+    const runClinicasQuery = useMemo(
+        () =>
+            debounce((term) => {
+                const params = {};
+                const t = term?.trim();
+                if (t) params.search = t;
+                router.get('/clinicas', params, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['clinicas', 'filters'],
+                });
+            }, 350),
+        []
+    );
+
+    useEffect(() => {
+        if (skipNextClinicasFetch.current) {
+            skipNextClinicasFetch.current = false;
+            return;
+        }
+        runClinicasQuery(search);
+    }, [search, runClinicasQuery]);
+
+    useEffect(() => () => runClinicasQuery.cancel(), [runClinicasQuery]);
+
     const addMedico = (medico) => {
         const newMedicos = [...selectedMedicos, medico];
         setSelectedMedicos(newMedicos);
@@ -124,7 +186,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
         setDrawerOpen(true);
     };
 
-    const closeDrawer = () => {
+    const forceCloseDrawer = () => {
         setDrawerOpen(false);
         setEditingClinica(null);
         setSelectedMedicos([]);
@@ -133,41 +195,98 @@ export default function ClinicasIndex({ clinicas, filters }) {
         reset();
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-
-        // Validate CNPJ before submitting
-        if (data.cnpj && data.cnpj.replace(/\D/g, '').length > 0 && !validateCNPJ(data.cnpj)) {
-            setCnpjError('CNPJ inválido');
+    useEffect(() => {
+        if (!drawerOpen) {
+            setFormBaseline(null);
             return;
         }
+        const medicoIds = selectedMedicos.map((m) => m.id);
+        setFormBaseline(cloneDeep(clinicaComparable(data, medicoIds)));
+    }, [drawerOpen, editingClinica?.id]);
 
-        const submitData = { ...data };
-        const options = {
-            forceFormData: true,
+    const trySaveClinica = useCallback(
+        ({ onSuccess, onError, onInvalid }) => {
+            if (data.cnpj && data.cnpj.replace(/\D/g, '').length > 0 && !validateCNPJ(data.cnpj)) {
+                setCnpjError('CNPJ inválido');
+                onInvalid?.();
+                return;
+            }
+
+            const submitData = { ...data };
+            const options = {
+                forceFormData: true,
+                onSuccess,
+                onError,
+            };
+
+            if (editingClinica) {
+                router.post(
+                    `/clinicas/${editingClinica.id}`,
+                    {
+                        ...submitData,
+                        _method: 'PUT',
+                    },
+                    options
+                );
+            } else {
+                router.post('/clinicas', submitData, options);
+            }
+        },
+        [data, editingClinica]
+    );
+
+    const isDirty = useMemo(() => {
+        if (!drawerOpen || !formBaseline) return false;
+        const medicoIds = selectedMedicos.map((m) => m.id);
+        return !isEqual(clinicaComparable(data, medicoIds), formBaseline);
+    }, [drawerOpen, formBaseline, data, selectedMedicos]);
+
+    const saveBeforeClose = useCallback(
+        () =>
+            new Promise((resolve) => {
+                trySaveClinica({
+                    onSuccess: () => resolve(true),
+                    onError: () => resolve(false),
+                    onInvalid: () => resolve(false),
+                });
+            }),
+        [trySaveClinica]
+    );
+
+    const {
+        requestClose,
+        showUnsavedModal,
+        savingBeforeLeave,
+        handleUnsavedCancel,
+        handleUnsavedDiscard,
+        handleUnsavedSave,
+    } = useDrawerUnsavedChanges({
+        isOpen: drawerOpen,
+        isDirty,
+        onConfirmClose: forceCloseDrawer,
+        saveBeforeClose,
+    });
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        trySaveClinica({
             onSuccess: () => {
-                closeDrawer();
+                forceCloseDrawer();
                 setToast({
                     message: editingClinica ? 'Clinica atualizada!' : 'Clinica cadastrada!',
                     type: 'success',
                 });
             },
-        };
-
-        if (editingClinica) {
-            router.post(`/clinicas/${editingClinica.id}`, {
-                ...submitData,
-                _method: 'PUT',
-            }, options);
-        } else {
-            router.post('/clinicas', submitData, options);
-        }
+        });
     };
 
     const handleDelete = () => {
         if (editingClinica) {
             router.delete(`/clinicas/${editingClinica.id}`, {
-                onSuccess: () => { closeDrawer(); setToast({ message: 'Clinica excluida!', type: 'success' }); },
+                onSuccess: () => {
+                    forceCloseDrawer();
+                    setToast({ message: 'Clinica excluida!', type: 'success' });
+                },
             });
         }
     };
@@ -185,11 +304,6 @@ export default function ClinicasIndex({ clinicas, filters }) {
                 });
             },
         });
-    };
-
-    const handleSearch = (e) => {
-        e.preventDefault();
-        router.get('/clinicas', { search }, { preserveState: true });
     };
 
     const buscarCep = useCallback(async () => {
@@ -217,6 +331,16 @@ export default function ClinicasIndex({ clinicas, filters }) {
         }
     };
 
+    /** Alinhado a ClinicaController: nome obrigatório; CNPJ e e-mail opcionais, mas inválidos bloqueiam envio. */
+    const isFormValid = useMemo(() => {
+        if (!data.nome?.trim()) return false;
+        const cnpjDigits = (data.cnpj || '').replace(/\D/g, '');
+        if (cnpjDigits.length > 0 && !validateCNPJ(data.cnpj)) return false;
+        const em = (data.email || '').trim();
+        if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return false;
+        return true;
+    }, [data]);
+
     const clinicasList = clinicas?.data || clinicas || [];
 
     return (
@@ -241,21 +365,16 @@ export default function ClinicasIndex({ clinicas, filters }) {
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 min-w-0">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 min-w-0">
                         <input
                             type="text"
                             placeholder="Buscar por nome ou CNPJ..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            autoComplete="off"
                             className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                         />
-                        <button
-                            type="submit"
-                            className="w-full sm:w-auto min-h-[44px] shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                        >
-                            Buscar
-                        </button>
-                    </form>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -363,7 +482,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
                 </div>
             </div>
 
-            <Drawer isOpen={drawerOpen} onClose={closeDrawer} title={editingClinica ? 'Editar Clinica' : 'Nova Clinica'} size="lg">
+            <Drawer isOpen={drawerOpen} onClose={requestClose} title={editingClinica ? 'Editar Clinica' : 'Nova Clinica'} size="lg">
                 <form onSubmit={handleSubmit} className="flex flex-col h-full">
                     <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                         <Input label="Nome" value={data.nome} onChange={(e) => setData('nome', e.target.value)} error={errors.nome} required />
@@ -463,7 +582,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
                                             key={medico.id}
                                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm"
                                         >
-                                            <span>{medico.nome}</span>
+                                            <span>{nomeExibicaoSemTitulo(medico.nome)}</span>
                                             {medico.crm && <span className="text-blue-600 text-xs">CRM: {medico.crm}</span>}
                                             <button
                                                 type="button"
@@ -507,7 +626,9 @@ export default function ClinicasIndex({ clinicas, filters }) {
                                                 onClick={() => addMedico(medico)}
                                                 className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                             >
-                                                <div className="font-medium text-gray-900">{medico.nome}</div>
+                                                <div className="font-medium text-gray-900">
+                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                </div>
                                                 <div className="text-sm text-gray-500">{medico.crm} - {medico.especialidade}</div>
                                             </button>
                                         ))}
@@ -532,13 +653,27 @@ export default function ClinicasIndex({ clinicas, filters }) {
                                 {showDeleteConfirm && <div className="flex items-center gap-2"><span className="text-sm">Confirmar?</span><button type="button" onClick={handleDelete} className="px-3 py-1 bg-red-600 text-white rounded">Sim</button><button type="button" onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1 bg-gray-200 rounded">Nao</button></div>}
                             </div>
                             <div className="flex gap-3">
-                                <button type="button" onClick={closeDrawer} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
-                                <button type="submit" disabled={processing} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{processing ? 'Salvando...' : 'Salvar'}</button>
+                                <button type="button" onClick={requestClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
+                                <button
+                                    type="submit"
+                                    disabled={processing || !isFormValid}
+                                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {processing ? 'Salvando...' : 'Salvar'}
+                                </button>
                             </div>
                         </div>
                     </div>
                 </form>
             </Drawer>
+            <UnsavedChangesModal
+                open={showUnsavedModal}
+                onCancel={handleUnsavedCancel}
+                onDiscard={handleUnsavedDiscard}
+                onSave={handleUnsavedSave}
+                saving={savingBeforeLeave}
+            />
+
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </DashboardLayout>
     );

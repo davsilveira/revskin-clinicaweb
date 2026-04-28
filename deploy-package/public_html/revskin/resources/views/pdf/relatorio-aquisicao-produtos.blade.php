@@ -52,6 +52,7 @@
         .paciente-header .nome {
             display: inline-block;
         }
+        .paciente-header .telefone,
         .paciente-header .cpf,
         .paciente-header .medico {
             display: inline-block;
@@ -61,25 +62,58 @@
         table.produtos {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
+            margin-bottom: 0;
         }
         table.produtos th {
             background: #059669;
             color: white;
-            padding: 8px 6px;
+            padding: 6px 4px;
             text-align: left;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
-        table.produtos td {
-            padding: 8px 6px;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 9px;
+        table.produtos th.num {
+            text-align: right;
         }
-        table.produtos tr:nth-child(even) {
+        table.produtos th.qtd {
+            text-align: center;
+        }
+        table.produtos td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 8px;
+        }
+        table.produtos td.num {
+            text-align: right;
+        }
+        table.produtos td.qtd {
+            text-align: center;
+        }
+        table.produtos tbody tr:nth-child(even) {
             background: #f9fafb;
+        }
+        table.produtos tfoot tr.totais td {
+            background: #e5e7eb;
+            color: #111827;
+            font-weight: bold;
+            font-size: 8px;
+            padding: 8px 6px;
+            border-top: 1px solid #d1d5db;
+            border-bottom: none;
+        }
+        table.produtos tfoot tr.totais td.label-qtd {
+            text-align: left;
+        }
+        table.produtos tfoot tr.totais td.val-frete {
+            text-align: right;
+        }
+        table.produtos tfoot tr.totais td.val-desc {
+            text-align: center;
+        }
+        table.produtos tfoot tr.totais td.val-total {
+            text-align: right;
         }
         .footer {
             position: fixed;
@@ -90,16 +124,14 @@
             font-size: 8px;
             color: #999;
         }
-        .page-number {
-            position: fixed;
-            bottom: 10mm;
-            right: 10mm;
-            font-size: 8px;
-            color: #999;
-        }
     </style>
 </head>
 <body>
+    @php
+        $brl = static function ($v): string {
+            return 'R$ '.number_format((float) $v, 2, ',', '.');
+        };
+    @endphp
     <div class="container">
     <div class="header">
         <h1>RELATÓRIO DE AQUISIÇÃO DE PRODUTOS</h1>
@@ -108,69 +140,99 @@
         </div>
     </div>
 
+    @php $mostrarValoresMonetarios = !empty($isAdmin); @endphp
+
     @foreach($dados['pacientes'] as $pacienteData)
         @php
-            $ultimaModPorProduto = [];
-            foreach ($pacienteData['produtos'] as $p) {
-                $nome = $p['produto_nome'];
-                if (!isset($ultimaModPorProduto[$nome])) {
-                    $ultimaModPorProduto[$nome] = $p['data_receita'];
-                } else {
-                    try {
-                        $atual = \Carbon\Carbon::createFromFormat('d/m/Y', $p['data_receita']);
-                        $max = \Carbon\Carbon::createFromFormat('d/m/Y', $ultimaModPorProduto[$nome]);
-                        if ($atual->gt($max)) {
-                            $ultimaModPorProduto[$nome] = $p['data_receita'];
-                        }
-                    } catch (\Exception $e) {
-                        if (strcmp($p['data_receita'], $ultimaModPorProduto[$nome]) > 0) {
-                            $ultimaModPorProduto[$nome] = $p['data_receita'];
-                        }
-                    }
-                }
-            }
             $cpfFormatado = '';
             if (!empty($pacienteData['paciente']['cpf'])) {
                 $cpf = preg_replace('/\D/', '', $pacienteData['paciente']['cpf']);
                 if (strlen($cpf) === 11) {
-                    $cpfFormatado = substr($cpf, 0, 3) . '.' . substr($cpf, 3, 3) . '.' . substr($cpf, 6, 3) . '-' . substr($cpf, 9, 2);
+                    $cpfFormatado = substr($cpf, 0, 3).'.'.substr($cpf, 3, 3).'.'.substr($cpf, 6, 3).'-'.substr($cpf, 9, 2);
                 } else {
                     $cpfFormatado = $pacienteData['paciente']['cpf'];
                 }
             }
+            $telRaw = preg_replace('/\D/', '', (string) ($pacienteData['paciente']['telefone'] ?? ''));
+            $telefoneFmt = '';
+            if (strlen($telRaw) === 11) {
+                $telefoneFmt = '('.substr($telRaw, 0, 2).') '.substr($telRaw, 2, 5).'-'.substr($telRaw, 7);
+            } elseif (strlen($telRaw) >= 10) {
+                $telefoneFmt = '('.substr($telRaw, 0, 2).') '.substr($telRaw, 2, 4).'-'.substr($telRaw, 6);
+            } elseif (!empty($pacienteData['paciente']['telefone'])) {
+                $telefoneFmt = $pacienteData['paciente']['telefone'];
+            }
+            $tot = $pacienteData['totais'] ?? [];
         @endphp
         <div class="paciente-section">
-            <!-- Cabeçalho do Paciente: Nome, CPF, Dra. (só admin) -->
             <div class="paciente-header">
                 <span class="nome">{{ strtoupper($pacienteData['paciente']['nome']) }}</span>
+                @if($telefoneFmt !== '')
+                    <span class="telefone">{{ $telefoneFmt }}</span>
+                @endif
                 @if($cpfFormatado)
                     <span class="cpf">CPF: {{ $cpfFormatado }}</span>
                 @endif
                 @if(!empty($isAdmin) && !empty($pacienteData['paciente']['medico_nome']))
-                    <span class="medico">Dra. {{ $pacienteData['paciente']['medico_nome'] }}</span>
+                    <span class="medico">{{ $pacienteData['paciente']['medico_nome'] }}</span>
                 @endif
             </div>
 
-            <!-- Tabela: Produto | Última Modificação | Data Aquisição | Qtd (colunas separadas) -->
             <table class="produtos">
                 <thead>
                     <tr>
-                        <th style="width: 35%;">Produto</th>
-                        <th style="width: 20%;">Última Modificação</th>
-                        <th style="width: 22%;">Aquisições no Período</th>
-                        <th style="width: 10%; text-align: center;">Qtd</th>
+                        <th style="width: {{ $mostrarValoresMonetarios ? '28%' : '52%' }};">Produto</th>
+                        <th style="width: 12%;">Data receita</th>
+                        <th style="width: 12%;">Data manip.</th>
+                        @if($mostrarValoresMonetarios)
+                            <th class="num" style="width: 14%;">Vlr. unit.</th>
+                            <th class="qtd" style="width: 8%;">Qtd</th>
+                            <th class="num" style="width: 14%;">Total</th>
+                        @else
+                            <th class="qtd" style="width: 12%;">Qtd</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($pacienteData['produtos'] as $p)
                         <tr>
                             <td>{{ $p['produto_nome'] }}</td>
-                            <td>{{ $ultimaModPorProduto[$p['produto_nome']] ?? $p['data_receita'] }}</td>
+                            <td>{{ $p['data_receita'] }}</td>
                             <td>{{ $p['data_aquisicao'] }}</td>
-                            <td style="text-align: center;">{{ $p['quantidade'] }}</td>
+                            @if($mostrarValoresMonetarios)
+                                <td class="num">{{ $brl($p['valor_unitario'] ?? 0) }}</td>
+                                <td class="qtd">{{ (int) ($p['quantidade'] ?? 0) }}</td>
+                                <td class="num">{{ $brl($p['valor_total'] ?? 0) }}</td>
+                            @else
+                                <td class="qtd">{{ (int) ($p['quantidade'] ?? 0) }}</td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>
+                <tfoot>
+                    @if($mostrarValoresMonetarios)
+                        <tr class="totais">
+                            <td colspan="3" class="label-qtd">
+                                Qtd. Produtos: {{ (int) ($tot['qtd_produtos'] ?? 0) }}
+                            </td>
+                            <td class="val-frete num">
+                                Vlr. Frete: {{ $brl($tot['vlr_frete'] ?? 0) }}
+                            </td>
+                            <td class="val-desc qtd">
+                                Vlr. Desconto: {{ $brl($tot['vlr_desconto'] ?? 0) }}
+                            </td>
+                            <td class="val-total num">
+                                Total: {{ $brl($tot['total'] ?? 0) }}
+                            </td>
+                        </tr>
+                    @else
+                        <tr class="totais">
+                            <td colspan="4" class="label-qtd">
+                                Qtd. Produtos: {{ (int) ($tot['qtd_produtos'] ?? 0) }}
+                            </td>
+                        </tr>
+                    @endif
+                </tfoot>
             </table>
         </div>
     @endforeach
