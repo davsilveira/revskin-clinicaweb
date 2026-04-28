@@ -22,11 +22,16 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TabelaKarnaughController;
 use App\Http\Controllers\TinyIntegrationController;
 use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 // Public routes
 Route::get('/', function () {
+    if (Auth::check()) {
+        return redirect()->route('dashboard');
+    }
+
     return Inertia::render('Welcome');
 });
 
@@ -88,14 +93,20 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/receitas/{receita}/edit', [ReceitaController::class, 'edit'])->name('receitas.edit');
         Route::put('/receitas/{receita}', [ReceitaController::class, 'update'])->name('receitas.update');
         Route::delete('/receitas/{receita}', [ReceitaController::class, 'destroy'])->name('receitas.destroy');
-        Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
         Route::post('/api/receitas/autosave', [ReceitaController::class, 'autosave'])->name('receitas.autosave');
+        Route::patch('/api/receitas/{receita}/itens-anotacoes', [ReceitaController::class, 'patchItensAnotacoes'])->name('receitas.itens-anotacoes.patch');
 
         // Assistente de Receita
         Route::get('/assistente-receita', [AssistenteReceitaController::class, 'index'])->name('assistente.index');
         Route::post('/assistente-receita/iniciar', [AssistenteReceitaController::class, 'iniciar'])->name('assistente.iniciar');
         Route::post('/assistente-receita/processar', [AssistenteReceitaController::class, 'processar'])->name('assistente.processar');
         Route::post('/assistente-receita/gerar-receita', [AssistenteReceitaController::class, 'gerarReceita'])->name('assistente.gerar');
+    });
+
+    // Receitas - copiar, finalizar (médico, admin, call center) — cancelar só em receitas.destroy (middleware medico, admin)
+    Route::middleware('role:medico,callcenter')->group(function () {
+        Route::post('/receitas/{receita}/copiar', [ReceitaController::class, 'copiar'])->name('receitas.copiar');
+        Route::post('/receitas/{receita}/finalizar', [ReceitaController::class, 'finalizar'])->name('receitas.finalizar');
     });
 
     // Receitas - visualizacao (medico, admin e callcenter)
@@ -110,10 +121,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/callcenter', [CallCenterController::class, 'index'])->name('callcenter.index');
         Route::get('/callcenter/{atendimento}', [CallCenterController::class, 'show'])->name('callcenter.show');
         Route::put('/callcenter/{atendimento}/status', [CallCenterController::class, 'atualizarStatus'])->name('callcenter.status');
-        Route::put('/callcenter/{atendimento}/receita', [CallCenterController::class, 'updateReceita'])->name('callcenter.receita.update');
         Route::post('/callcenter/{atendimento}/acompanhamento', [CallCenterController::class, 'addAcompanhamento'])->name('callcenter.acompanhamento');
         Route::post('/callcenter/cancelar', [CallCenterController::class, 'cancelarMultiplos'])->name('callcenter.cancelar');
-        Route::post('/api/callcenter/{atendimento}/autosave', [CallCenterController::class, 'autosaveReceita'])->name('callcenter.autosave');
     });
 
     // Tools - Infosimples (admin and finance)

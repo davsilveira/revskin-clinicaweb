@@ -22,6 +22,8 @@ export default function ReceitaFormItemRow({
     variant,
     produtos,
     isReadOnly,
+    /** Quando definido, só o textarea de anotações usa este valor; demais campos seguem `isReadOnly`. */
+    annotationsReadOnly,
     isMedico,
     ultimaAquisicao,
     datasAquisicao,
@@ -53,6 +55,8 @@ export default function ReceitaFormItemRow({
         el.style.height = 'auto';
         el.style.height = `${Math.min(Math.max(el.scrollHeight, 32), 320)}px`;
     }, [item.anotacoes]);
+
+    const annFieldDisabled = annotationsReadOnly ?? isReadOnly;
 
     const rowTone =
         item.vendido
@@ -135,7 +139,7 @@ export default function ReceitaFormItemRow({
                     placeholder="Anotações…"
                     value={item.anotacoes || ''}
                     onChange={(e) => onUpdateItem(index, 'anotacoes', e.target.value)}
-                    disabled={isReadOnly}
+                    disabled={annFieldDisabled}
                     className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50 resize-none overflow-hidden leading-snug"
                 />
             </div>

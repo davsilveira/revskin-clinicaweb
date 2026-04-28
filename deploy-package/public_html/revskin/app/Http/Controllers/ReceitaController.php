@@ -9,11 +9,17 @@ use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
+use App\Models\ReceitaItem;
 use App\Models\Setting;
+use App\Models\User;
+use App\Support\ReceitaProdutoLegadoGuard;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -38,20 +44,55 @@ class ReceitaController extends Controller
             $query->where('medico_id', $user->medico_id);
         }
 
-        $receitas = $query->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+        if ($request->filled('paciente_id')) {
+            $query->orderByDesc('data_receita')->orderByDesc('id');
+        } else {
+            $query->orderByDesc('id');
+        }
+
+        $receitas = $query->paginate(15)->withQueryString();
 
         $medicos = Medico::ativo()
-            ->join('users', 'users.medico_id', '=', 'medicos.id')
-            ->orderBy('users.name')
-            ->select('medicos.id')
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
+
+        $pacienteFiltrado = null;
+        $medicosPacienteDrawer = collect();
+        if ($request->filled('paciente_id')) {
+            $pacienteCandidato = Paciente::with([
+                'medico:id',
+                'medico.linkedUser:id,name,medico_id',
+                'telefones',
+            ])->find((int) $request->paciente_id);
+
+            if ($pacienteCandidato) {
+                if (! $user->canAccessPaciente($pacienteCandidato)) {
+                    abort(403, 'Acesso não autorizado.');
+                }
+                $pacienteFiltrado = $pacienteCandidato;
+
+                $medQuery = Medico::ativo()
+                    ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+                    ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+                    ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+                if ($user->isSecretaria() && $user->clinica_id) {
+                    $medQuery->whereIn('medicos.id', $user->getMedicoIdsDaClinica());
+                }
+                $medicosPacienteDrawer = $medQuery->get()->load('linkedUser:id,name,medico_id');
+            }
+        }
 
         return Inertia::render('Receitas/Index', [
             'receitas' => $receitas,
             'medicos' => $medicos,
+            'pacienteFiltrado' => $pacienteFiltrado,
+            'medicosPacienteDrawer' => $medicosPacienteDrawer,
+            'receitasIndexIsAdmin' => $user->isAdmin(),
+            'receitasIndexIsSecretaria' => $user->isSecretaria(),
+            'receitasIndexCanSelectMedico' => ! $user->isMedico(),
             'filters' => $request->only(['search', 'medico_id', 'paciente_id', 'status', 'data_inicio', 'data_fim']),
         ]);
     }
@@ -62,7 +103,7 @@ class ReceitaController extends Controller
         $paciente = null;
 
         if ($request->paciente_id) {
-            $paciente = Paciente::find($request->paciente_id);
+            $paciente = Paciente::with(['telefones', 'medico.linkedUser:id,name,medico_id'])->find($request->paciente_id);
 
             // Check if user can access this paciente
             if ($paciente && ! $user->canAccessPaciente($paciente)) {
@@ -70,11 +111,31 @@ class ReceitaController extends Controller
             }
         }
 
-        $medicos = $user->isMedico() && $user->medico_id
-            ? Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id')
-            : Medico::ativo()->join('users', 'users.medico_id', '=', 'medicos.id')->orderBy('users.name')->select('medicos.id')->get()->load('linkedUser:id,name,medico_id');
+        $medicosPacienteDrawerQuery = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+        if ($user->isSecretaria() && $user->clinica_id) {
+            $medicosPacienteDrawerQuery->whereIn('medicos.id', $user->getMedicoIdsDaClinica());
+        }
+        $medicosPacienteDrawer = $medicosPacienteDrawerQuery->get()->load('linkedUser:id,name,medico_id');
 
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
+        if ($user->isMedico() && $user->medico_id) {
+            $medicos = Medico::where('id', $user->medico_id)->get()->load('linkedUser:id,name,medico_id');
+            if ($paciente && $paciente->medico_id && (int) $paciente->medico_id !== (int) $user->medico_id) {
+                $outro = Medico::where('id', $paciente->medico_id)->with('linkedUser:id,name,medico_id')->first();
+                if ($outro) {
+                    $medicos = $medicos->prepend($outro)->unique('id')->values();
+                }
+            }
+        } else {
+            $medicos = Medico::ativo()->leftJoin('users', 'users.medico_id', '=', 'medicos.id')->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')->select('medicos.id', 'medicos.apelido', 'medicos.crm')->get()->load('linkedUser:id,name,medico_id');
+        }
+
+        $produtos = Produto::ativo()
+            ->semLegadoSomenteLeitura()
+            ->orderBy('codigo')
+            ->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade']);
 
         // Map preco to preco_venda for frontend compatibility
         $produtos = $produtos->map(function ($produto) {
@@ -83,11 +144,18 @@ class ReceitaController extends Controller
             return $produto;
         });
 
+        $defaultMedicoId = $paciente?->medico_id ?? $user->medico_id;
+
         return Inertia::render('Receitas/Form', [
             'paciente' => $paciente,
             'medicos' => $medicos,
+            'medicosPacienteDrawer' => $medicosPacienteDrawer,
+            'receitaFormIsAdmin' => $user->isAdmin(),
+            'receitaFormIsSecretaria' => $user->isSecretaria(),
+            'receitaFormIsCallcenter' => false,
+            'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
-            'defaultMedicoId' => $user->medico_id,
+            'defaultMedicoId' => $defaultMedicoId,
         ]);
     }
 
@@ -116,17 +184,21 @@ class ReceitaController extends Controller
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
         ]);
 
+        ReceitaProdutoLegadoGuard::assertNovaReceitaSemProdutoLegado($validated['itens']);
+
         // If user is medico, ensure they can only create receitas for themselves
         if ($user->isMedico() && $user->medico_id && $validated['medico_id'] != $user->medico_id) {
             return back()->with('error', 'Você não pode criar receitas para outros médicos.');
         }
+
+        $anotacoesReceita = $user->isMedico() ? null : ($validated['anotacoes'] ?? null);
 
         $receita = Receita::create([
             'numero' => Receita::gerarNumero($validated['paciente_id']),
             'paciente_id' => $validated['paciente_id'],
             'medico_id' => $validated['medico_id'],
             'data_receita' => $validated['data_receita'],
-            'anotacoes' => $validated['anotacoes'] ?? null,
+            'anotacoes' => $anotacoesReceita,
             'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
             'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
             'desconto_motivo' => $validated['desconto_motivo'] ?? null,
@@ -151,16 +223,9 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        // Create callcenter atendimento if status is finalizada
         if ($receita->status === 'finalizada') {
-            AtendimentoCallcenter::create([
-                'receita_id' => $receita->id,
-                'paciente_id' => $receita->paciente_id,
-                'medico_id' => $receita->medico_id,
-                'status' => AtendimentoCallcenter::STATUS_ENTRAR_EM_CONTATO,
-                'data_abertura' => now(),
-                'usuario_id' => $request->user()->id,
-            ]);
+            $receita->load('atendimentoCallcenter');
+            $this->onReceitaFinalizada($receita, $request->user());
         }
 
         return redirect()->route('receitas.show', $receita)
@@ -179,22 +244,59 @@ class ReceitaController extends Controller
             return redirect()->route('receitas.show', $receita);
         }
 
+        if ($request->user()->isMedico()) {
+            return redirect()->route('receitas.show', $receita);
+        }
+
         return $this->renderReceitaForm($receita, $request, viewMode: false);
     }
 
     private function renderReceitaForm(Receita $receita, Request $request, bool $viewMode = false): Response
     {
-        $receita->load(['paciente', 'medico.linkedUser:id,name,medico_id', 'itens.produto', 'itens.aquisicoes', 'atendimentoCallcenter']);
+        $receita->loadMissing('paciente');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        $receita->load([
+            'paciente.telefones',
+            'paciente.medico.linkedUser:id,name,medico_id',
+            'medico.linkedUser:id,name,medico_id',
+            'receitaOrigem:id,numero',
+            'itens.produto',
+            'itens.aquisicoes',
+            'atendimentoCallcenter',
+        ]);
 
         $this->loadAcquisitionDates($receita);
 
+        $user = $request->user();
+
+        $medicosPacienteDrawerQuery = Medico::ativo()
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm');
+        if ($user->isSecretaria() && $user->clinica_id) {
+            $medicosPacienteDrawerQuery->whereIn('medicos.id', $user->getMedicoIdsDaClinica());
+        }
+        $medicosPacienteDrawer = $medicosPacienteDrawerQuery->get()->load('linkedUser:id,name,medico_id');
+
         $medicos = Medico::ativo()
-            ->join('users', 'users.medico_id', '=', 'medicos.id')
-            ->orderBy('users.name')
-            ->select('medicos.id')
+            ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
+            ->orderByRaw('COALESCE(users.name, medicos.apelido, medicos.crm)')
+            ->select('medicos.id', 'medicos.apelido', 'medicos.crm')
             ->get()
             ->load('linkedUser:id,name,medico_id');
-        $produtos = Produto::ativo()->orderBy('codigo')->get(['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes']);
+        $produtoColumns = ['id', 'codigo', 'nome', 'local_uso', 'preco', 'anotacoes', 'legado_somente_leitura', 'unidade'];
+        $produtos = Produto::ativo()
+            ->semLegadoSomenteLeitura()
+            ->orderBy('codigo')
+            ->get($produtoColumns);
+
+        $legadoIds = $receita->itens->pluck('produto_id')->filter()->diff($produtos->pluck('id'));
+        if ($legadoIds->isNotEmpty()) {
+            $produtos = $produtos->concat(Produto::whereIn('id', $legadoIds)->get($produtoColumns));
+        }
 
         $produtos = $produtos->map(function ($produto) {
             $produto->preco_venda = $produto->preco ?? 0;
@@ -205,32 +307,51 @@ class ReceitaController extends Controller
         $receitasAnteriores = Receita::where('paciente_id', $receita->paciente_id)
             ->where('id', '!=', $receita->id)
             ->where('ativo', true)
-            ->with(['itens.produto:id,codigo,nome,local_uso', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
+            ->with(['itens.produto:id,codigo,nome,local_uso,unidade', 'itens.aquisicoes', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->orderByDesc('id')
             ->take(10)
             ->get();
 
         $receitasAnteriores->each(function ($r) {
-            $r->itens->each(function ($item) {
-                $item->ultima_aquisicao = $item->ultima_aquisicao?->format('Y-m-d');
-                $item->datas_aquisicao = collect($item->datas_aquisicao)->map(fn ($d) => $d->format('Y-m-d'))->toArray();
-            });
+            $this->applyAcquisitionDatesToItens($r->itens);
         });
 
-        $user = $request->user();
+        $anteriorLegadoIds = $receitasAnteriores->flatMap(fn ($r) => $r->itens->pluck('produto_id'))
+            ->filter()
+            ->diff($produtos->pluck('id'))
+            ->unique();
+        if ($anteriorLegadoIds->isNotEmpty()) {
+            $extras = Produto::whereIn('id', $anteriorLegadoIds)->get($produtoColumns)->map(function ($p) {
+                $p->preco_venda = $p->preco ?? 0;
+
+                return $p;
+            });
+            $produtos = $produtos->concat($extras);
+        }
 
         $bloqueadaPorAtendimento = $receita->atendimentoCallcenter &&
             in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado']);
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
         $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
+        $permiteEditarAnotacoesInternasItens =
+            ($user->isAdmin() || $user->isMedico())
+            && $receita->status === 'finalizada'
+            && ! $user->isCallcenter();
+
         $props = [
             'receita' => $receita,
             'paciente' => $receita->paciente,
             'medicos' => $medicos,
+            'medicosPacienteDrawer' => $medicosPacienteDrawer,
+            'receitaFormIsAdmin' => $user->isAdmin(),
+            'receitaFormIsSecretaria' => $user->isSecretaria(),
+            'receitaFormIsCallcenter' => $user->isCallcenter(),
+            'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
             'receitasAnteriores' => $receitasAnteriores,
             'bloqueadaParaEdicao' => $bloqueadaParaEdicao,
+            'permiteEditarAnotacoesInternasItens' => $permiteEditarAnotacoesInternasItens,
             'viewMode' => $viewMode,
         ];
 
@@ -243,7 +364,18 @@ class ReceitaController extends Controller
 
     private function loadAcquisitionDates(Receita $receita): void
     {
-        $receita->itens->each(function ($item) use ($receita) {
+        $this->applyAcquisitionDatesToItens($receita->itens);
+    }
+
+    /**
+     * Datas de aquisição por linha da receita (alinhado ao legado): só registos em
+     * receita_item_aquisicoes deste receita_item + receita_itens.data_aquisicao.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\ReceitaItem>  $itens
+     */
+    private function applyAcquisitionDatesToItens($itens): void
+    {
+        $itens->each(function ($item) {
             if (! $item->produto_id) {
                 $item->ultima_aquisicao = null;
                 $item->datas_aquisicao = [];
@@ -251,17 +383,18 @@ class ReceitaController extends Controller
                 return;
             }
 
-            $aquisicoes = \App\Models\ReceitaItemAquisicao::whereHas('receitaItem', function ($query) use ($receita, $item) {
-                $query->where('produto_id', $item->produto_id)
-                    ->whereHas('receita', function ($q) use ($receita) {
-                        $q->where('paciente_id', $receita->paciente_id);
-                    });
-            })->orderByDesc('data_aquisicao')->get();
+            $aquisicoes = $item->relationLoaded('aquisicoes')
+                ? $item->aquisicoes->sortByDesc('data_aquisicao')->values()
+                : $item->aquisicoes()->orderByDesc('data_aquisicao')->get();
 
-            $datasAquisicao = $aquisicoes->pluck('data_aquisicao')->filter()->unique()->sortDesc()->values();
+            $datasStrings = $aquisicoes->pluck('data_aquisicao')->filter()->map(fn ($d) => $d->format('Y-m-d'));
+            if ($item->data_aquisicao) {
+                $datasStrings->push($item->data_aquisicao->format('Y-m-d'));
+            }
+            $datasUnicas = $datasStrings->unique()->sortDesc()->values();
 
-            $item->ultima_aquisicao = $datasAquisicao->isNotEmpty() ? $datasAquisicao->first()->format('Y-m-d') : null;
-            $item->datas_aquisicao = $datasAquisicao->map(fn ($d) => $d->format('Y-m-d'))->toArray();
+            $item->ultima_aquisicao = $datasUnicas->isNotEmpty() ? $datasUnicas->first() : null;
+            $item->datas_aquisicao = $datasUnicas->all();
         });
     }
 
@@ -299,10 +432,16 @@ class ReceitaController extends Controller
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
+            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
         ]);
 
-        // If user is medico, ensure they cannot change medico_id
-        // For admin/callcenter, allow medico_id to be updated if provided
+        ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
+
+        if ($user->isMedico()) {
+            $validated['anotacoes'] = $receita->anotacoes;
+        }
+
+        // medico_id não pode ser alterado após a receita existir (inclusive ADM)
         $updateData = [
             'data_receita' => $validated['data_receita'],
             'anotacoes' => $validated['anotacoes'] ?? null,
@@ -313,12 +452,6 @@ class ReceitaController extends Controller
             'valor_frete' => $validated['valor_frete'] ?? 0,
             'status' => $validated['status'] ?? $receita->status,
         ];
-
-        // Only allow medico_id update for admin/callcenter
-        if (! $user->isMedico() && $request->has('medico_id')) {
-            $updateData['medico_id'] = $request->input('medico_id');
-        }
-        // For medico, ensure medico_id remains unchanged (already set to their own)
 
         $receita->update($updateData);
 
@@ -340,14 +473,60 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        if ($receita->status === 'finalizada' && ! $receita->atendimentoCallcenter) {
+        $receita->load('atendimentoCallcenter');
+        $this->onReceitaFinalizada($receita, $user);
+
+        return redirect()->route('receitas.show', $receita)
+            ->with('success', 'Receita atualizada com sucesso!');
+    }
+
+    public function finalizar(Request $request, Receita $receita): RedirectResponse
+    {
+        $receita->load('paciente', 'atendimentoCallcenter');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->atendimentoCallcenter &&
+            in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
+            return back()->with('error', 'Esta receita não pode ser finalizada pois o atendimento já está em produção ou finalizado.');
+        }
+
+        if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita)
+                ->with('error', 'Esta receita já está finalizada.');
+        }
+
+        if ($receita->status !== 'aberta') {
+            return back()->with('error', 'Apenas receitas abertas podem ser finalizadas.');
+        }
+
+        $receita->update(['status' => 'finalizada']);
+        $receita->refresh();
+        $receita->load('atendimentoCallcenter');
+        $this->onReceitaFinalizada($receita, $request->user());
+
+        return redirect()->route('receitas.show', $receita)
+            ->with('success', 'Receita finalizada com sucesso!');
+    }
+
+    /**
+     * When status is finalizada, create call center queue row and external jobs if not already present.
+     */
+    private function onReceitaFinalizada(Receita $receita, User $user): void
+    {
+        if ($receita->status !== 'finalizada') {
+            return;
+        }
+
+        if (! $receita->atendimentoCallcenter) {
             AtendimentoCallcenter::create([
                 'receita_id' => $receita->id,
                 'paciente_id' => $receita->paciente_id,
                 'medico_id' => $receita->medico_id,
                 'status' => AtendimentoCallcenter::STATUS_ENTRAR_EM_CONTATO,
                 'data_abertura' => now(),
-                'usuario_id' => $request->user()->id,
+                'usuario_id' => $user->id,
             ]);
 
             if (Setting::get('tiny_enabled', false)) {
@@ -362,13 +541,19 @@ class ReceitaController extends Controller
                 CriarNegociacaoRdStationJob::dispatch($receita)->delay(now()->addMinute());
             }
         }
-
-        return redirect()->route('receitas.show', $receita)
-            ->with('success', 'Receita atualizada com sucesso!');
     }
 
     public function destroy(Receita $receita)
     {
+        if (request()->user()->isCallcenter()) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        $receita->load('paciente');
+        if (! request()->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $receita->update(['status' => 'cancelada', 'ativo' => false]);
 
         return redirect()->route('receitas.index')
@@ -400,6 +585,8 @@ class ReceitaController extends Controller
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
+            // Autosave recria linhas: o cliente pode enviar ids antigos até receber a resposta com os novos.
+            'itens.*.id' => 'nullable|integer',
         ]);
 
         $id = $validated['id'] ?? null;
@@ -420,23 +607,37 @@ class ReceitaController extends Controller
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
 
-            $receita->update([
-                'medico_id' => $validated['medico_id'],
+            $receita->loadMissing('paciente');
+            if (! $user->canAccessPaciente($receita->paciente)) {
+                return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+
+            if ($receita->status === 'finalizada') {
+                return response()->json([
+                    'message' => 'Receitas finalizadas não podem ser alteradas pelo autosave.',
+                ], 422);
+            }
+
+            $updatePayload = [
                 'data_receita' => $validated['data_receita'],
-                'anotacoes' => $validated['anotacoes'] ?? null,
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
                 'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,
                 'valor_caixa' => $validated['valor_caixa'] ?? 0,
                 'valor_frete' => $validated['valor_frete'] ?? 0,
-            ]);
+            ];
+            if (! $user->isMedico()) {
+                $updatePayload['anotacoes'] = $validated['anotacoes'] ?? null;
+            }
+
+            $receita->update($updatePayload);
         } else {
             $receita = Receita::create([
                 'numero' => Receita::gerarNumero($validated['paciente_id']),
                 'paciente_id' => $validated['paciente_id'],
                 'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
-                'anotacoes' => $validated['anotacoes'] ?? null,
+                'anotacoes' => $user->isMedico() ? null : ($validated['anotacoes'] ?? null),
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
                 'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,
@@ -448,6 +649,24 @@ class ReceitaController extends Controller
 
         // Sync items if provided
         if (! empty($validated['itens'])) {
+            if ($id) {
+                $orderedItens = $receita->itens()->orderBy('ordem')->get();
+                foreach ($validated['itens'] as $idx => &$itemRow) {
+                    $incomingId = (int) ($itemRow['id'] ?? 0);
+                    $idStillValid = $incomingId > 0 && $orderedItens->contains('id', $incomingId);
+                    if (! $idStillValid) {
+                        $atPosition = $orderedItens->get($idx);
+                        if ($atPosition && (int) ($itemRow['produto_id'] ?? 0) === (int) $atPosition->produto_id) {
+                            $itemRow['id'] = $atPosition->id;
+                        }
+                    }
+                }
+                unset($itemRow);
+
+                ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
+            } else {
+                ReceitaProdutoLegadoGuard::assertNovaReceitaSemProdutoLegado($validated['itens']);
+            }
             $receita->itens()->delete();
             foreach ($validated['itens'] as $index => $item) {
                 $receita->itens()->create([
@@ -465,12 +684,61 @@ class ReceitaController extends Controller
             $receita->calcularTotais();
         }
 
+        $receita->refresh();
+        $receita->load(['itens' => fn ($q) => $q->orderBy('ordem')]);
+
         return response()->json([
             'success' => true,
             'id' => $receita->id,
             'numero' => $receita->numero,
             'saved_at' => now()->toISOString(),
+            'itens' => $receita->itens->map(fn ($i) => [
+                'id' => $i->id,
+                'produto_id' => $i->produto_id,
+            ])->values()->all(),
         ]);
+    }
+
+    /**
+     * Atualiza apenas anotações por linha (internas) em receita já finalizada — não dispara integrações.
+     */
+    public function patchItensAnotacoes(Request $request, Receita $receita): JsonResponse
+    {
+        $user = $request->user();
+
+        $receita->loadMissing('paciente');
+        if (! $user->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($user->isMedico() && $user->medico_id && (int) $receita->medico_id !== (int) $user->medico_id) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->status !== 'finalizada') {
+            return response()->json([
+                'message' => 'Só é permitido editar anotações internas por produto em receitas finalizadas.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'itens' => 'required|array|min:1',
+            'itens.*.id' => [
+                'required',
+                'integer',
+                Rule::exists('receita_itens', 'id')->where(fn ($q) => $q->where('receita_id', $receita->id)),
+            ],
+            'itens.*.anotacoes' => 'nullable|string',
+        ]);
+
+        foreach ($validated['itens'] as $row) {
+            ReceitaItem::query()
+                ->where('receita_id', $receita->id)
+                ->where('id', $row['id'])
+                ->update(['anotacoes' => $row['anotacoes'] ?? null]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -478,16 +746,38 @@ class ReceitaController extends Controller
      */
     public function copiar(Request $request, Receita $receita)
     {
+        $receita->load('paciente');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->receita_origem_id && $receita->status === 'aberta') {
+            throw ValidationException::withMessages([
+                'copiar' => 'Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.',
+            ]);
+        }
+
+        $medicoIdNovo = $request->user()->isCallcenter()
+            ? $receita->medico_id
+            : ($request->user()->medico_id ?? $receita->medico_id);
+
         $novaReceita = Receita::create([
             'numero' => Receita::gerarNumero($receita->paciente_id),
             'paciente_id' => $receita->paciente_id,
-            'medico_id' => $request->user()->medico_id ?? $receita->medico_id,
+            'medico_id' => $medicoIdNovo,
+            'receita_origem_id' => $receita->id,
             'data_receita' => now(),
             'anotacoes' => $receita->anotacoes,
             'status' => 'aberta',
         ]);
 
         $novaReceita->copiarItensDeReceita($receita);
+
+        if ($request->user()->isCallcenter()) {
+            $url = route('receitas.show', $novaReceita).'?duplicada=1';
+
+            return Inertia::location($url);
+        }
 
         $url = route('receitas.edit', $novaReceita).'?duplicada=1';
 
@@ -499,8 +789,12 @@ class ReceitaController extends Controller
      */
     public function pdf(Receita $receita)
     {
+        $receita->load('paciente');
+        if (! request()->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $receita->load([
-            'paciente',
             'medico.linkedUser:id,name,medico_id',
             'medico.clinica',
             'medico.clinicas' => fn ($q) => $q->orderBy('clinicas.nome'),

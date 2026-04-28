@@ -9,12 +9,17 @@ use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
 use App\Models\Receita;
+use App\Models\ReceitaItem;
 use App\Models\Setting;
+use App\Models\User;
 use App\Support\ReceitaProdutoLegadoGuard;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -147,6 +152,7 @@ class ReceitaController extends Controller
             'medicosPacienteDrawer' => $medicosPacienteDrawer,
             'receitaFormIsAdmin' => $user->isAdmin(),
             'receitaFormIsSecretaria' => $user->isSecretaria(),
+            'receitaFormIsCallcenter' => false,
             'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
             'defaultMedicoId' => $defaultMedicoId,
@@ -217,16 +223,9 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        // Create callcenter atendimento if status is finalizada
         if ($receita->status === 'finalizada') {
-            AtendimentoCallcenter::create([
-                'receita_id' => $receita->id,
-                'paciente_id' => $receita->paciente_id,
-                'medico_id' => $receita->medico_id,
-                'status' => AtendimentoCallcenter::STATUS_ENTRAR_EM_CONTATO,
-                'data_abertura' => now(),
-                'usuario_id' => $request->user()->id,
-            ]);
+            $receita->load('atendimentoCallcenter');
+            $this->onReceitaFinalizada($receita, $request->user());
         }
 
         return redirect()->route('receitas.show', $receita)
@@ -254,10 +253,16 @@ class ReceitaController extends Controller
 
     private function renderReceitaForm(Receita $receita, Request $request, bool $viewMode = false): Response
     {
+        $receita->loadMissing('paciente');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $receita->load([
             'paciente.telefones',
             'paciente.medico.linkedUser:id,name,medico_id',
             'medico.linkedUser:id,name,medico_id',
+            'receitaOrigem:id,numero',
             'itens.produto',
             'itens.aquisicoes',
             'atendimentoCallcenter',
@@ -329,6 +334,11 @@ class ReceitaController extends Controller
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
         $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
+        $permiteEditarAnotacoesInternasItens =
+            ($user->isAdmin() || $user->isMedico())
+            && $receita->status === 'finalizada'
+            && ! $user->isCallcenter();
+
         $props = [
             'receita' => $receita,
             'paciente' => $receita->paciente,
@@ -336,10 +346,12 @@ class ReceitaController extends Controller
             'medicosPacienteDrawer' => $medicosPacienteDrawer,
             'receitaFormIsAdmin' => $user->isAdmin(),
             'receitaFormIsSecretaria' => $user->isSecretaria(),
+            'receitaFormIsCallcenter' => $user->isCallcenter(),
             'receitaFormCanSelectMedico' => ! $user->isMedico(),
             'produtos' => $produtos,
             'receitasAnteriores' => $receitasAnteriores,
             'bloqueadaParaEdicao' => $bloqueadaParaEdicao,
+            'permiteEditarAnotacoesInternasItens' => $permiteEditarAnotacoesInternasItens,
             'viewMode' => $viewMode,
         ];
 
@@ -461,14 +473,60 @@ class ReceitaController extends Controller
 
         $receita->calcularTotais();
 
-        if ($receita->status === 'finalizada' && ! $receita->atendimentoCallcenter) {
+        $receita->load('atendimentoCallcenter');
+        $this->onReceitaFinalizada($receita, $user);
+
+        return redirect()->route('receitas.show', $receita)
+            ->with('success', 'Receita atualizada com sucesso!');
+    }
+
+    public function finalizar(Request $request, Receita $receita): RedirectResponse
+    {
+        $receita->load('paciente', 'atendimentoCallcenter');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->atendimentoCallcenter &&
+            in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
+            return back()->with('error', 'Esta receita não pode ser finalizada pois o atendimento já está em produção ou finalizado.');
+        }
+
+        if ($receita->status === 'finalizada') {
+            return redirect()->route('receitas.show', $receita)
+                ->with('error', 'Esta receita já está finalizada.');
+        }
+
+        if ($receita->status !== 'aberta') {
+            return back()->with('error', 'Apenas receitas abertas podem ser finalizadas.');
+        }
+
+        $receita->update(['status' => 'finalizada']);
+        $receita->refresh();
+        $receita->load('atendimentoCallcenter');
+        $this->onReceitaFinalizada($receita, $request->user());
+
+        return redirect()->route('receitas.show', $receita)
+            ->with('success', 'Receita finalizada com sucesso!');
+    }
+
+    /**
+     * When status is finalizada, create call center queue row and external jobs if not already present.
+     */
+    private function onReceitaFinalizada(Receita $receita, User $user): void
+    {
+        if ($receita->status !== 'finalizada') {
+            return;
+        }
+
+        if (! $receita->atendimentoCallcenter) {
             AtendimentoCallcenter::create([
                 'receita_id' => $receita->id,
                 'paciente_id' => $receita->paciente_id,
                 'medico_id' => $receita->medico_id,
                 'status' => AtendimentoCallcenter::STATUS_ENTRAR_EM_CONTATO,
                 'data_abertura' => now(),
-                'usuario_id' => $request->user()->id,
+                'usuario_id' => $user->id,
             ]);
 
             if (Setting::get('tiny_enabled', false)) {
@@ -483,13 +541,19 @@ class ReceitaController extends Controller
                 CriarNegociacaoRdStationJob::dispatch($receita)->delay(now()->addMinute());
             }
         }
-
-        return redirect()->route('receitas.show', $receita)
-            ->with('success', 'Receita atualizada com sucesso!');
     }
 
     public function destroy(Receita $receita)
     {
+        if (request()->user()->isCallcenter()) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        $receita->load('paciente');
+        if (! request()->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $receita->update(['status' => 'cancelada', 'ativo' => false]);
 
         return redirect()->route('receitas.index')
@@ -541,6 +605,17 @@ class ReceitaController extends Controller
             // Check access
             if ($user->isMedico() && $receita->medico_id != $user->medico_id) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+
+            $receita->loadMissing('paciente');
+            if (! $user->canAccessPaciente($receita->paciente)) {
+                return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+
+            if ($receita->status === 'finalizada') {
+                return response()->json([
+                    'message' => 'Receitas finalizadas não podem ser alteradas pelo autosave.',
+                ], 422);
             }
 
             $updatePayload = [
@@ -625,20 +700,84 @@ class ReceitaController extends Controller
     }
 
     /**
+     * Atualiza apenas anotações por linha (internas) em receita já finalizada — não dispara integrações.
+     */
+    public function patchItensAnotacoes(Request $request, Receita $receita): JsonResponse
+    {
+        $user = $request->user();
+
+        $receita->loadMissing('paciente');
+        if (! $user->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($user->isMedico() && $user->medico_id && (int) $receita->medico_id !== (int) $user->medico_id) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->status !== 'finalizada') {
+            return response()->json([
+                'message' => 'Só é permitido editar anotações internas por produto em receitas finalizadas.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'itens' => 'required|array|min:1',
+            'itens.*.id' => [
+                'required',
+                'integer',
+                Rule::exists('receita_itens', 'id')->where(fn ($q) => $q->where('receita_id', $receita->id)),
+            ],
+            'itens.*.anotacoes' => 'nullable|string',
+        ]);
+
+        foreach ($validated['itens'] as $row) {
+            ReceitaItem::query()
+                ->where('receita_id', $receita->id)
+                ->where('id', $row['id'])
+                ->update(['anotacoes' => $row['anotacoes'] ?? null]);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Copy receita from another.
      */
     public function copiar(Request $request, Receita $receita)
     {
+        $receita->load('paciente');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->receita_origem_id && $receita->status === 'aberta') {
+            throw ValidationException::withMessages([
+                'copiar' => 'Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.',
+            ]);
+        }
+
+        $medicoIdNovo = $request->user()->isCallcenter()
+            ? $receita->medico_id
+            : ($request->user()->medico_id ?? $receita->medico_id);
+
         $novaReceita = Receita::create([
             'numero' => Receita::gerarNumero($receita->paciente_id),
             'paciente_id' => $receita->paciente_id,
-            'medico_id' => $request->user()->medico_id ?? $receita->medico_id,
+            'medico_id' => $medicoIdNovo,
+            'receita_origem_id' => $receita->id,
             'data_receita' => now(),
             'anotacoes' => $receita->anotacoes,
             'status' => 'aberta',
         ]);
 
         $novaReceita->copiarItensDeReceita($receita);
+
+        if ($request->user()->isCallcenter()) {
+            $url = route('receitas.show', $novaReceita).'?duplicada=1';
+
+            return Inertia::location($url);
+        }
 
         $url = route('receitas.edit', $novaReceita).'?duplicada=1';
 
@@ -650,8 +789,12 @@ class ReceitaController extends Controller
      */
     public function pdf(Receita $receita)
     {
+        $receita->load('paciente');
+        if (! request()->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
         $receita->load([
-            'paciente',
             'medico.linkedUser:id,name,medico_id',
             'medico.clinica',
             'medico.clinicas' => fn ($q) => $q->orderBy('clinicas.nome'),

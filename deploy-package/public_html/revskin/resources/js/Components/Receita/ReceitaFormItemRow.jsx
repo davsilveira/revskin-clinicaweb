@@ -1,3 +1,4 @@
+import { useMemo, useLayoutEffect, useRef } from 'react';
 import Tippy from '@tippyjs/react';
 import ProductCombobox from '@/Components/Receita/ProductCombobox';
 
@@ -21,6 +22,8 @@ export default function ReceitaFormItemRow({
     variant,
     produtos,
     isReadOnly,
+    /** Quando definido, só o textarea de anotações usa este valor; demais campos seguem `isReadOnly`. */
+    annotationsReadOnly,
     isMedico,
     ultimaAquisicao,
     datasAquisicao,
@@ -31,14 +34,40 @@ export default function ReceitaFormItemRow({
     lastItemRef,
     formatItemTotal,
 }) {
+    const anotacoesRef = useRef(null);
+
+    const produtoObj = useMemo(() => {
+        const id = item.produto_id ? parseInt(String(item.produto_id), 10) : null;
+        if (!id) return null;
+        return produtos.find((pr) => pr.id === id) || null;
+    }, [produtos, item.produto_id]);
+
+    const isLegado = Boolean(produtoObj?.legado_somente_leitura);
+
+    const unidadeLabel = useMemo(() => {
+        const u = produtoObj?.unidade != null && String(produtoObj.unidade).trim() !== '' ? String(produtoObj.unidade).trim() : '';
+        return u || '—';
+    }, [produtoObj]);
+
+    useLayoutEffect(() => {
+        const el = anotacoesRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(Math.max(el.scrollHeight, 32), 320)}px`;
+    }, [item.anotacoes]);
+
+    const annFieldDisabled = annotationsReadOnly ?? isReadOnly;
+
     const rowTone =
         item.vendido
             ? 'bg-green-50 border border-green-200'
-            : item.imprimir
-              ? variant === 'recomendado'
-                  ? 'hover:bg-emerald-50/50'
-                  : 'hover:bg-gray-50'
-              : 'bg-gray-50';
+            : isLegado
+              ? 'bg-red-100 border border-red-200'
+              : item.imprimir
+                ? variant === 'recomendado'
+                    ? 'hover:bg-emerald-50/50'
+                    : 'hover:bg-gray-50'
+                : 'bg-gray-50';
 
     return (
         <div
@@ -104,13 +133,14 @@ export default function ReceitaFormItemRow({
 
             <div className="w-full min-w-0 lg:flex-[2]">
                 <span className="text-xs font-medium text-gray-500 lg:hidden block mb-1">Anotações</span>
-                <input
-                    type="text"
-                    placeholder="Anotações..."
+                <textarea
+                    ref={anotacoesRef}
+                    rows={1}
+                    placeholder="Anotações…"
                     value={item.anotacoes || ''}
                     onChange={(e) => onUpdateItem(index, 'anotacoes', e.target.value)}
-                    disabled={isReadOnly}
-                    className="w-full min-w-0 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                    disabled={annFieldDisabled}
+                    className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50 resize-none overflow-hidden leading-snug"
                 />
             </div>
 
@@ -177,6 +207,16 @@ export default function ReceitaFormItemRow({
                         disabled={isReadOnly || !item.imprimir}
                         className={`w-full sm:w-14 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-emerald-500 lg:w-14 flex-shrink-0 ${!item.imprimir ? 'bg-gray-100 text-gray-400' : ''}`}
                     />
+                </div>
+
+                <div className="w-full sm:w-auto lg:w-16 lg:flex-shrink-0">
+                    <span className="text-xs font-medium text-gray-500 lg:hidden block mb-0.5">Unidade</span>
+                    <div
+                        className="w-full sm:w-16 px-1 py-1 text-xs text-gray-700 text-center lg:flex lg:items-center lg:justify-center min-h-[28px]"
+                        title={unidadeLabel !== '—' ? unidadeLabel : undefined}
+                    >
+                        <span className="truncate max-w-full">{unidadeLabel}</span>
+                    </div>
                 </div>
 
                 {!isMedico && (

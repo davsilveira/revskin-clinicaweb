@@ -1,5 +1,5 @@
 import { useForm, Link, router, usePage } from '@inertiajs/react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
@@ -26,6 +26,12 @@ const tippyAquisicaoProps = {
 const duplicarReceitaTippyContent = (
     <div className="text-xs text-gray-800 max-w-xs">
         Repete a prescrição numa nova receita com a data de hoje.
+    </div>
+);
+
+const duplicarBloqueioTippyContent = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.
     </div>
 );
 
@@ -119,19 +125,25 @@ function ReceitaFormInner({
     medicosPacienteDrawer = [],
     receitaFormIsAdmin = false,
     receitaFormIsSecretaria = false,
+    receitaFormIsCallcenter = false,
     receitaFormCanSelectMedico = true,
     defaultMedicoId,
     receitasAnteriores = [],
     bloqueadaParaEdicao = false,
+    permiteEditarAnotacoesInternasItens = false,
     viewMode: initialViewMode = false,
     casoClinico = null,
 }) {
-    const { auth, flash } = usePage().props;
+    const { auth, flash, errors: pageErrors } = usePage().props;
     const isMedico = auth.user.role === 'medico';
+    const isCallcenter = receitaFormIsCallcenter || auth.user.role === 'callcenter';
     const [toast, setToast] = useState(null);
     const isEditing = !!receita;
     const [viewMode, setViewMode] = useState(initialViewMode && isEditing);
-    const isReadOnly = bloqueadaParaEdicao || viewMode;
+    const isReadOnly = bloqueadaParaEdicao || viewMode || isCallcenter;
+    const annotationsEditable =
+        !!permiteEditarAnotacoesInternasItens && receita?.status === 'finalizada';
+    const annotationsReadOnly = isReadOnly && !annotationsEditable;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);
     const suppressAutosaveOnceRef = useRef(false);
@@ -224,9 +236,66 @@ function ReceitaFormInner({
     }, [data, currentReceitaId]);
 
     const canAutoSave = data.paciente_id && data.medico_id && !isReadOnly;
-    const { 
-        lastSavedText, 
-        isSaving: isAutoSaving, 
+
+    const annotationFirstRenderRef = useRef(true);
+
+    const performAnnotationSave = useCallback(async () => {
+        if (!receita?.id) return;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const response = await fetch(`/api/receitas/${receita.id}/itens-anotacoes`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({
+                itens: data.itens
+                    .filter((row) => row.id)
+                    .map((row) => ({ id: row.id, anotacoes: row.anotacoes ?? '' })),
+            }),
+        });
+        if (!response.ok) {
+            let msg = 'Falha ao salvar anotações';
+            try {
+                const err = await response.json();
+                if (err.message) msg = err.message;
+            } catch {
+                /* ignore */
+            }
+            throw new Error(msg);
+        }
+    }, [receita?.id, data.itens]);
+
+    const canAnnotationAutoSave = annotationsEditable && !!receita?.id;
+
+    const {
+        lastSavedText: annotationLastSavedText,
+        isSaving: isAnnotationSaving,
+        hasUnsavedChanges: hasAnnotationUnsavedChanges,
+        triggerAutoSave: triggerAnnotationAutoSave,
+        cancelAutoSave: cancelAnnotationAutoSave,
+        saveNow: saveAnnotationsNow,
+        clearDirtyState: clearAnnotationDirtyState,
+    } = useAutoSave(performAnnotationSave, 2000, canAnnotationAutoSave);
+
+    const itensAnotacoesKey = useMemo(
+        () => JSON.stringify(data.itens.map((i) => [i.id, i.anotacoes ?? ''])),
+        [data.itens],
+    );
+
+    useEffect(() => {
+        if (!annotationsEditable || !receita?.id) return;
+        if (annotationFirstRenderRef.current) {
+            annotationFirstRenderRef.current = false;
+            return;
+        }
+        triggerAnnotationAutoSave();
+    }, [itensAnotacoesKey, annotationsEditable, receita?.id, triggerAnnotationAutoSave]);
+
+    const {
+        lastSavedText,
+        isSaving: isAutoSaving,
         hasUnsavedChanges,
         triggerAutoSave,
         saveNow,
@@ -245,29 +314,43 @@ function ReceitaFormInner({
 
     // Intercept Inertia navigation to warn about unsaved changes
     useEffect(() => {
-        if (isReadOnly) return;
+        if (isReadOnly && !annotationsEditable) return;
 
         const removeListener = router.on('before', (event) => {
             if (skipUnsavedGuardOnceRef.current) {
                 skipUnsavedGuardOnceRef.current = false;
                 return;
             }
-            if (!hasUnsavedChanges) return;
+            const anyUnsaved =
+                (!isReadOnly && hasUnsavedChanges) ||
+                (annotationsEditable && hasAnnotationUnsavedChanges);
+            if (!anyUnsaved) return;
             // Don't intercept form submissions (same-page autosave, finalizar, etc.)
             if (event.detail?.visit?.method !== 'get') return;
 
             event.preventDefault();
             cancelAutoSave();
+            cancelAnnotationAutoSave();
             pendingVisitRef.current = event.detail.visit;
             setShowUnsavedModal(true);
         });
 
         return removeListener;
-    }, [hasUnsavedChanges, isReadOnly, cancelAutoSave]);
+    }, [
+        hasUnsavedChanges,
+        hasAnnotationUnsavedChanges,
+        isReadOnly,
+        annotationsEditable,
+        cancelAutoSave,
+        cancelAnnotationAutoSave,
+    ]);
 
     // Browser tab/close protection
     useEffect(() => {
-        if (isReadOnly || !hasUnsavedChanges) return;
+        const anyUnsaved =
+            (!isReadOnly && hasUnsavedChanges) ||
+            (annotationsEditable && hasAnnotationUnsavedChanges);
+        if (!anyUnsaved) return;
 
         const handler = (e) => {
             e.preventDefault();
@@ -275,7 +358,7 @@ function ReceitaFormInner({
         };
         window.addEventListener('beforeunload', handler);
         return () => window.removeEventListener('beforeunload', handler);
-    }, [hasUnsavedChanges, isReadOnly]);
+    }, [hasUnsavedChanges, hasAnnotationUnsavedChanges, isReadOnly, annotationsEditable]);
 
     const handleUnsavedCancel = () => {
         setShowUnsavedModal(false);
@@ -285,6 +368,7 @@ function ReceitaFormInner({
     const handleUnsavedDiscard = () => {
         setShowUnsavedModal(false);
         cancelAutoSave();
+        cancelAnnotationAutoSave();
         const visit = pendingVisitRef.current;
         pendingVisitRef.current = null;
         if (visit) {
@@ -296,7 +380,12 @@ function ReceitaFormInner({
     const handleUnsavedSave = async () => {
         setSavingBeforeLeave(true);
         try {
-            await saveNow();
+            if (!isReadOnly && hasUnsavedChanges) {
+                await saveNow();
+            }
+            if (annotationsEditable && hasAnnotationUnsavedChanges) {
+                await saveAnnotationsNow();
+            }
             const visit = pendingVisitRef.current;
             pendingVisitRef.current = null;
             setShowUnsavedModal(false);
@@ -556,7 +645,25 @@ function ReceitaFormInner({
     const finalizarReceita = () => {
         const receitaId = currentReceitaId || receita?.id;
         if (!receitaId) return;
-        
+
+        if (isCallcenter) {
+            router.post(
+                `/receitas/${receitaId}/finalizar`,
+                {},
+                {
+                    ...inertiaPersistReceitaOptions,
+                    onSuccess: () => {
+                        bumpLastSaved();
+                        setData('status', 'finalizada');
+                        setViewMode(true);
+                        setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
+                    },
+                }
+            );
+            setShowFinalizarModal(false);
+            return;
+        }
+
         router.put(`/receitas/${receitaId}`, {
             ...data,
             status: 'finalizada',
@@ -582,10 +689,13 @@ function ReceitaFormInner({
     const handleDuplicar = () => {
         const doCopy = () => {
             setShowDuplicarModal(false);
-            router.post(`/receitas/${receita.id}/copiar`);
+            router.post(`/receitas/${receita.id}/copiar`, {}, { preserveScroll: true });
         };
-        if (!viewMode && isEditing) {
-            put(`/receitas/${receita.id}`, { ...inertiaPersistReceitaOptions, onSuccess: doCopy });
+        if (!viewMode && isEditing && !isCallcenter) {
+            put(`/receitas/${receita.id}`, {
+                ...inertiaPersistReceitaOptions,
+                onSuccess: doCopy,
+            });
         } else {
             doCopy();
         }
@@ -596,15 +706,25 @@ function ReceitaFormInner({
             setShowCancelarModal(false);
             router.delete(`/receitas/${receita.id}`);
         };
-        if (!viewMode && isEditing) {
+        if (!viewMode && isEditing && !isCallcenter) {
             put(`/receitas/${receita.id}`, { ...inertiaPersistReceitaOptions, onSuccess: doCancel });
         } else {
             doCancel();
         }
     };
 
-    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico;
-    const canCancel = isEditing && receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada');
+    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico && !isCallcenter;
+    const canCancel =
+        isEditing &&
+        !isCallcenter &&
+        receita.status !== 'cancelada' &&
+        !(isMedico && receita.status === 'finalizada');
+
+    const showMainSaveIndicator = !isReadOnly && (isAutoSaving || lastSavedText);
+    const showAnnotationSaveIndicator =
+        annotationsEditable && (isAnnotationSaving || annotationLastSavedText);
+    const savingReceitaOuAnotacoes = isAutoSaving || isAnnotationSaving;
+    const salvoAnotacoesOuReceitaText = lastSavedText || annotationLastSavedText;
 
     const pacienteCabecalho = receita?.paciente || selectedPaciente;
     const codigoRegistroPaciente =
@@ -615,6 +735,40 @@ function ReceitaFormInner({
     const pacienteIdParaAssistente =
         selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id || null;
     const canOpenAssistenteReceita = (receitaFormIsAdmin || isMedico) && !!pacienteIdParaAssistente;
+
+    const canDuplicar = isEditing && !(receita.receita_origem_id && data.status === 'aberta');
+    const receitaOrigem = receita.receita_origem;
+    const duplicadaToastFiredRef = useRef(false);
+
+    useEffect(() => {
+        if (duplicadaToastFiredRef.current) {
+            return;
+        }
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('duplicada') === '1') {
+            duplicadaToastFiredRef.current = true;
+            setToast({ message: 'Receita criada a partir de uma cópia.', type: 'success', key: 'duplicada-hint' });
+            params.delete('duplicada');
+            const u = new URL(window.location.href);
+            u.search = params.toString() ? `?${params.toString()}` : '';
+            window.history.replaceState({}, '', u.pathname + u.search);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (pageErrors?.copiar) {
+            setToast({ message: pageErrors.copiar, type: 'error', key: `copiar-err-${Date.now()}` });
+        }
+    }, [pageErrors?.copiar]);
+
+    const openDuplicarModal = () => {
+        if (!canDuplicar) {
+            return;
+        }
+        setShowDuplicarModal(true);
+    };
+
+    const duplicarTippy = canDuplicar ? duplicarReceitaTippyContent : duplicarBloqueioTippyContent;
 
     return (
         <DashboardLayout>
@@ -636,14 +790,14 @@ function ReceitaFormInner({
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <h1 className="text-2xl font-bold text-gray-900">
                                     {!isEditing
-                                        ? 'Nova Receita'
+                                        ? 'Assistente de Receita'
                                         : viewMode
                                           ? tituloReceitaComSequencia('Receita', receita.numero)
                                           : tituloReceitaComSequencia('Editar Receita', receita.numero)}
                                 </h1>
-                                {!isReadOnly && (isAutoSaving || lastSavedText) && (
+                                {(showMainSaveIndicator || showAnnotationSaveIndicator) && (
                                     <div className="text-xs text-gray-500 flex items-center gap-1 shrink-0">
-                                        {isAutoSaving ? (
+                                        {savingReceitaOuAnotacoes ? (
                                             <>
                                                 <svg className="animate-spin h-3 w-3 text-emerald-600" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -651,17 +805,28 @@ function ReceitaFormInner({
                                                 </svg>
                                                 <span>Salvando...</span>
                                             </>
-                                        ) : lastSavedText ? (
+                                        ) : salvoAnotacoesOuReceitaText ? (
                                             <>
                                                 <svg className="h-3 w-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                 </svg>
-                                                <span>Salvo às {lastSavedText}</span>
+                                                <span>Salvo às {salvoAnotacoesOuReceitaText}</span>
                                             </>
                                         ) : null}
                                     </div>
                                 )}
                             </div>
+                            {receitaOrigem && isEditing && (
+                                <div className="mt-2 text-sm text-gray-600 flex flex-wrap items-center gap-1.5">
+                                    <span className="text-gray-500">Duplicada de</span>
+                                    <Link
+                                        href={`/receitas/${receitaOrigem.id}`}
+                                        className="font-medium text-amber-700 hover:text-amber-800 hover:underline"
+                                    >
+                                        {tituloReceitaComSequencia('Receita', receitaOrigem.numero)}
+                                    </Link>
+                                </div>
+                            )}
                             {isEditing && codigoRegistroPaciente !== '' && (
                                 <p className="mt-1.5 text-sm text-gray-600">
                                     <span className="text-gray-500">Nº registro </span>
@@ -743,7 +908,7 @@ function ReceitaFormInner({
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                         </svg>
-                                        Nova Receita
+                                        Assistente de Receita
                                     </Link>
                                 )}
                                 {isEditing && (
@@ -756,15 +921,18 @@ function ReceitaFormInner({
                                         </summary>
                                         <div className="px-2 pb-2 pt-0 flex flex-col gap-2 border-t border-gray-200">
                                             <Tippy
-                                                content={duplicarReceitaTippyContent}
+                                                content={duplicarTippy}
                                                 placement="top"
                                                 theme="light-border"
                                                 {...tippyAquisicaoProps}
                                             >
                                                 <button
                                                     type="button"
-                                                    onClick={() => setShowDuplicarModal(true)}
-                                                    className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
+                                                    onClick={openDuplicarModal}
+                                                    aria-disabled={!canDuplicar}
+                                                    className={`min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg text-sm ${
+                                                        canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
+                                                    }`}
                                                 >
                                                     Duplicar Receita
                                                 </button>
@@ -860,22 +1028,25 @@ function ReceitaFormInner({
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                         </svg>
-                                        Nova Receita
+                                        Assistente de Receita
                                     </Link>
                                 )}
 
                                 {isEditing && (
                                     <>
                                         <Tippy
-                                            content={duplicarReceitaTippyContent}
+                                            content={duplicarTippy}
                                             placement="top"
                                             theme="light-border"
                                             {...tippyAquisicaoProps}
                                         >
                                             <button
                                                 type="button"
-                                                onClick={() => setShowDuplicarModal(true)}
-                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
+                                                onClick={openDuplicarModal}
+                                                aria-disabled={!canDuplicar}
+                                                className={`flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg transition-colors text-sm ${
+                                                    canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
+                                                }`}
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -920,6 +1091,7 @@ function ReceitaFormInner({
                                         disabled={isReadOnly}
                                         compact
                                         error={errors.data_receita}
+                                        allowType
                                     />
                                 </div>
                                 {!isMedico && (
@@ -953,7 +1125,7 @@ function ReceitaFormInner({
                             </div>
                         </div>
                     ) : (
-                        /* Form completo para Nova Receita */
+                        /* Form completo para Assistente de Receita */
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Dados da Receita</h2>
                             
@@ -1035,6 +1207,7 @@ function ReceitaFormInner({
                                         disabled={isReadOnly}
                                         required
                                         error={errors.data_receita}
+                                        allowType
                                     />
                                 </div>
 
@@ -1102,6 +1275,17 @@ function ReceitaFormInner({
                             </div>
                         )}
 
+                        {annotationsEditable && (
+                            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-sm text-blue-900">
+                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno; não são enviadas às integrações Tiny nem RD).
+                                </span>
+                            </div>
+                        )}
+
                         {errors.itens && (
                             <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
                                 {errors.itens}
@@ -1155,6 +1339,7 @@ function ReceitaFormInner({
                                                     variant="recomendado"
                                                     produtos={produtos}
                                                     isReadOnly={isReadOnly}
+                                                    annotationsReadOnly={annotationsReadOnly}
                                                     isMedico={isMedico}
                                                     ultimaAquisicao={ultimaAquisicao}
                                                     datasAquisicao={datasAquisicao}
@@ -1247,6 +1432,7 @@ function ReceitaFormInner({
                                                     variant="opcional"
                                                     produtos={produtos}
                                                     isReadOnly={isReadOnly}
+                                                    annotationsReadOnly={annotationsReadOnly}
                                                     isMedico={isMedico}
                                                     ultimaAquisicao={ultimaAquisicao}
                                                     datasAquisicao={datasAquisicao}
@@ -1597,7 +1783,7 @@ function ReceitaFormInner({
                                 </div>
                                 
                                 <p className="text-gray-600 mb-6">
-                                    Deseja finalizar esta receita? Após finalizada, ela será enviada para o Call Center e não poderá mais ser editada.
+                                    Deseja finalizar esta receita? Após finalizada, ela será enviada ao Call Center e para integrações configuradas (ex.: Tiny / RD). Os produtos e valores prescritos não poderão mais ser alterados; você poderá seguir editando apenas as anotações internas por produto quando precisar.
                                 </p>
                                 
                                 <div className="flex justify-end gap-3">

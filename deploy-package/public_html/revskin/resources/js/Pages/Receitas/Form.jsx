@@ -1,21 +1,39 @@
 import { useForm, Link, router, usePage } from '@inertiajs/react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
+import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
+import DatePickerField from '@/Components/Form/DatePickerField';
+import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
 import debounce from 'lodash/debounce';
 import useAutoSave from '@/hooks/useAutoSave';
 import ReceitaFormItemRow from '@/Components/Receita/ReceitaFormItemRow';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
+import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
 import { formatAnotacaoDisplay } from '@/utils/text';
+import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
 
 const tippyAquisicaoProps = {
     appendTo: () => document.body,
     popperOptions: { strategy: 'fixed' },
     zIndex: 9999,
 };
+
+const duplicarReceitaTippyContent = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Repete a prescrição numa nova receita com a data de hoje.
+    </div>
+);
+
+const duplicarBloqueioTippyContent = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.
+    </div>
+);
 
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
@@ -95,26 +113,55 @@ function OutrasReceitaAquisicaoBadge({ item, tippyAquisicaoProps }) {
     );
 }
 
-export default function ReceitaForm({ receita, paciente: initialPaciente, produtos, medicos, defaultMedicoId, receitasAnteriores = [], bloqueadaParaEdicao = false, viewMode: initialViewMode = false, casoClinico = null }) {
-    const { auth, flash } = usePage().props;
+export default function ReceitaFormPage(props) {
+    return <ReceitaFormInner key={props.receita?.id ?? 'new'} {...props} />;
+}
+
+function ReceitaFormInner({
+    receita,
+    paciente: initialPaciente,
+    produtos,
+    medicos,
+    medicosPacienteDrawer = [],
+    receitaFormIsAdmin = false,
+    receitaFormIsSecretaria = false,
+    receitaFormIsCallcenter = false,
+    receitaFormCanSelectMedico = true,
+    defaultMedicoId,
+    receitasAnteriores = [],
+    bloqueadaParaEdicao = false,
+    permiteEditarAnotacoesInternasItens = false,
+    viewMode: initialViewMode = false,
+    casoClinico = null,
+}) {
+    const { auth, flash, errors: pageErrors } = usePage().props;
     const isMedico = auth.user.role === 'medico';
+    const isCallcenter = receitaFormIsCallcenter || auth.user.role === 'callcenter';
     const [toast, setToast] = useState(null);
     const isEditing = !!receita;
     const [viewMode, setViewMode] = useState(initialViewMode && isEditing);
-    const isReadOnly = bloqueadaParaEdicao || viewMode;
+    const isReadOnly = bloqueadaParaEdicao || viewMode || isCallcenter;
+    const annotationsEditable =
+        !!permiteEditarAnotacoesInternasItens && receita?.status === 'finalizada';
+    const annotationsReadOnly = isReadOnly && !annotationsEditable;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);
+    const suppressAutosaveOnceRef = useRef(false);
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showDuplicarModal, setShowDuplicarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
-    const [expandedReceitas, setExpandedReceitas] = useState({});
+    const [expandedReceitas, setExpandedReceitas] = useState(() => {
+        const list = receitasAnteriores ?? [];
+        const newest = list[0];
+        return newest?.id != null ? { [newest.id]: true } : {};
+    });
+    const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
     
     const { data, setData, post, put, processing, errors } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
         medico_id: receita?.medico_id || defaultMedicoId || '',
         data_receita: receita?.data_receita ? receita.data_receita.split('T')[0] : new Date().toISOString().split('T')[0],
         anotacoes: receita?.anotacoes || '',
-        anotacoes_paciente: receita?.anotacoes_paciente || '',
         desconto_percentual: receita?.desconto_percentual || 0,
         desconto_motivo: receita?.desconto_motivo || '',
         valor_caixa: receita?.valor_caixa || 0,
@@ -169,52 +216,195 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             // Update URL to edit mode without full page reload
             window.history.replaceState({}, '', `/receitas/${result.id}/edit`);
         }
+        if (Array.isArray(result.itens) && result.itens.length === data.itens.length) {
+            suppressAutosaveOnceRef.current = true;
+            setData(
+                'itens',
+                data.itens.map((row, i) => ({
+                    ...row,
+                    id: result.itens[i]?.id ?? row.id,
+                    produto_id: result.itens[i]?.produto_id ?? row.produto_id,
+                }))
+            );
+        }
+        setToast({
+            message: 'Alterações salvas automaticamente',
+            type: 'success',
+            key: Date.now(),
+        });
         return result;
     }, [data, currentReceitaId]);
 
     const canAutoSave = data.paciente_id && data.medico_id && !isReadOnly;
-    const { 
-        lastSavedText, 
-        isSaving: isAutoSaving, 
+
+    const annotationFirstRenderRef = useRef(true);
+
+    const performAnnotationSave = useCallback(async () => {
+        if (!receita?.id) return;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const response = await fetch(`/api/receitas/${receita.id}/itens-anotacoes`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({
+                itens: data.itens
+                    .filter((row) => row.id)
+                    .map((row) => ({ id: row.id, anotacoes: row.anotacoes ?? '' })),
+            }),
+        });
+        if (!response.ok) {
+            let msg = 'Falha ao salvar anotações';
+            try {
+                const err = await response.json();
+                if (err.message) msg = err.message;
+            } catch {
+                /* ignore */
+            }
+            throw new Error(msg);
+        }
+    }, [receita?.id, data.itens]);
+
+    const canAnnotationAutoSave = annotationsEditable && !!receita?.id;
+
+    const {
+        lastSavedText: annotationLastSavedText,
+        isSaving: isAnnotationSaving,
+        hasUnsavedChanges: hasAnnotationUnsavedChanges,
+        triggerAutoSave: triggerAnnotationAutoSave,
+        cancelAutoSave: cancelAnnotationAutoSave,
+        saveNow: saveAnnotationsNow,
+        clearDirtyState: clearAnnotationDirtyState,
+    } = useAutoSave(performAnnotationSave, 2000, canAnnotationAutoSave);
+
+    const itensAnotacoesKey = useMemo(
+        () => JSON.stringify(data.itens.map((i) => [i.id, i.anotacoes ?? ''])),
+        [data.itens],
+    );
+
+    useEffect(() => {
+        if (!annotationsEditable || !receita?.id) return;
+        if (annotationFirstRenderRef.current) {
+            annotationFirstRenderRef.current = false;
+            return;
+        }
+        triggerAnnotationAutoSave();
+    }, [itensAnotacoesKey, annotationsEditable, receita?.id, triggerAnnotationAutoSave]);
+
+    const {
+        lastSavedText,
+        isSaving: isAutoSaving,
+        hasUnsavedChanges,
         triggerAutoSave,
+        saveNow,
+        cancelAutoSave,
+        clearDirtyState,
+        markUnsaved,
+        bumpLastSaved,
     } = useAutoSave(performAutoSave, 2000, canAutoSave);
 
-    // Função para buscar dados de aquisição de um produto para o paciente
-    const buscarDadosAquisicao = useCallback((produtoId, pacienteId) => {
-        if (!produtoId || !pacienteId) return { ultima_aquisicao: null, datas_aquisicao: [] };
+    // Unsaved changes modal state
+    const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+    const [savingBeforeLeave, setSavingBeforeLeave] = useState(false);
+    const pendingVisitRef = useRef(null);
+    /** Deixa passar o próximo GET (ex.: após “Salvar e sair” / “Sair sem salvar”) sem reabrir a modal se o dirty voltar no mesmo tick. */
+    const skipUnsavedGuardOnceRef = useRef(false);
 
-        // Buscar nas receitas anteriores já carregadas
-        const receitasComProduto = receitasAnteriores.filter(r => 
-            r.itens?.some(i => i.produto_id === produtoId)
-        );
-        
-        if (receitasComProduto.length > 0) {
-            const todasAquisicoes = [];
-            receitasComProduto.forEach(r => {
-                r.itens?.forEach(i => {
-                    if (i.produto_id === produtoId) {
-                        if (i.datas_aquisicao && i.datas_aquisicao.length > 0) {
-                            todasAquisicoes.push(...i.datas_aquisicao);
-                        } else if (i.ultima_aquisicao) {
-                            todasAquisicoes.push(i.ultima_aquisicao);
-                        }
-                    }
-                });
-            });
-            
-            const datasUnicas = [...new Set(todasAquisicoes)].sort().reverse();
-            if (datasUnicas.length > 0) {
-                return {
-                    ultima_aquisicao: datasUnicas[0],
-                    datas_aquisicao: datasUnicas,
-                };
+    // Intercept Inertia navigation to warn about unsaved changes
+    useEffect(() => {
+        if (isReadOnly && !annotationsEditable) return;
+
+        const removeListener = router.on('before', (event) => {
+            if (skipUnsavedGuardOnceRef.current) {
+                skipUnsavedGuardOnceRef.current = false;
+                return;
             }
+            const anyUnsaved =
+                (!isReadOnly && hasUnsavedChanges) ||
+                (annotationsEditable && hasAnnotationUnsavedChanges);
+            if (!anyUnsaved) return;
+            // Don't intercept form submissions (same-page autosave, finalizar, etc.)
+            if (event.detail?.visit?.method !== 'get') return;
+
+            event.preventDefault();
+            cancelAutoSave();
+            cancelAnnotationAutoSave();
+            pendingVisitRef.current = event.detail.visit;
+            setShowUnsavedModal(true);
+        });
+
+        return removeListener;
+    }, [
+        hasUnsavedChanges,
+        hasAnnotationUnsavedChanges,
+        isReadOnly,
+        annotationsEditable,
+        cancelAutoSave,
+        cancelAnnotationAutoSave,
+    ]);
+
+    // Browser tab/close protection
+    useEffect(() => {
+        const anyUnsaved =
+            (!isReadOnly && hasUnsavedChanges) ||
+            (annotationsEditable && hasAnnotationUnsavedChanges);
+        if (!anyUnsaved) return;
+
+        const handler = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [hasUnsavedChanges, hasAnnotationUnsavedChanges, isReadOnly, annotationsEditable]);
+
+    const handleUnsavedCancel = () => {
+        setShowUnsavedModal(false);
+        pendingVisitRef.current = null;
+    };
+
+    const handleUnsavedDiscard = () => {
+        setShowUnsavedModal(false);
+        cancelAutoSave();
+        cancelAnnotationAutoSave();
+        const visit = pendingVisitRef.current;
+        pendingVisitRef.current = null;
+        if (visit) {
+            skipUnsavedGuardOnceRef.current = true;
+            router.visit(visit.url, { ...visit, onBefore: undefined });
         }
+    };
 
-        return { ultima_aquisicao: null, datas_aquisicao: [] };
-    }, [receitasAnteriores]);
+    const handleUnsavedSave = async () => {
+        setSavingBeforeLeave(true);
+        try {
+            if (!isReadOnly && hasUnsavedChanges) {
+                await saveNow();
+            }
+            if (annotationsEditable && hasAnnotationUnsavedChanges) {
+                await saveAnnotationsNow();
+            }
+            const visit = pendingVisitRef.current;
+            pendingVisitRef.current = null;
+            setShowUnsavedModal(false);
+            if (visit) {
+                skipUnsavedGuardOnceRef.current = true;
+                router.visit(visit.url, { ...visit, onBefore: undefined });
+            }
+        } catch {
+            setToast({
+                message: 'Não foi possível salvar automaticamente. Corrija os dados ou use Salvar na receita.',
+                type: 'error',
+                key: Date.now(),
+            });
+        } finally {
+            setSavingBeforeLeave(false);
+        }
+    };
 
-    // Atualizar dados de aquisição quando receita mudar, paciente mudar ou receitas anteriores mudarem
+    // Atualizar dados de aquisição quando receita mudar ou paciente mudar (só linha atual; sem cruzar outras receitas)
     const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
     
     useEffect(() => {
@@ -238,16 +428,6 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         datas_aquisicao: itemOriginal.datas_aquisicao || [],
                     };
                 }
-                
-                // Se não tem no original, buscar nas receitas anteriores
-                const dadosAquisicao = buscarDadosAquisicao(item.produto_id, pacienteId);
-                if (dadosAquisicao.ultima_aquisicao) {
-                    return {
-                        ...item,
-                        ultima_aquisicao: dadosAquisicao.ultima_aquisicao,
-                        datas_aquisicao: dadosAquisicao.datas_aquisicao,
-                    };
-                }
             }
             
             return item;
@@ -262,15 +442,20 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         });
         
         if (hasChanges) {
+            suppressAutosaveOnceRef.current = true;
             setData('itens', newItens);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [receita?.id, pacienteId, receitasAnteriores.length]);
+        }, [receita?.id, pacienteId]);
 
     // Trigger autosave when data changes
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
+            return;
+        }
+        if (suppressAutosaveOnceRef.current) {
+            suppressAutosaveOnceRef.current = false;
             return;
         }
         if (canAutoSave) {
@@ -333,6 +518,20 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         setShowPacienteDropdown(false);
     };
 
+    useEffect(() => {
+        if (receita?.paciente) {
+            setSelectedPaciente(receita.paciente);
+        }
+    }, [receita?.paciente]);
+
+    const reloadPacienteNaReceita = () => {
+        if (receita?.id) {
+            router.reload({ only: ['receita', 'paciente'] });
+        } else if (selectedPaciente?.id) {
+            router.reload({ only: ['paciente'] });
+        }
+    };
+
     const addItem = () => {
         setData('itens', [
             ...data.itens,
@@ -379,28 +578,19 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             if (produto) {
                 newItens[index].valor_unitario = parseFloat(produto.preco_venda) || parseFloat(produto.preco) || 0;
                 newItens[index].local_uso = produto.local_uso || '';
-                
-                // Buscar aquisições deste produto para este paciente
-                const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
-                if (pacienteId) {
-                    const dadosAquisicao = buscarDadosAquisicao(produto.id, pacienteId);
-                    if (dadosAquisicao.ultima_aquisicao) {
-                        newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                        newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao;
-                    }
-                }
+                newItens[index].ultima_aquisicao = null;
+                newItens[index].datas_aquisicao = [];
             }
         }
 
-        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, buscar
+        // Se marcou o checkbox (imprimir) e tem produto_id mas não tem dados de aquisição, usar só a linha já persistida desta receita
         if (field === 'imprimir' && value === true && currentItem.produto_id && !currentItem.ultima_aquisicao) {
-            const pacienteId = selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id;
-            if (pacienteId) {
-                const dadosAquisicao = buscarDadosAquisicao(currentItem.produto_id, pacienteId);
-                if (dadosAquisicao.ultima_aquisicao) {
-                    newItens[index].ultima_aquisicao = dadosAquisicao.ultima_aquisicao;
-                    newItens[index].datas_aquisicao = dadosAquisicao.datas_aquisicao;
-                }
+            const itemOriginal = receita?.itens?.find(
+                (i) => i.id === currentItem.id && String(i.produto_id) === String(currentItem.produto_id)
+            );
+            if (itemOriginal && (itemOriginal.ultima_aquisicao || itemOriginal.datas_aquisicao?.length > 0)) {
+                newItens[index].ultima_aquisicao = itemOriginal.ultima_aquisicao || null;
+                newItens[index].datas_aquisicao = itemOriginal.datas_aquisicao || [];
             }
         }
 
@@ -430,26 +620,57 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
         return subtotal - desconto + frete + caixa;
     };
 
+    const inertiaPersistReceitaOptions = {
+        onStart: () => clearDirtyState(),
+        onError: () => markUnsaved(),
+    };
+
     const handleSubmit = (e) => {
         e?.preventDefault();
         if (isEditing) {
             put(`/receitas/${receita.id}`, {
-                onSuccess: () => setViewMode(true),
+                ...inertiaPersistReceitaOptions,
+                onSuccess: () => {
+                    bumpLastSaved();
+                    setViewMode(true);
+                },
             });
         } else {
-            post('/receitas');
+            post('/receitas', {
+                ...inertiaPersistReceitaOptions,
+            });
         }
     };
 
     const finalizarReceita = () => {
         const receitaId = currentReceitaId || receita?.id;
         if (!receitaId) return;
-        
+
+        if (isCallcenter) {
+            router.post(
+                `/receitas/${receitaId}/finalizar`,
+                {},
+                {
+                    ...inertiaPersistReceitaOptions,
+                    onSuccess: () => {
+                        bumpLastSaved();
+                        setData('status', 'finalizada');
+                        setViewMode(true);
+                        setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
+                    },
+                }
+            );
+            setShowFinalizarModal(false);
+            return;
+        }
+
         router.put(`/receitas/${receitaId}`, {
             ...data,
             status: 'finalizada',
         }, {
+            ...inertiaPersistReceitaOptions,
             onSuccess: () => {
+                bumpLastSaved();
                 setData('status', 'finalizada');
                 setViewMode(true);
                 setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
@@ -468,10 +689,13 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
     const handleDuplicar = () => {
         const doCopy = () => {
             setShowDuplicarModal(false);
-            router.post(`/receitas/${receita.id}/copiar`);
+            router.post(`/receitas/${receita.id}/copiar`, {}, { preserveScroll: true });
         };
-        if (!viewMode && isEditing) {
-            put(`/receitas/${receita.id}`, { onSuccess: doCopy });
+        if (!viewMode && isEditing && !isCallcenter) {
+            put(`/receitas/${receita.id}`, {
+                ...inertiaPersistReceitaOptions,
+                onSuccess: doCopy,
+            });
         } else {
             doCopy();
         }
@@ -482,15 +706,69 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             setShowCancelarModal(false);
             router.delete(`/receitas/${receita.id}`);
         };
-        if (!viewMode && isEditing) {
-            put(`/receitas/${receita.id}`, { onSuccess: doCancel });
+        if (!viewMode && isEditing && !isCallcenter) {
+            put(`/receitas/${receita.id}`, { ...inertiaPersistReceitaOptions, onSuccess: doCancel });
         } else {
             doCancel();
         }
     };
 
-    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao;
-    const canCancel = isEditing && receita.status !== 'cancelada' && !(isMedico && receita.status === 'finalizada');
+    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico && !isCallcenter;
+    const canCancel =
+        isEditing &&
+        !isCallcenter &&
+        receita.status !== 'cancelada' &&
+        !(isMedico && receita.status === 'finalizada');
+
+    const showMainSaveIndicator = !isReadOnly && (isAutoSaving || lastSavedText);
+    const showAnnotationSaveIndicator =
+        annotationsEditable && (isAnnotationSaving || annotationLastSavedText);
+    const savingReceitaOuAnotacoes = isAutoSaving || isAnnotationSaving;
+    const salvoAnotacoesOuReceitaText = lastSavedText || annotationLastSavedText;
+
+    const pacienteCabecalho = receita?.paciente || selectedPaciente;
+    const codigoRegistroPaciente =
+        pacienteCabecalho?.codigo != null && String(pacienteCabecalho.codigo).trim() !== ''
+            ? String(pacienteCabecalho.codigo).trim()
+            : '';
+
+    const pacienteIdParaAssistente =
+        selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id || null;
+    const canOpenAssistenteReceita = (receitaFormIsAdmin || isMedico) && !!pacienteIdParaAssistente;
+
+    const canDuplicar = isEditing && !(receita.receita_origem_id && data.status === 'aberta');
+    const receitaOrigem = receita.receita_origem;
+    const duplicadaToastFiredRef = useRef(false);
+
+    useEffect(() => {
+        if (duplicadaToastFiredRef.current) {
+            return;
+        }
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('duplicada') === '1') {
+            duplicadaToastFiredRef.current = true;
+            setToast({ message: 'Receita criada a partir de uma cópia.', type: 'success', key: 'duplicada-hint' });
+            params.delete('duplicada');
+            const u = new URL(window.location.href);
+            u.search = params.toString() ? `?${params.toString()}` : '';
+            window.history.replaceState({}, '', u.pathname + u.search);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (pageErrors?.copiar) {
+            setToast({ message: pageErrors.copiar, type: 'error', key: `copiar-err-${Date.now()}` });
+        }
+    }, [pageErrors?.copiar]);
+
+    const openDuplicarModal = () => {
+        if (!canDuplicar) {
+            return;
+        }
+        setShowDuplicarModal(true);
+    };
+
+    const duplicarTippy = canDuplicar ? duplicarReceitaTippyContent : duplicarBloqueioTippyContent;
 
     return (
         <DashboardLayout>
@@ -501,48 +779,69 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                     </div>
                 )}
                 <div className="mb-6">
-                    <Link
-                        href="/receitas"
-                        className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm"
-                    >
+                    <ReceitasIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
-                        Voltar para Receitas
-                    </Link>
+                        Voltar para Receitas do Paciente
+                    </ReceitasIndexBackLink>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mt-2">
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            {!isEditing ? 'Nova Receita' : viewMode ? `Receita #${receita.numero}` : `Editar Receita #${receita.numero}`}
-                        </h1>
-                        <div className="flex flex-col gap-2 w-full lg:w-auto lg:justify-end">
-                            {!isReadOnly && (isAutoSaving || lastSavedText) && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1 w-full justify-center sm:w-auto sm:justify-start sm:mr-1 order-first lg:order-none">
-                                    {isAutoSaving ? (
-                                        <>
-                                            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            <span>Salvando...</span>
-                                        </>
-                                    ) : lastSavedText ? (
-                                        <>
-                                            <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            <span>Salvo às {lastSavedText}</span>
-                                        </>
-                                    ) : null}
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <h1 className="text-2xl font-bold text-gray-900">
+                                    {!isEditing
+                                        ? 'Assistente de Receita'
+                                        : viewMode
+                                          ? tituloReceitaComSequencia('Receita', receita.numero)
+                                          : tituloReceitaComSequencia('Editar Receita', receita.numero)}
+                                </h1>
+                                {(showMainSaveIndicator || showAnnotationSaveIndicator) && (
+                                    <div className="text-xs text-gray-500 flex items-center gap-1 shrink-0">
+                                        {savingReceitaOuAnotacoes ? (
+                                            <>
+                                                <svg className="animate-spin h-3 w-3 text-emerald-600" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                <span>Salvando...</span>
+                                            </>
+                                        ) : salvoAnotacoesOuReceitaText ? (
+                                            <>
+                                                <svg className="h-3 w-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                <span>Salvo às {salvoAnotacoesOuReceitaText}</span>
+                                            </>
+                                        ) : null}
+                                    </div>
+                                )}
+                            </div>
+                            {receitaOrigem && isEditing && (
+                                <div className="mt-2 text-sm text-gray-600 flex flex-wrap items-center gap-1.5">
+                                    <span className="text-gray-500">Duplicada de</span>
+                                    <Link
+                                        href={`/receitas/${receitaOrigem.id}`}
+                                        className="font-medium text-amber-700 hover:text-amber-800 hover:underline"
+                                    >
+                                        {tituloReceitaComSequencia('Receita', receitaOrigem.numero)}
+                                    </Link>
                                 </div>
                             )}
-
+                            {isEditing && codigoRegistroPaciente !== '' && (
+                                <p className="mt-1.5 text-sm text-gray-600">
+                                    <span className="text-gray-500">Nº registro </span>
+                                    <span className="font-semibold text-gray-900 tabular-nums">{codigoRegistroPaciente}</span>
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-2 w-full lg:w-auto lg:justify-end">
                             {/* Mobile: ações principais + "Mais ações" */}
                             <div className="flex flex-col gap-2 lg:hidden w-full">
                                 {isEditing && viewMode && canEdit && (
                                     <button
                                         type="button"
                                         onClick={() => setViewMode(false)}
-                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -568,11 +867,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         type="button"
                                         onClick={handleSubmit}
                                         disabled={processing || data.itens.length === 0}
-                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
                                     >
                                         {processing ? (
                                             <>
-                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <svg className="animate-spin h-4 w-4 text-emerald-600" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                 </svg>
@@ -580,7 +879,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             </>
                                         ) : (
                                             <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                 </svg>
                                                 Salvar
@@ -601,6 +900,17 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         Finalizar
                                     </button>
                                 )}
+                                {isEditing && canOpenAssistenteReceita && (
+                                    <Link
+                                        href={`/assistente-receita?paciente_id=${pacienteIdParaAssistente}`}
+                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Assistente de Receita
+                                    </Link>
+                                )}
                                 {isEditing && (
                                     <details className="rounded-lg border border-gray-200 bg-gray-50">
                                         <summary className="min-h-[44px] px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 list-none flex items-center justify-between [&::-webkit-details-marker]:hidden">
@@ -610,13 +920,23 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             </svg>
                                         </summary>
                                         <div className="px-2 pb-2 pt-0 flex flex-col gap-2 border-t border-gray-200">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowDuplicarModal(true)}
-                                                className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
+                                            <Tippy
+                                                content={duplicarTippy}
+                                                placement="top"
+                                                theme="light-border"
+                                                {...tippyAquisicaoProps}
                                             >
-                                                Duplicar Receita
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={openDuplicarModal}
+                                                    aria-disabled={!canDuplicar}
+                                                    className={`min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg text-sm ${
+                                                        canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    Duplicar Receita
+                                                </button>
+                                            </Tippy>
                                             {canCancel && (
                                                 <button
                                                     type="button"
@@ -651,7 +971,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     <button
                                         type="button"
                                         onClick={() => setViewMode(false)}
-                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -665,11 +985,11 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         type="button"
                                         onClick={handleSubmit}
                                         disabled={processing || data.itens.length === 0}
-                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
                                     >
                                         {processing ? (
                                             <>
-                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <svg className="animate-spin h-4 w-4 text-emerald-600" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                 </svg>
@@ -677,7 +997,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                             </>
                                         ) : (
                                             <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                 </svg>
                                                 Salvar
@@ -700,18 +1020,40 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     </button>
                                 )}
 
+                                {isEditing && canOpenAssistenteReceita && (
+                                    <Link
+                                        href={`/assistente-receita?paciente_id=${pacienteIdParaAssistente}`}
+                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Assistente de Receita
+                                    </Link>
+                                )}
+
                                 {isEditing && (
                                     <>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowDuplicarModal(true)}
-                                            className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
+                                        <Tippy
+                                            content={duplicarTippy}
+                                            placement="top"
+                                            theme="light-border"
+                                            {...tippyAquisicaoProps}
                                         >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                            </svg>
-                                            Duplicar Receita
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={openDuplicarModal}
+                                                aria-disabled={!canDuplicar}
+                                                className={`flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg transition-colors text-sm ${
+                                                    canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
+                                                }`}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                                Duplicar Receita
+                                            </button>
+                                        </Tippy>
                                         {canCancel && (
                                             <button
                                                 type="button"
@@ -741,44 +1083,29 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     <span className="font-medium text-gray-900 break-words">{selectedPaciente.nome}</span>
                                     <span className="text-gray-400">({selectedPaciente.cpf})</span>
                                 </div>
-                                <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto">
+                                <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto sm:max-w-[11rem]">
                                     <span className="text-gray-500 flex-shrink-0">Data:</span>
-                                    <input
-                                        type="date"
+                                    <DatePickerField
                                         value={data.data_receita}
-                                        onChange={(e) => setData('data_receita', e.target.value)}
+                                        onChange={(v) => setData('data_receita', v)}
                                         disabled={isReadOnly}
-                                        className="w-full max-w-full min-w-0 sm:w-auto px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                        compact
+                                        error={errors.data_receita}
+                                        allowType
                                     />
                                 </div>
                                 {!isMedico && (
                                     <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
                                         <span className="text-gray-500 flex-shrink-0">Médico:</span>
-                                        {medicos?.length === 1 ? (
-                                            <span className="font-medium text-gray-900 break-words">{medicos[0].nome}</span>
-                                        ) : (
-                                            <select
-                                                value={data.medico_id}
-                                                onChange={(e) => setData('medico_id', e.target.value)}
-                                                disabled={isReadOnly || medicos?.length === 1}
-                                                className="w-full max-w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                            >
-                                                {medicos?.map((medico) => (
-                                                    <option key={medico.id} value={medico.id}>{medico.nome}</option>
-                                                ))}
-                                            </select>
-                                        )}
-                                    </div>
-                                )}
-                                {isMedico && (
-                                    <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto">
-                                        <span className="text-gray-500 flex-shrink-0">Médico:</span>
                                         <span className="font-medium text-gray-900 break-words">
-                                            {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
+                                            {nomeExibicaoSemTitulo(
+                                                medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                    || receita?.medico?.nome
+                                            ) || '-'}
                                         </span>
                                     </div>
                                 )}
-                                <div className={`self-start px-2 py-0.5 rounded text-xs font-medium ${
+                                <div className={`inline-flex items-center shrink-0 px-2 py-0.5 rounded text-xs font-medium leading-tight ${
                                     data.status === 'finalizada' ? 'bg-green-100 text-green-700' :
                                     data.status === 'cancelada' ? 'bg-red-100 text-red-700' :
                                     'bg-gray-100 text-gray-600'
@@ -786,10 +1113,19 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     {data.status === 'finalizada' ? 'Finalizada' :
                                      data.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
                                 </div>
+                                {!isReadOnly && selectedPaciente?.id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPatientDrawerOpen(true)}
+                                        className="min-h-[36px] px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Editar dados do paciente
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ) : (
-                        /* Form completo para Nova Receita */
+                        /* Form completo para Assistente de Receita */
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Dados da Receita</h2>
                             
@@ -798,20 +1134,34 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 <div className="relative md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
                                     {selectedPaciente ? (
-                                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                                            <div>
-                                                <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
-                                                <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 gap-2">
+                                                <div className="min-w-0">
+                                                    <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
+                                                    <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPatientDrawerOpen(true)}
+                                                            className="text-sm px-2 py-1 border border-emerald-300 rounded-md text-emerald-800 hover:bg-emerald-100/80"
+                                                        >
+                                                            Editar paciente
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSelectedPaciente(null); setData('paciente_id', ''); }}
+                                                        className="text-gray-400 hover:text-gray-600"
+                                                        aria-label="Remover paciente"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => { setSelectedPaciente(null); setData('paciente_id', ''); }}
-                                                className="text-gray-400 hover:text-gray-600"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
                                         </div>
                                     ) : (
                                         <>
@@ -850,29 +1200,46 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
 
                                 {/* Data */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
-                                    <input type="date" value={data.data_receita} onChange={(e) => setData('data_receita', e.target.value)}
+                                    <DatePickerField
+                                        label="Data"
+                                        value={data.data_receita}
+                                        onChange={(v) => setData('data_receita', v)}
                                         disabled={isReadOnly}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                                        required
+                                        error={errors.data_receita}
+                                        allowType
+                                    />
                                 </div>
 
-                                {/* Medico */}
-                                {!isMedico && (
+                                {/* Medico — só alterável em nova receita */}
+                                {isEditing ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
+                                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                            {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                || receita?.medico?.nome
+                                                || '-'}
+                                        </div>
+                                    </div>
+                                ) : !isMedico ? (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
                                         <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                             disabled={isReadOnly || medicos?.length === 1}>
                                             <option value="">Selecione</option>
-                                            {medicos?.map((medico) => (<option key={medico.id} value={medico.id}>{medico.nome}</option>))}
+                                            {medicos?.map((medico) => (
+                                                <option key={medico.id} value={medico.id}>
+                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
-                                )}
-                                {isMedico && (
+                                ) : (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
                                         <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                                            {medicos?.find(m => m.id == data.medico_id)?.nome || '-'}
+                                            {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome || '-'}
                                         </div>
                                     </div>
                                 )}
@@ -880,12 +1247,23 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         </div>
                     )}
 
-                    {/* Itens da Receita */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                        <div className="flex justify-between items-center mb-2">
-                            <h2 className="text-base font-semibold text-gray-900">Produtos</h2>
+                    {/* Anotações internas (secretária/admin; não vão ao PDF) */}
+                    {!isMedico && (
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Anotações internas</label>
+                            <textarea
+                                value={data.anotacoes}
+                                onChange={(e) => setData('anotacoes', e.target.value)}
+                                disabled={isReadOnly}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                placeholder="Uso interno da equipe (não aparece no PDF da receita)."
+                            />
                         </div>
+                    )}
 
+                    {/* Itens da Receita */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4">
                         {bloqueadaParaEdicao && (
                             <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
                                 <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -897,28 +1275,30 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                             </div>
                         )}
 
+                        {annotationsEditable && (
+                            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-sm text-blue-900">
+                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno; não são enviadas às integrações Tiny nem RD).
+                                </span>
+                            </div>
+                        )}
+
                         {errors.itens && (
                             <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
                                 {errors.itens}
                             </div>
                         )}
 
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {/* Produtos Recomendados */}
                             <div>
                                 {data.itens.some(item => item.grupo === 'recomendado') && (
                                     <>
-                                        <div className="flex items-center gap-2 mb-2 pb-1 border-b border-emerald-200">
-                                            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
-                                            <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                                                Recomendados para o Tratamento
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                            ({data.itens.filter(i => i.grupo === 'recomendado' && i.imprimir).length})
-                                        </span>
-                                    </div>
                                     {/* Cabeçalhos da tabela (desktop) */}
-                                    <div className="hidden lg:flex items-center gap-2 py-2 px-2 border-b border-gray-200 mb-1">
+                                    <div className="hidden lg:flex items-center gap-2 py-1.5 px-2 border-b border-gray-200 mb-0.5">
                                         <div className="w-4 flex-shrink-0"></div>
                                         <div className="flex-[3] min-w-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Produto</span>
@@ -932,6 +1312,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         <div className="w-14 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
                                         </div>
+                                        <div className="w-16 flex-shrink-0 text-center">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Unid.</span>
+                                        </div>
                                         {!isMedico && (
                                             <div className="w-20 flex-shrink-0 text-right">
                                                 <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
@@ -939,7 +1322,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         )}
                                         {!isReadOnly && <div className="w-8 flex-shrink-0"></div>}
                                     </div>
-                                    <div className="space-y-1 mb-2">
+                                    <div className="space-y-1 mb-1">
                                         {data.itens.map((item, index) => {
                                             if (item.grupo !== 'recomendado') return null;
 
@@ -956,6 +1339,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     variant="recomendado"
                                                     produtos={produtos}
                                                     isReadOnly={isReadOnly}
+                                                    annotationsReadOnly={annotationsReadOnly}
                                                     isMedico={isMedico}
                                                     ultimaAquisicao={ultimaAquisicao}
                                                     datasAquisicao={datasAquisicao}
@@ -1021,6 +1405,9 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                         <div className="w-14 flex-shrink-0">
                                             <span className="text-xs font-semibold text-gray-600 uppercase">Qtd</span>
                                         </div>
+                                        <div className="w-16 flex-shrink-0 text-center">
+                                            <span className="text-xs font-semibold text-gray-600 uppercase">Unid.</span>
+                                        </div>
                                         {!isMedico && (
                                             <div className="w-20 flex-shrink-0 text-right">
                                                 <span className="text-xs font-semibold text-gray-600 uppercase">Total</span>
@@ -1045,6 +1432,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                     variant="opcional"
                                                     produtos={produtos}
                                                     isReadOnly={isReadOnly}
+                                                    annotationsReadOnly={annotationsReadOnly}
                                                     isMedico={isMedico}
                                                     ultimaAquisicao={ultimaAquisicao}
                                                     datasAquisicao={datasAquisicao}
@@ -1157,34 +1545,6 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                         )}
                     </div>
 
-                    {/* Anotações - movido para antes das ações */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Anotações Internas</label>
-                                <textarea
-                                    value={data.anotacoes}
-                                    onChange={(e) => setData('anotacoes', e.target.value)}
-                                    disabled={isReadOnly}
-                                    rows={2}
-                                    className="w-full min-h-32 lg:min-h-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    placeholder="Observações internas (não aparecem no PDF)..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Anotações para o Paciente</label>
-                                <textarea
-                                    value={data.anotacoes_paciente}
-                                    onChange={(e) => setData('anotacoes_paciente', e.target.value)}
-                                    disabled={isReadOnly}
-                                    rows={2}
-                                    className="w-full min-h-32 lg:min-h-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    placeholder="Instruções que aparecerão no PDF..."
-                                />
-                            </div>
-                        </div>
-                    </div>
-
                 </form>
 
                 {/* Receitas Anteriores - Accordion */}
@@ -1209,11 +1569,16 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
                                             <div className="flex flex-col gap-1 min-w-0 lg:flex-row lg:flex-wrap lg:items-baseline lg:gap-x-3 lg:gap-y-0">
-                                                <span className="text-base font-medium text-gray-900">{r.numero}</span>
+                                                <span className="text-base font-medium text-gray-900 tabular-nums">
+                                                    {tituloReceitaComSequencia('Receita', r.numero)}
+                                                </span>
                                                 <span className="text-sm text-gray-500">{new Date(r.data_receita).toLocaleDateString('pt-BR')}</span>
                                                 {r.medico && (
-                                                    <span className="text-sm text-gray-600 break-words" title={r.medico.nome}>
-                                                        {r.medico.nome}
+                                                    <span
+                                                        className="text-sm text-gray-600 break-words"
+                                                        title={nomeExibicaoSemTitulo(r.medico.nome)}
+                                                    >
+                                                        {nomeExibicaoSemTitulo(r.medico.nome)}
                                                     </span>
                                                 )}
                                             </div>
@@ -1262,29 +1627,80 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                     {/* Accordion Content */}
                                     {expandedReceitas[r.id] && (
                                         <div className="p-3 border-t border-gray-200 bg-white">
-                                            {/* Anotações */}
-                                            {(r.anotacoes || r.anotacoes_paciente) && (
+                                            {/* Anotações internas */}
+                                            {r.anotacoes && (
                                                 <div className="mb-3 text-sm">
-                                                    {r.anotacoes && (
-                                                        <div className="mb-1">
-                                                            <span className="font-medium text-gray-700">Anotações Internas:</span>
-                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes)}</span>
-                                                        </div>
-                                                    )}
-                                                    {r.anotacoes_paciente && (
-                                                        <div>
-                                                            <span className="font-medium text-gray-700">Anotações Paciente:</span>
-                                                            <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes_paciente)}</span>
-                                                        </div>
-                                                    )}
+                                                    <span className="font-medium text-gray-700">Anotações internas:</span>
+                                                    <span className="text-gray-600 ml-1">{formatAnotacaoDisplay(r.anotacoes)}</span>
                                                 </div>
                                             )}
                                             
                                             {/* Produtos */}
-                                            {r.itens && r.itens.filter((item) => item.imprimir).length > 0 ? (
+                                            {r.itens && r.itens.length > 0 ? (() => {
+                                                const recomendados = r.itens.filter((item) => item.grupo !== 'opcional');
+                                                const complementares = r.itens.filter((item) => item.grupo === 'opcional');
+                                                const produtoLabel = (item) => {
+                                                    const codigo = item.produto?.codigo;
+                                                    const nome = item.produto?.nome || 'Produto não encontrado';
+                                                    return codigo ? `${codigo} - ${nome}` : nome;
+                                                };
+                                                const renderDesktopRows = (itens, startIdx = 0) => itens.map((item, idx) => (
+                                                    <tr key={startIdx + idx} className={(startIdx + idx) % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                        <td className="px-2 py-1 w-6 text-center">
+                                                            <input type="checkbox" checked={!!item.imprimir} disabled className="rounded border-gray-300 text-emerald-600 cursor-default" />
+                                                        </td>
+                                                        <td className="px-2 py-1 text-gray-900">
+                                                            {produtoLabel(item)}
+                                                        </td>
+                                                        <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
+                                                        {!isMedico && (
+                                                            <td className="px-2 py-1 text-right text-gray-600">
+                                                                {item.imprimir
+                                                                    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_unitario * item.quantidade)
+                                                                    : '-'}
+                                                            </td>
+                                                        )}
+                                                        <td className="px-2 py-1 text-gray-500">
+                                                            <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
+                                                        </td>
+                                                    </tr>
+                                                ));
+                                                const renderMobileCards = (itens) => itens.map((item, idx) => (
+                                                    <div key={idx} className="rounded-lg border border-gray-200 p-3 text-sm max-w-full">
+                                                        <div className="flex items-start gap-2">
+                                                            <input type="checkbox" checked={!!item.imprimir} disabled className="mt-0.5 rounded border-gray-300 text-emerald-600 cursor-default" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-medium text-gray-900 break-words">
+                                                                    {produtoLabel(item)}
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-sm">
+                                                                    <div>
+                                                                        <span className="text-gray-500">Qtd</span>{' '}
+                                                                        <span className="font-medium text-gray-800">{item.quantidade}</span>
+                                                                    </div>
+                                                                    {!isMedico && (
+                                                                        <div className="text-right">
+                                                                            <span className="text-gray-500">Valor</span>{' '}
+                                                                            <span className="font-medium text-gray-800">
+                                                                                {item.imprimir
+                                                                                    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_unitario * item.quantidade)
+                                                                                    : '-'}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                                                                    <span className="text-gray-500 shrink-0">Aquisição</span>
+                                                                    <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ));
+                                                return (
                                                 <div className="space-y-1">
                                                     <div className="text-sm font-medium text-gray-700 mb-2">
-                                                        Produtos ({r.itens.filter((item) => item.imprimir).length})
+                                                        Produtos ({r.itens.length})
                                                     </div>
                                                     <ResponsiveEntityList
                                                         desktop={
@@ -1292,7 +1708,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                 <table className="w-full text-sm">
                                                                     <thead className="bg-gray-50">
                                                                         <tr>
-                                                                            <th className="text-left px-2 py-1 font-medium text-gray-600">Tipo</th>
+                                                                            <th className="w-6 px-2 py-1"></th>
                                                                             <th className="text-left px-2 py-1 font-medium text-gray-600">Produto</th>
                                                                             <th className="text-center px-2 py-1 font-medium text-gray-600">Qtd</th>
                                                                             {!isMedico && (
@@ -1302,74 +1718,34 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody>
-                                                                        {r.itens
-                                                                            .filter((item) => item.imprimir)
-                                                                            .map((item, idx) => (
-                                                                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                                                    <td className="px-2 py-1 text-gray-600">
-                                                                                        {formatLocalUso(item.local_uso || item.produto?.local_uso)}
-                                                                                    </td>
-                                                                                    <td className="px-2 py-1 text-gray-900">
-                                                                                        {item.produto?.nome || 'Produto não encontrado'}
-                                                                                    </td>
-                                                                                    <td className="px-2 py-1 text-center text-gray-600">{item.quantidade}</td>
-                                                                                    {!isMedico && (
-                                                                                        <td className="px-2 py-1 text-right text-gray-600">
-                                                                                            {new Intl.NumberFormat('pt-BR', {
-                                                                                                style: 'currency',
-                                                                                                currency: 'BRL',
-                                                                                            }).format(item.valor_unitario * item.quantidade)}
-                                                                                        </td>
-                                                                                    )}
-                                                                                    <td className="px-2 py-1 text-gray-500">
-                                                                                        <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
+                                                                        {renderDesktopRows(recomendados)}
+                                                                        {complementares.length > 0 && (
+                                                                            <tr>
+                                                                                <td colSpan={isMedico ? 4 : 5} className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase bg-gray-100 border-t border-gray-200">
+                                                                                    Complementares
+                                                                                </td>
+                                                                            </tr>
+                                                                        )}
+                                                                        {renderDesktopRows(complementares, recomendados.length)}
                                                                     </tbody>
                                                                 </table>
                                                             </div>
                                                         }
                                                         mobile={
                                                             <div className="space-y-2">
-                                                                {r.itens
-                                                                    .filter((item) => item.imprimir)
-                                                                    .map((item, idx) => (
-                                                                        <div key={idx} className="rounded-lg border border-gray-200 p-3 text-sm max-w-full">
-                                                                            <div className="font-medium text-gray-900 break-words">
-                                                                                {item.produto?.nome || 'Produto não encontrado'}
-                                                                            </div>
-                                                                            <div className="text-gray-600 mt-1">
-                                                                                {formatLocalUso(item.local_uso || item.produto?.local_uso)}
-                                                                            </div>
-                                                                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-sm">
-                                                                                <div>
-                                                                                    <span className="text-gray-500">Qtd</span>{' '}
-                                                                                    <span className="font-medium text-gray-800">{item.quantidade}</span>
-                                                                                </div>
-                                                                                {!isMedico && (
-                                                                                    <div className="text-right">
-                                                                                        <span className="text-gray-500">Valor</span>{' '}
-                                                                                        <span className="font-medium text-gray-800">
-                                                                                            {new Intl.NumberFormat('pt-BR', {
-                                                                                                style: 'currency',
-                                                                                                currency: 'BRL',
-                                                                                            }).format(item.valor_unitario * item.quantidade)}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                                                                                <span className="text-gray-500 shrink-0">Aquisição</span>
-                                                                                <OutrasReceitaAquisicaoBadge item={item} tippyAquisicaoProps={tippyAquisicaoProps} />
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
+                                                                {renderMobileCards(recomendados)}
+                                                                {complementares.length > 0 && (
+                                                                    <div className="text-xs font-semibold text-gray-500 uppercase py-1 border-t border-gray-200 mt-2">
+                                                                        Complementares
+                                                                    </div>
+                                                                )}
+                                                                {renderMobileCards(complementares)}
                                                             </div>
                                                         }
                                                     />
                                                 </div>
-                                            ) : (
+                                                );
+                                            })() : (
                                                 <p className="text-sm text-gray-500">Nenhum produto nesta receita.</p>
                                             )}
                                             
@@ -1407,7 +1783,7 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
                                 </div>
                                 
                                 <p className="text-gray-600 mb-6">
-                                    Deseja finalizar esta receita? Após finalizada, ela será enviada para o Call Center e não poderá mais ser editada.
+                                    Deseja finalizar esta receita? Após finalizada, ela será enviada ao Call Center e para integrações configuradas (ex.: Tiny / RD). Os produtos e valores prescritos não poderão mais ser alterados; você poderá seguir editando apenas as anotações internas por produto quando precisar.
                                 </p>
                                 
                                 <div className="flex justify-end gap-3">
@@ -1497,11 +1873,33 @@ export default function ReceitaForm({ receita, paciente: initialPaciente, produt
             </div>
             {toast && (
                 <Toast
+                    key={toast.key ?? `${toast.type}-${toast.message}`}
                     message={toast.message}
                     type={toast.type}
                     onClose={() => setToast(null)}
                 />
             )}
+            <UnsavedChangesModal
+                open={showUnsavedModal}
+                onCancel={handleUnsavedCancel}
+                onDiscard={handleUnsavedDiscard}
+                onSave={handleUnsavedSave}
+                saving={savingBeforeLeave}
+            />
+            <PatientDrawer
+                isOpen={patientDrawerOpen}
+                onClose={() => setPatientDrawerOpen(false)}
+                paciente={selectedPaciente?.id ? selectedPaciente : null}
+                onSave={() => {
+                    setPatientDrawerOpen(false);
+                    reloadPacienteNaReceita();
+                }}
+                isAdmin={receitaFormIsAdmin}
+                showMedicoField={receitaFormCanSelectMedico}
+                medicos={medicosPacienteDrawer}
+                medicoRequired={receitaFormIsSecretaria}
+                enableAutoSave
+            />
         </DashboardLayout>
     );
 }
