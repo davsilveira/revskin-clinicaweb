@@ -10,7 +10,7 @@ export function sequenciaNumeroReceita(numero) {
 }
 
 /**
- * Título ou rótulo com sequência: "Receita #2", "Editar Receita #3".
+ * Título ou rótulo com sequência: "Receita Nº 2", "Editar Receita Nº 3".
  * Se não houver sequência válida, devolve só o prefixo.
  */
 export function tituloReceitaComSequencia(prefix, numero) {
@@ -18,5 +18,5 @@ export function tituloReceitaComSequencia(prefix, numero) {
     if (s === '—') {
         return prefix;
     }
-    return `${prefix} #${s}`;
+    return `${prefix} Nº ${s}`;
 }

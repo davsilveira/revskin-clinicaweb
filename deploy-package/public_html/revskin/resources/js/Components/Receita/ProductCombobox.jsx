@@ -19,10 +19,12 @@ export default function ProductCombobox({ value, onChange, produtos = [], disabl
     const meetsMinChars = search.length >= minChars;
 
     const filtered = meetsMinChars
-        ? produtos.filter(p => {
-            const term = search.toLowerCase();
-            return p.nome.toLowerCase().includes(term) || p.codigo?.toLowerCase().includes(term);
-        })
+        ? [...produtos.filter(p => {
+              const term = search.toLowerCase();
+              return p.nome.toLowerCase().includes(term) || p.codigo?.toLowerCase().includes(term);
+          })].sort((a, b) =>
+              String(a.codigo ?? '').localeCompare(String(b.codigo ?? ''), 'pt-BR', { numeric: true }),
+          )
         : [];
 
     useEffect(() => {

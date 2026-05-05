@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\MedicoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -198,19 +199,27 @@ class UserController extends Controller
         }
 
         if ($isMedico) {
-            if ($user->medico_id) {
-                $medico = $user->medico;
+            $medico = $user->medico;
+
+            if ($medico) {
                 $this->medicoService->update($medico, $validated, $request);
             } else {
+                if ($user->medico_id) {
+                    Log::warning('User update: medico_id órfão (sem registro em medicos); vínculo limpo e novo médico será criado.', [
+                        'user_id' => $user->id,
+                        'orphan_medico_id' => $user->medico_id,
+                    ]);
+                    $user->forceFill(['medico_id' => null])->saveQuietly();
+                }
+
                 $medico = $this->medicoService->create($validated, $request);
-                $validated['medico_id'] = $medico->id;
             }
 
             $user->update([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'role' => User::ROLE_MEDICO,
-                'medico_id' => $user->medico_id ?? $medico->id,
+                'medico_id' => $medico->id,
                 'clinica_id' => null,
                 'is_active' => $validated['is_active'],
             ]);

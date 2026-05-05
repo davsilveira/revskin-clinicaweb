@@ -308,31 +308,81 @@ function ReceitaFormInner({
     // Unsaved changes modal state
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
     const [savingBeforeLeave, setSavingBeforeLeave] = useState(false);
+    /** Visita pendente para modal «alterações não salvas». */
     const pendingVisitRef = useRef(null);
+    /** Visita pendente para modais «finalizar / renovação». */
+    const workflowExitVisitRef = useRef(null);
     /** Deixa passar o próximo GET (ex.: após “Salvar e sair” / “Sair sem salvar”) sem reabrir a modal se o dirty voltar no mesmo tick. */
     const skipUnsavedGuardOnceRef = useRef(false);
+    const skipWorkflowExitGuardOnceRef = useRef(false);
+    const [workflowExitKind, setWorkflowExitKind] = useState(null);
 
-    // Intercept Inertia navigation to warn about unsaved changes
+    /** Fechar aba: alerta igual à lógica de saída (finalizar / renovação em só leitura). */
+    const needsWorkflowUnloadGuard =
+        !!isEditing &&
+        data.status !== 'cancelada' &&
+        (data.status === 'aberta' || (data.status === 'finalizada' && isMedico && viewMode));
+
+    // Intercept Inertia navigation: alterações não salvas e lembretes de fluxo (finalizar / nova receita)
     useEffect(() => {
-        if (isReadOnly && !annotationsEditable) return;
-
         const removeListener = router.on('before', (event) => {
             if (skipUnsavedGuardOnceRef.current) {
                 skipUnsavedGuardOnceRef.current = false;
                 return;
             }
+            if (skipWorkflowExitGuardOnceRef.current) {
+                skipWorkflowExitGuardOnceRef.current = false;
+                return;
+            }
+
+            const visit = event.detail?.visit;
+            const method = String(visit?.method ?? 'get').toLowerCase();
+            if (!visit || method !== 'get') {
+                return;
+            }
+
             const anyUnsaved =
                 (!isReadOnly && hasUnsavedChanges) ||
                 (annotationsEditable && hasAnnotationUnsavedChanges);
-            if (!anyUnsaved) return;
-            // Don't intercept form submissions (same-page autosave, finalizar, etc.)
-            if (event.detail?.visit?.method !== 'get') return;
+            if (anyUnsaved) {
+                event.preventDefault();
+                cancelAutoSave();
+                cancelAnnotationAutoSave();
+                pendingVisitRef.current = visit;
+                setShowUnsavedModal(true);
+                return;
+            }
 
-            event.preventDefault();
-            cancelAutoSave();
-            cancelAnnotationAutoSave();
-            pendingVisitRef.current = event.detail.visit;
-            setShowUnsavedModal(true);
+            if (!isEditing) {
+                return;
+            }
+
+            const status = data.status ?? receita?.status;
+            if (status === 'cancelada') {
+                return;
+            }
+
+            const medicoSomenteVisualizacao = isMedico && viewMode;
+
+            if (status === 'aberta' && medicoSomenteVisualizacao) {
+                event.preventDefault();
+                workflowExitVisitRef.current = visit;
+                setWorkflowExitKind('finalize_and_renew');
+                return;
+            }
+
+            if (status === 'aberta') {
+                event.preventDefault();
+                workflowExitVisitRef.current = visit;
+                setWorkflowExitKind('finalize');
+                return;
+            }
+
+            if (status === 'finalizada' && medicoSomenteVisualizacao) {
+                event.preventDefault();
+                workflowExitVisitRef.current = visit;
+                setWorkflowExitKind('renew');
+            }
         });
 
         return removeListener;
@@ -343,14 +393,21 @@ function ReceitaFormInner({
         annotationsEditable,
         cancelAutoSave,
         cancelAnnotationAutoSave,
+        isEditing,
+        data.status,
+        receita?.status,
+        isMedico,
+        viewMode,
     ]);
 
-    // Browser tab/close protection
+    // Browser tab/close
     useEffect(() => {
         const anyUnsaved =
             (!isReadOnly && hasUnsavedChanges) ||
             (annotationsEditable && hasAnnotationUnsavedChanges);
-        if (!anyUnsaved) return;
+        if (!anyUnsaved && !needsWorkflowUnloadGuard) {
+            return;
+        }
 
         const handler = (e) => {
             e.preventDefault();
@@ -358,7 +415,28 @@ function ReceitaFormInner({
         };
         window.addEventListener('beforeunload', handler);
         return () => window.removeEventListener('beforeunload', handler);
-    }, [hasUnsavedChanges, hasAnnotationUnsavedChanges, isReadOnly, annotationsEditable]);
+    }, [
+        hasUnsavedChanges,
+        hasAnnotationUnsavedChanges,
+        isReadOnly,
+        annotationsEditable,
+        needsWorkflowUnloadGuard,
+    ]);
+
+    const handleWorkflowExitCancel = () => {
+        setWorkflowExitKind(null);
+        workflowExitVisitRef.current = null;
+    };
+
+    const handleWorkflowExitConfirm = () => {
+        const visit = workflowExitVisitRef.current;
+        workflowExitVisitRef.current = null;
+        setWorkflowExitKind(null);
+        if (visit) {
+            skipWorkflowExitGuardOnceRef.current = true;
+            router.visit(visit.url, { ...visit, onBefore: undefined });
+        }
+    };
 
     const handleUnsavedCancel = () => {
         setShowUnsavedModal(false);
@@ -805,7 +883,7 @@ function ReceitaFormInner({
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mt-2">
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <h1 className="text-2xl font-bold text-gray-900">
+                                <h1 className="text-3xl font-bold text-gray-900">
                                     {!isEditing
                                         ? 'Assistente de Receita'
                                         : viewMode
@@ -1148,7 +1226,7 @@ function ReceitaFormInner({
                             <div className="flex flex-col gap-3 text-sm lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-6 lg:gap-y-1">
                                 <div className="flex flex-col gap-1 min-w-0 w-full lg:w-auto lg:flex-row lg:items-center lg:gap-2">
                                     <span className="text-gray-500 flex-shrink-0">Paciente:</span>
-                                    <span className="font-medium text-gray-900 break-words">{selectedPaciente.nome}</span>
+                                    <span className="text-lg font-semibold text-gray-900 break-words">{selectedPaciente.nome}</span>
                                     <span className="text-gray-400">({selectedPaciente.cpf})</span>
                                 </div>
                                 <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto sm:max-w-[11rem]">
@@ -1349,7 +1427,7 @@ function ReceitaFormInner({
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <span className="text-sm text-blue-900">
-                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno; não são enviadas às integrações Tiny nem RD). Elas são gravadas automaticamente alguns segundos após você parar de digitar; use também o botão Salvar anotações acima para gravar na hora.
+                                    Você pode alterar apenas as anotações por produto nesta receita finalizada (uso interno da equipe). Elas são gravadas automaticamente alguns segundos após você parar de digitar; use também o botão Salvar anotações acima para gravar na hora.
                                 </span>
                             </div>
                         )}
@@ -1851,7 +1929,7 @@ function ReceitaFormInner({
                                 </div>
                                 
                                 <p className="text-gray-600 mb-6">
-                                    Deseja finalizar esta receita? Após finalizada, ela será enviada ao Call Center e para integrações configuradas (ex.: Tiny / RD). Os produtos e valores prescritos não poderão mais ser alterados; você poderá seguir editando apenas as anotações internas por produto quando precisar.
+                                    Deseja finalizar esta receita? Após finalizada, ela será enviada ao Call Center. Os produtos e valores prescritos não poderão mais ser alterados; você poderá seguir editando apenas as anotações internas por produto quando precisar.
                                 </p>
                                 
                                 <div className="flex justify-end gap-3">
@@ -1954,6 +2032,62 @@ function ReceitaFormInner({
                 onSave={handleUnsavedSave}
                 saving={savingBeforeLeave}
             />
+            {workflowExitKind && (
+                <div className="fixed inset-0 z-[65] flex items-center justify-center overflow-y-auto p-4">
+                    <button
+                        type="button"
+                        aria-label="Fechar"
+                        className="fixed inset-0 z-[66] bg-black/50 transition-opacity cursor-default border-0 p-0"
+                        onClick={handleWorkflowExitCancel}
+                    />
+                    <div className="relative z-[67] w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                                <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                {workflowExitKind === 'renew'
+                                    ? 'Sair sem nova receita?'
+                                    : 'Sair sem finalizar receita?'}
+                            </h3>
+                        </div>
+                        {(workflowExitKind === 'finalize' || workflowExitKind === 'finalize_and_renew') && (
+                            <p
+                                className={`text-gray-600 ${workflowExitKind === 'finalize' ? 'mb-6' : 'mb-4'}`}
+                            >
+                                Deseja sair sem finalizar receita? No sistema anterior (CLW2), ao sair da tela a receita era
+                                enviada automaticamente; aqui é necessário clicar em <strong>Finalizar</strong> para registrar a
+                                receita.
+                            </p>
+                        )}
+                        {(workflowExitKind === 'renew' || workflowExitKind === 'finalize_and_renew') && (
+                            <p className="text-gray-600 mb-6">
+                                Deseja sair da página sem receitar nova receita? O call center não será acionado para revenda até
+                                que seja emitida uma receita nova (por exemplo duplicando ou criando outra), mesmo que seja igual
+                                à anterior.
+                            </p>
+                        )}
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+                            <button
+                                type="button"
+                                onClick={handleWorkflowExitCancel}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                                Permanecer
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleWorkflowExitConfirm}
+                                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                            >
+                                Sair mesmo assim
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <PatientDrawer
                 isOpen={patientDrawerOpen}
                 onClose={() => setPatientDrawerOpen(false)}

@@ -42,7 +42,7 @@ class CriarPedidoTinyJob implements ShouldQueue
             return;
         }
 
-        $receita = $this->receita->fresh(['paciente', 'medico', 'itens.produto']);
+        $receita = $this->receita->fresh(['paciente', 'medico.linkedUser', 'itens.produto']);
 
         if (! $receita->paciente) {
             Log::warning('Tiny ERP: Receita não possui paciente', [
@@ -73,7 +73,6 @@ class CriarPedidoTinyJob implements ShouldQueue
 
         $dados = [
             'observacoes' => $this->buildObservacoes($receita),
-            'obs_internas' => $this->buildObsInternas($receita),
             'marcadores' => ['ClinicaWeb'],
             'numero_pedido_ecommerce' => $receita->numero ?? 'REC-'.$receita->id,
             'ecommerce' => 'ClinicaWeb',
@@ -196,15 +195,6 @@ class CriarPedidoTinyJob implements ShouldQueue
         return $itens;
     }
 
-    protected function buildObsInternas(Receita $receita): string
-    {
-        if ($receita->medico) {
-            return 'Médico: '.$receita->medico->nome;
-        }
-
-        return 'Médico não informado';
-    }
-
     protected function prepararDadosPedidoV3(Receita $receita, \App\Models\Paciente $paciente): array
     {
         $itens = [];
@@ -235,7 +225,6 @@ class CriarPedidoTinyJob implements ShouldQueue
             'situacao' => 0,
             'data' => $receita->data_receita->format('Y-m-d'),
             'observacoes' => $this->buildObservacoes($receita),
-            'obs_internas' => $this->buildObsInternas($receita),
             'marcadores' => ['ClinicaWeb'],
             'numero_pedido_ecommerce' => $receita->numero ?? 'REC-'.$receita->id,
             'ecommerce' => 'ClinicaWeb',
@@ -252,22 +241,29 @@ class CriarPedidoTinyJob implements ShouldQueue
         return $dados;
     }
 
+    /**
+     * Texto enviado ao campo Observações do pedido no Olist/Tiny.
+     * Obs. internas do ERP ficam vazias (não enviamos obs_internas).
+     *
+     * Formato: ClinicaWeb | Receita #{numero} | {nome médico} [| Anotações do médico: ...]
+     * O último trecho só entra se o campo "Anotações internas" da receita ({@see Receita::$anotacoes}) estiver preenchido.
+     */
     protected function buildObservacoes(Receita $receita): string
     {
-        $obs = [];
-        $obs[] = 'Vendedor: ClinicaWeb';
-
-        if ($receita->numero) {
-            $obs[] = "Receita #{$receita->numero}";
-        }
-        if ($receita->desconto_valor > 0 && $receita->desconto_motivo) {
-            $obs[] = "Desconto: {$receita->desconto_motivo}";
-        }
-        if ($receita->anotacoes) {
-            $obs[] = $receita->anotacoes;
+        $numero = $receita->numero ?? ('REC-'.$receita->id);
+        $nomeMedico = trim((string) ($receita->medico?->nome ?? ''));
+        if ($nomeMedico === '') {
+            $nomeMedico = 'Não informado';
         }
 
-        return implode(' | ', $obs);
+        $line = 'ClinicaWeb | Receita #'.$numero.' | '.$nomeMedico;
+
+        $internas = trim((string) ($receita->anotacoes ?? ''));
+        if ($internas !== '') {
+            $line .= ' | Anotações do médico: '.$internas;
+        }
+
+        return $line;
     }
 
     public function failed(?Throwable $exception): void

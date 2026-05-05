@@ -12,6 +12,7 @@ import {
     NavIconKarnaugh,
     NavIconManual,
     NavIconPacientes,
+    NavIconReceitas,
     NavIconProdutos,
     NavIconRelatorios,
     NavIconRegras,
@@ -202,7 +203,20 @@ export default function DashboardLayout({ children }) {
                             {showLabels && <span className="font-medium">Pacientes</span>}
                         </Link>
 
-                        {/* Receitas: sem item no menu lateral (acesso por Pacientes / URLs) */}
+                        {(isAdmin || isMedico || isCallcenter) && (
+                            <Link
+                                href="/receitas"
+                                className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
+                                    isActive('/receitas')
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                                title={!showLabels ? 'Receitas' : undefined}
+                            >
+                                <NavIconReceitas />
+                                {showLabels && <span className="font-medium">Receitas</span>}
+                            </Link>
+                        )}
 
                         {/* Relatórios e catálogo (médico e admin) */}
                         {(isAdmin || isMedico) && (

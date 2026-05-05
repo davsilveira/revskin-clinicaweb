@@ -58,6 +58,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
         $situacoesFinalizadasInt = [1, 5, 6, 7];
         $situacoesFinalizadasStr = ['faturado', 'enviado', 'entregue', 'pronto_envio', 'atendido'];
+        $situacoesSincronizaPrecosStr = ['aprovado', 'preparando_envio'];
         $situacoesCanceladasInt = [2, 3, 4];
         $situacoesCanceladasStr = ['cancelado', 'cancelada', 'devolvido', 'devolvida'];
 
@@ -68,12 +69,15 @@ class ProcessWebhookTinyJob implements ShouldQueue
         $isCancelada = is_int($situacaoNorm)
             ? in_array($situacaoNorm, $situacoesCanceladasInt)
             : in_array($situacaoNorm, $situacoesCanceladasStr);
+        $isSincronizaPrecosSemVendido = ! is_int($situacaoNorm)
+            && in_array($situacaoNorm, $situacoesSincronizaPrecosStr, true);
 
         Log::info('Tiny ERP: Classificação da situação', [
             'situacao_raw' => $this->situacao,
             'situacao_norm' => $situacaoNorm,
             'is_finalizada' => $isFinalizada,
             'is_cancelada' => $isCancelada,
+            'is_sincroniza_precos' => $isSincronizaPrecosSemVendido,
         ]);
 
         if ($isFinalizada) {
@@ -86,8 +90,13 @@ class ProcessWebhookTinyJob implements ShouldQueue
             $this->processarCancelamento($receita);
         }
 
-        if (! $isFinalizada && ! $isCancelada) {
-            Log::info('Tiny ERP: Situação não é finalizada nem cancelada, nada a fazer');
+        if ($isSincronizaPrecosSemVendido && ! $isFinalizada && ! $isCancelada) {
+            Log::info('Tiny ERP: Situação intermediária (preços), sincronizando itens sem marcar vendido');
+            $this->sincronizarPrecosItensDoPedido($receita);
+        }
+
+        if (! $isFinalizada && ! $isCancelada && ! $isSincronizaPrecosSemVendido) {
+            Log::info('Tiny ERP: Situação não é finalizada nem cancelada nem sincronização de preços, nada a fazer');
         }
 
         Log::info('Tiny ERP: Webhook processado', [
@@ -100,13 +109,29 @@ class ProcessWebhookTinyJob implements ShouldQueue
     protected function marcarItensVendidos(Receita $receita): void
     {
         Log::info('Tiny ERP: marcarItensVendidos iniciado', ['receita_id' => $receita->id]);
+        $this->aplicarMergeItensDoPedidoTiny($receita, marcarVendido: true);
+    }
 
+    protected function sincronizarPrecosItensDoPedido(Receita $receita): void
+    {
+        Log::info('Tiny ERP: sincronizarPrecosItensDoPedido iniciado', ['receita_id' => $receita->id]);
+        $this->aplicarMergeItensDoPedidoTiny($receita, marcarVendido: false);
+    }
+
+    /**
+     * Obtém o pedido na API Tiny e alinha quantidades/valores (e opcionalmente novas linhas) na receita.
+     *
+     * @param  bool  $marcarVendido  Se true, marca vendido e registra aquisição para este pedido (situação finalizada).
+     */
+    protected function aplicarMergeItensDoPedidoTiny(Receita $receita, bool $marcarVendido): void
+    {
         $client = new TinyErpClient;
         $result = $client->obterPedido((int) $this->pedidoId);
 
         if ($result['status'] !== 'success') {
-            Log::error('Tiny ERP: Erro ao obter pedido para marcar itens vendidos', [
+            Log::error('Tiny ERP: Erro ao obter pedido para merge de itens', [
                 'tiny_pedido_id' => $this->pedidoId,
+                'marcar_vendido' => $marcarVendido,
                 'error' => $result['message'] ?? 'Erro desconhecido',
             ]);
 
@@ -117,8 +142,9 @@ class ProcessWebhookTinyJob implements ShouldQueue
         $itensTiny = $pedidoData['itens'] ?? [];
         $parsed = $this->parseItensPedidoTiny($itensTiny);
 
-        Log::info('Tiny ERP: Pedido obtido da API', [
+        Log::info('Tiny ERP: Pedido obtido da API para merge', [
             'tiny_pedido_id' => $this->pedidoId,
+            'marcar_vendido' => $marcarVendido,
             'qtd_itens_no_pedido' => count($itensTiny),
             'linhas_normalizadas' => count($parsed),
         ]);
@@ -127,7 +153,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
         $itensMarcados = 0;
         $linhasNovas = 0;
 
-        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, &$itensMarcados, &$linhasNovas) {
+        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, $marcarVendido, &$itensMarcados, &$linhasNovas) {
             $pending = $parsed;
             $receita->load('itens.produto');
 
@@ -154,23 +180,28 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
                 $q = $row['quantidade'];
                 $vu = $row['valor_unitario'];
-                $item->update([
+                $attrs = [
                     'quantidade' => $q,
                     'valor_unitario' => $vu,
                     'valor_total' => $q * $vu,
-                    'vendido' => true,
-                ]);
+                ];
+                if ($marcarVendido) {
+                    $attrs['vendido'] = true;
+                }
+                $item->update($attrs);
 
-                $jaExiste = ReceitaItemAquisicao::where('receita_item_id', $item->id)
-                    ->where('tiny_pedido_id', $this->pedidoId)
-                    ->exists();
-                if (! $jaExiste) {
-                    ReceitaItemAquisicao::create([
-                        'receita_item_id' => $item->id,
-                        'data_aquisicao' => $dataAquisicao,
-                        'tiny_pedido_id' => $this->pedidoId,
-                    ]);
-                    $itensMarcados++;
+                if ($marcarVendido) {
+                    $jaExiste = ReceitaItemAquisicao::where('receita_item_id', $item->id)
+                        ->where('tiny_pedido_id', $this->pedidoId)
+                        ->exists();
+                    if (! $jaExiste) {
+                        ReceitaItemAquisicao::create([
+                            'receita_item_id' => $item->id,
+                            'data_aquisicao' => $dataAquisicao,
+                            'tiny_pedido_id' => $this->pedidoId,
+                        ]);
+                        $itensMarcados++;
+                    }
                 }
             }
 
@@ -200,24 +231,29 @@ class ProcessWebhookTinyJob implements ShouldQueue
                     'imprimir' => true,
                     'grupo' => 'recomendado',
                     'ordem' => $maxOrdem,
-                    'vendido' => true,
+                    'vendido' => $marcarVendido,
                 ]);
 
-                ReceitaItemAquisicao::create([
-                    'receita_item_id' => $novo->id,
-                    'data_aquisicao' => $dataAquisicao,
-                    'tiny_pedido_id' => $this->pedidoId,
-                ]);
-                $linhasNovas++;
-                $itensMarcados++;
+                if ($marcarVendido) {
+                    ReceitaItemAquisicao::create([
+                        'receita_item_id' => $novo->id,
+                        'data_aquisicao' => $dataAquisicao,
+                        'tiny_pedido_id' => $this->pedidoId,
+                    ]);
+                    $linhasNovas++;
+                    $itensMarcados++;
+                } else {
+                    $linhasNovas++;
+                }
             }
 
             $receita->calcularTotais();
         });
 
-        Log::info('Tiny ERP: marcarItensVendidos concluído', [
+        Log::info('Tiny ERP: Merge de itens do pedido concluído', [
             'receita_id' => $receita->id,
-            'itens_marcados_ou_atualizados' => $itensMarcados,
+            'marcar_vendido' => $marcarVendido,
+            'aquisicoes_ou_atualizacoes_contagem' => $itensMarcados,
             'linhas_novas_inseridas' => $linhasNovas,
         ]);
     }
