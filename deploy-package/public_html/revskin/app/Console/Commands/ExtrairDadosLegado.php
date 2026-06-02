@@ -927,6 +927,14 @@ class ExtrairDadosLegado extends Command
         $avisosProdutos = [];
         $receitas = [];
 
+        $receitasComCc = [];
+        foreach ($this->dadosBrutos['receita_atend_callcenter'] ?? [] as $row) {
+            $recId = $row[0] ?? null;
+            if ($recId !== null && $recId !== '') {
+                $receitasComCc[(int) $recId] = true;
+            }
+        }
+
         $incluirCanceladas = (bool) $this->option('incluir-receitas-canceladas');
 
         foreach ($this->dadosBrutos['receita'] ?? [] as $row) {
@@ -993,7 +1001,9 @@ class ExtrairDadosLegado extends Command
                 'desconto_motivo' => $this->colStr($row, $c, 'motivo_desc'),
                 'valor_frete' => $this->col($row, $c, 'vlr_frete_total'),
                 'valor_total' => $this->col($row, $c, 'vlr_total'),
-                'status' => $ativo ? 'finalizada' : 'cancelada',
+                'status' => ! $ativo
+                    ? 'cancelada'
+                    : (isset($receitasComCc[(int) $receitaId]) ? 'finalizada' : 'aberta'),
                 'itens' => $itensExtraidos,
             ];
         }

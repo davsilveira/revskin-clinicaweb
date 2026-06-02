@@ -5,6 +5,17 @@ function previewAnotacoesEspecialistas(text) {
     return text.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Deriva o "prefixo de família" do código para semear a busca ao focar.
+ * Ex.: "TONALITE-___-G30" -> "TONALITE"; "R0,0015H12 NEODELINE" -> "R0,0015H12".
+ */
+function deriveFamilySeed(produto) {
+    const codigo = String(produto?.codigo ?? '').trim();
+    if (!codigo) return '';
+    const seed = codigo.split(/[\s-]|_{2,}/)[0].trim();
+    return seed;
+}
+
 export default function ProductCombobox({ value, onChange, produtos = [], disabled = false, minChars = 3, className = '' }) {
     const [search, setSearch] = useState('');
     const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +31,7 @@ export default function ProductCombobox({ value, onChange, produtos = [], disabl
 
     const filtered = meetsMinChars
         ? [...produtos.filter(p => {
+              if (p.legado_somente_leitura) return false;
               const term = search.toLowerCase();
               return p.nome.toLowerCase().includes(term) || p.codigo?.toLowerCase().includes(term);
           })].sort((a, b) =>
@@ -95,7 +107,8 @@ export default function ProductCombobox({ value, onChange, produtos = [], disabl
                 onFocus={() => {
                     setIsOpen(true);
                     if (selectedProduct) {
-                        setSearch(`${selectedProduct.codigo} - ${selectedProduct.nome}`);
+                        const seed = deriveFamilySeed(selectedProduct);
+                        setSearch(seed.length >= minChars ? seed : `${selectedProduct.codigo} - ${selectedProduct.nome}`);
                     } else {
                         setSearch('');
                     }

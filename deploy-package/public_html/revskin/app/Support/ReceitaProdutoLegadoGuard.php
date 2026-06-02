@@ -30,6 +30,27 @@ class ReceitaProdutoLegadoGuard
     }
 
     /**
+     * Receita não pode ser finalizada enquanto contiver produtos legados (descontinuados).
+     *
+     * @param  array<int, array<string, mixed>>  $itens
+     */
+    public static function assertSemProdutoLegadoAoFinalizar(array $itens): void
+    {
+        foreach ($itens as $item) {
+            $pid = (int) ($item['produto_id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $p = Produto::query()->find($pid);
+            if ($p && $p->legado_somente_leitura) {
+                throw ValidationException::withMessages([
+                    'status' => ['Substitua os produtos descontinuados (em vermelho) antes de finalizar a receita.'],
+                ]);
+            }
+        }
+    }
+
+    /**
      * Linhas com produto legado devem manter os mesmos dados (não trocar produto nem alterar campos).
      *
      * @param  array<int, array<string, mixed>>  $itensIncoming

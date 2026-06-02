@@ -32,6 +32,7 @@ export default function ReceitaFormItemRow({
     onRemoveItem,
     isLastItem,
     lastItemRef,
+    registerRef,
     formatItemTotal,
 }) {
     const anotacoesRef = useRef(null);
@@ -71,7 +72,10 @@ export default function ReceitaFormItemRow({
 
     return (
         <div
-            ref={isLastItem ? lastItemRef : null}
+            ref={(el) => {
+                if (isLastItem && lastItemRef) lastItemRef.current = el;
+                registerRef?.(index, el);
+            }}
             className={`flex flex-col gap-1 py-2 px-2 rounded transition-colors lg:flex-row lg:items-center lg:gap-2 lg:py-1.5 ${rowTone}`}
         >
             {/* Mobile: checkbox + remover */}
@@ -129,6 +133,14 @@ export default function ReceitaFormItemRow({
                     minChars={3}
                     className="w-full min-w-0"
                 />
+                {isLegado && (
+                    <p className="mt-1 flex items-start gap-1 text-xs font-medium text-red-600">
+                        <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Produto descontinuado — substitua para poder salvar ou finalizar.</span>
+                    </p>
+                )}
             </div>
 
             <div className="w-full min-w-0 lg:flex-[2]">

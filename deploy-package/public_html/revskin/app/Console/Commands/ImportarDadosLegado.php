@@ -14,6 +14,7 @@ use App\Models\ReceitaItemAquisicao;
 use App\Models\User;
 use App\Support\LegadoCodigoProdutoMapeamento;
 use App\Support\LegadoProdutoDescricaoParser;
+use App\Support\LegadoProdutoResolver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -227,6 +228,11 @@ class ImportarDadosLegado extends Command
             if ($existente) {
                 $this->setMapping('medicos', $item['legado_id'], $existente->id);
                 $this->stats['medicos']['existentes']++;
+                $nomeLegado = isset($item['nome_legado']) ? trim((string) $item['nome_legado']) : '';
+                if ($nomeLegado !== '' && blank($existente->nome_legado)) {
+                    $existente->nome_legado = $nomeLegado;
+                    $existente->saveQuietly();
+                }
 
                 continue;
             }
@@ -236,6 +242,7 @@ class ImportarDadosLegado extends Command
 
                 $medico = Medico::create([
                     'apelido' => $item['apelido'],
+                    'nome_legado' => isset($item['nome_legado']) ? trim((string) $item['nome_legado']) ?: null : null,
                     'crm' => $item['crm'],
                     'uf_crm' => $item['uf_crm'],
                     'cpf' => $item['cpf'],
@@ -321,6 +328,39 @@ class ImportarDadosLegado extends Command
                 $this->setMapping('users', $item['legado_id'], $existente->id);
                 $this->stats['users']['existentes']++;
 
+                $novoRole = $item['role'] ?? 'admin';
+                $novoMedicoId = null;
+                if ($novoRole === 'medico' && ! empty($item['legado_medico_ids'])) {
+                    $novoMedicoId = $this->getMapping('medicos', $item['legado_medico_ids'][0]);
+                }
+                $novoClinicaId = $novoRole === 'secretaria'
+                    ? $this->getMapping('clinicas', $item['legado_clinica_id'] ?? null)
+                    : null;
+
+                $atualizar = false;
+                if ($existente->role !== $novoRole) {
+                    $existente->role = $novoRole;
+                    $atualizar = true;
+                }
+                $medicoIdEsperado = $novoRole === 'medico' ? $novoMedicoId : null;
+                if ((string) $existente->medico_id !== (string) ($medicoIdEsperado ?? '')) {
+                    $existente->medico_id = $medicoIdEsperado;
+                    $atualizar = true;
+                }
+                if ($novoRole === 'secretaria') {
+                    if ((string) $existente->clinica_id !== (string) ($novoClinicaId ?? '')) {
+                        $existente->clinica_id = $novoClinicaId;
+                        $atualizar = true;
+                    }
+                } elseif ($existente->clinica_id !== null) {
+                    $existente->clinica_id = null;
+                    $atualizar = true;
+                }
+                if ($atualizar) {
+                    $existente->saveQuietly();
+                }
+
+                $existente->refresh();
                 $this->syncUserMedicoLinks($existente, $item);
 
                 continue;
@@ -419,7 +459,7 @@ class ImportarDadosLegado extends Command
                     'codigo' => $item['codigo'] ?? null,
                     'indicado_por' => $item['indicado_por'] ?? null,
                     'nome' => $item['nome'],
-                    'data_nascimento' => $item['data_nascimento'],
+                    'data_nascimento' => $this->sanitizarDataNascimento($item['data_nascimento'] ?? null),
                     'sexo' => $item['sexo'],
                     'fototipo' => $item['fototipo'],
                     'cpf' => $item['cpf'],
@@ -495,25 +535,39 @@ class ImportarDadosLegado extends Command
 
             $texto = $item['anotacoes_internas'] ?? $item['nome_generico_legado'] ?? '';
             $produto->anotacoes_internas = is_string($texto) ? $texto : '';
-            $produto->saveQuietly();
-            $this->stats['produtos']['importados']++;
+
+            try {
+                $produto->saveQuietly();
+                $this->stats['produtos']['importados']++;
+            } catch (\Exception $e) {
+                $this->warn("   Erro produto '{$codigo}': {$e->getMessage()}");
+                $this->stats['produtos']['erros']++;
+            }
         }
+    }
+
+    private function sanitizarDataNascimento(mixed $data): ?string
+    {
+        if ($data === null || $data === '') {
+            return null;
+        }
+
+        $data = (string) $data;
+        if (str_starts_with($data, '-') || str_starts_with($data, '0000-')) {
+            return null;
+        }
+
+        return $data;
     }
 
     private function findProdutoPorCodigoLegado(string $codigoLegado): ?Produto
     {
-        $codigoLegado = trim($codigoLegado);
-        if ($codigoLegado === '') {
-            return null;
-        }
+        $cache = Produto::query()->get()->keyBy('codigo');
 
-        $base = LegadoCodigoProdutoMapeamento::paraBase($codigoLegado, $this->mapeamentoCodigoLegadoBase);
-        $p = Produto::where('codigo', $base)->first();
-        if ($p) {
-            return $p;
-        }
-
-        return Produto::where('codigo', 'like', $base.' %')->first();
+        return LegadoProdutoResolver::findPorCodigo(
+            LegadoCodigoProdutoMapeamento::paraBase($codigoLegado, $this->mapeamentoCodigoLegadoBase),
+            $cache
+        );
     }
 
     // ─── IMPORT: RECEITAS ───
@@ -682,72 +736,24 @@ class ImportarDadosLegado extends Command
      */
     private function resolverProdutoIdItemLegadoJson(array $receitaItem, $produtoCache): ?int
     {
-        $legado = trim((string) ($receitaItem['codigo_produto_legado'] ?? ''));
-        $codigoMapeado = trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
-        $codigoBusca = '';
-        if ($legado !== '') {
-            $codigoBusca = LegadoCodigoProdutoMapeamento::paraBase($legado, $this->mapeamentoCodigoLegadoBase);
-        } elseif ($codigoMapeado !== '') {
-            $codigoBusca = $codigoMapeado;
-        }
-
-        if ($codigoBusca === '') {
-            return null;
-        }
-
-        $codigosIgnorar = ['...', 'W-AMOSTRA'];
-        if (in_array($codigoBusca, $codigosIgnorar, true)) {
-            return null;
-        }
-
-        $produto = $produtoCache->get($codigoBusca);
-        if (! $produto) {
-            $produto = Produto::where('codigo', $codigoBusca)
-                ->orWhere('codigo', 'like', $codigoBusca.' %')
-                ->first();
-            if ($produto) {
-                $produtoCache->put($produto->codigo, $produto);
-            }
-        }
-
-        if (! $produto && $legado !== '' && $legado !== $codigoBusca) {
-            $produto = $produtoCache->get($legado);
-            if (! $produto) {
-                $produto = Produto::where('codigo', $legado)->first();
-            }
-            if ($produto) {
-                $produtoCache->put($produto->codigo, $produto);
-            }
-        }
+        $produto = LegadoProdutoResolver::findPorItemLegado(
+            $receitaItem,
+            $produtoCache,
+            $this->mapeamentoCodigoLegadoBase
+        );
 
         if ($produto) {
             return $produto->id;
         }
 
-        $descLegado = trim((string) ($receitaItem['descricao_produto_legado'] ?? ''));
-        if ($descLegado !== '') {
-            $nome = mb_substr($descLegado, 0, 255);
-        } elseif ($legado !== '') {
-            $nome = mb_substr($legado, 0, 255);
-        } else {
-            $nome = mb_substr('Produto legado '.$codigoBusca, 0, 255);
-        }
+        $stub = LegadoProdutoResolver::criarStubSeNecessario(
+            $receitaItem,
+            $produtoCache,
+            $this->mapeamentoCodigoLegadoBase,
+            true
+        );
 
-        $codigoNovo = $legado !== '' ? mb_substr($legado, 0, 255) : $codigoBusca;
-        if ($codigoNovo !== $codigoBusca && ($produtoCache->has($codigoNovo) || Produto::where('codigo', $codigoNovo)->exists())) {
-            $codigoNovo = $codigoBusca;
-        }
-
-        $novo = Produto::create([
-            'codigo' => $codigoNovo,
-            'nome' => $nome,
-            'legado_somente_leitura' => true,
-            'ativo' => true,
-            'preco' => (float) ($receitaItem['valor_unitario'] ?? 0),
-        ]);
-        $produtoCache->put($novo->codigo, $novo);
-
-        return $novo->id;
+        return $stub?->id;
     }
 
     /**

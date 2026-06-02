@@ -22,6 +22,12 @@
             @if($cssEntry && isset($cssEntry['file']))
                 <link rel="stylesheet" href="{{ asset('build/' . $cssEntry['file']) }}">
             @endif
+            {{-- CSS extra extraído do bundle JS (ex.: react-day-picker/style.css); sem isto o calendário fica sem estilo em produção --}}
+            @if($jsEntry && ! empty($jsEntry['css']))
+                @foreach((array) $jsEntry['css'] as $chunkCss)
+                    <link rel="stylesheet" href="{{ asset('build/' . $chunkCss) }}">
+                @endforeach
+            @endif
             @if($jsEntry && isset($jsEntry['file']))
                 <script type="module" src="{{ asset('build/' . $jsEntry['file']) }}"></script>
             @endif

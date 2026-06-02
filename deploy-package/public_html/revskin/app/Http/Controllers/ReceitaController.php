@@ -415,7 +415,7 @@ class ReceitaController extends Controller
                 ->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
         }
 
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'data_receita' => 'required|date',
             'anotacoes' => 'nullable|string',
             'anotacoes_paciente' => 'nullable|string',
@@ -433,15 +433,18 @@ class ReceitaController extends Controller
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
             'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
-        ]);
+        ], $user->isAdmin() ? ['medico_id' => 'required|exists:medicos,id'] : []));
 
         ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
+
+        if (($validated['status'] ?? $receita->status) === 'finalizada') {
+            ReceitaProdutoLegadoGuard::assertSemProdutoLegadoAoFinalizar($validated['itens']);
+        }
 
         if ($user->isMedico()) {
             $validated['anotacoes'] = $receita->anotacoes;
         }
 
-        // medico_id não pode ser alterado após a receita existir (inclusive ADM)
         $updateData = [
             'data_receita' => $validated['data_receita'],
             'anotacoes' => $validated['anotacoes'] ?? null,
@@ -453,7 +456,18 @@ class ReceitaController extends Controller
             'status' => $validated['status'] ?? $receita->status,
         ];
 
+        if ($user->isAdmin()) {
+            $updateData['medico_id'] = $validated['medico_id'];
+        }
+
         $receita->update($updateData);
+
+        if ($user->isAdmin() && array_key_exists('medico_id', $updateData)) {
+            $atendimento = $receita->atendimentoCallcenter;
+            if ($atendimento && ! in_array($atendimento->status, ['em_producao', 'finalizado'], true)) {
+                $atendimento->update(['medico_id' => $updateData['medico_id']]);
+            }
+        }
 
         // Sync items
         $receita->itens()->delete();
@@ -499,6 +513,11 @@ class ReceitaController extends Controller
 
         if ($receita->status !== 'aberta') {
             return back()->with('error', 'Apenas receitas abertas podem ser finalizadas.');
+        }
+
+        $receita->loadMissing('itens.produto');
+        if ($receita->itens->contains(fn ($item) => $item->produto && $item->produto->legado_somente_leitura)) {
+            return back()->with('error', 'Substitua os produtos descontinuados (em vermelho) antes de finalizar a receita.');
         }
 
         $receita->update(['status' => 'finalizada']);
@@ -607,9 +626,16 @@ class ReceitaController extends Controller
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
 
-            $receita->loadMissing('paciente');
+            $receita->loadMissing('atendimentoCallcenter', 'paciente');
             if (! $user->canAccessPaciente($receita->paciente)) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+
+            if ($receita->atendimentoCallcenter &&
+                in_array($receita->atendimentoCallcenter->status, ['em_producao', 'finalizado'])) {
+                return response()->json([
+                    'message' => 'Esta receita não pode ser alterada pois o atendimento já está em produção ou finalizado.',
+                ], 422);
             }
 
             if ($receita->status === 'finalizada') {
@@ -630,7 +656,18 @@ class ReceitaController extends Controller
                 $updatePayload['anotacoes'] = $validated['anotacoes'] ?? null;
             }
 
+            if ($user->isAdmin()) {
+                $updatePayload['medico_id'] = $validated['medico_id'];
+            }
+
             $receita->update($updatePayload);
+
+            if ($user->isAdmin() && isset($updatePayload['medico_id'])) {
+                $atendimento = $receita->atendimentoCallcenter;
+                if ($atendimento && ! in_array($atendimento->status, ['em_producao', 'finalizado'], true)) {
+                    $atendimento->update(['medico_id' => $updatePayload['medico_id']]);
+                }
+            }
         } else {
             $receita = Receita::create([
                 'numero' => Receita::gerarNumero($validated['paciente_id']),
@@ -796,12 +833,13 @@ class ReceitaController extends Controller
 
         $receita->load([
             'medico.linkedUser:id,name,medico_id',
+            'medico.users:id,name',
             'medico.clinica',
             'medico.clinicas' => fn ($q) => $q->orderBy('clinicas.nome'),
             'itens' => fn ($q) => $q->where('imprimir', true)->with('produto'),
         ]);
 
-        $clinica = $receita->medico->clinicaParaReceita();
+        $clinica = $receita->medico?->clinicaParaReceita();
         $clinicaLogoFullPath = null;
         if ($clinica?->logo_path) {
             $fullPath = storage_path('app/public/'.$clinica->logo_path);
@@ -810,9 +848,25 @@ class ReceitaController extends Controller
             }
         }
 
+        $assinaturaDataUri = null;
+        if ($receita->medico?->assinatura_path) {
+            $assinPath = storage_path('app/public/'.$receita->medico->assinatura_path);
+            if (is_readable($assinPath)) {
+                $mime = @mime_content_type($assinPath) ?: 'application/octet-stream';
+                if (str_starts_with((string) $mime, 'image/')) {
+                    $raw = @file_get_contents($assinPath);
+                    if ($raw !== false) {
+                        $assinaturaDataUri = 'data:'.$mime.';base64,'.base64_encode($raw);
+                    }
+                }
+            }
+        }
+
         $pdf = Pdf::loadView('pdf.receita', [
             'receita' => $receita,
             'clinicaLogoFullPath' => $clinicaLogoFullPath,
+            'clinica' => $clinica,
+            'assinaturaDataUri' => $assinaturaDataUri,
         ]);
 
         return $pdf->download("receita-{$receita->numero}.pdf");

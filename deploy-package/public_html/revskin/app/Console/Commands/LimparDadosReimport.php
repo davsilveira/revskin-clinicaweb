@@ -12,6 +12,7 @@ class LimparDadosReimport extends Command
                             {--apos-backup : Obrigatório: confirma que migration:exportar-backup-reimport já foi executado}
                             {--confirm= : Digite REIMPORT para confirmar a exclusão}
                             {--incluir-produtos : Também apaga produtos (CASCADE em assistente_tratamento_itens, assistente_regra_acoes, receita_itens já vazios; Karnaugh usa só codigo string)}
+                            {--preservar-users : Mantém todos os users (senhas intactas); apenas zera medico_id/clinica_id e limpa user_medico}
                             {--remover-id-mapping=docs/migration/id-mapping.json : Apaga o ficheiro de mapeamento após limpar (caminho relativo à raiz do projeto)}';
 
     protected $description = 'Apaga dados importáveis (receitas, pacientes, usuários não-admin, médicos, clínicas). Exige backup e confirmação explícita.';
@@ -31,7 +32,11 @@ class LimparDadosReimport extends Command
             return 1;
         }
 
-        $this->warn('Isto remove receitas, call center, pacientes, utilizadores (exceto admin), médicos e clínicas.');
+        if ($this->option('preservar-users')) {
+            $this->warn('Com --preservar-users: mantém todos os utilizadores; apenas zera vínculos médico/clínica.');
+        } else {
+            $this->warn('Isto remove receitas, call center, pacientes, utilizadores (exceto admin), médicos e clínicas.');
+        }
         if ($this->option('incluir-produtos')) {
             $this->warn('Com --incluir-produtos: apaga todos os produtos e linhas dependentes (assistente com FK a produtos).');
         }
@@ -93,11 +98,14 @@ class LimparDadosReimport extends Command
         }
 
         if (Schema::hasTable('users')) {
-            DB::table('users')->where('role', '!=', 'admin')->update([
+            DB::table('users')->update([
                 'medico_id' => null,
                 'clinica_id' => null,
             ]);
-            DB::table('users')->where('role', '!=', 'admin')->delete();
+
+            if (! $this->option('preservar-users')) {
+                DB::table('users')->where('role', '!=', 'admin')->delete();
+            }
         }
 
         if (Schema::hasTable('medico_enderecos')) {
@@ -113,7 +121,11 @@ class LimparDadosReimport extends Command
             DB::table('clinicas')->delete();
         }
 
-        $this->line('Utilizadores não-admin, médicos e clínicas removidos.');
+        if ($this->option('preservar-users')) {
+            $this->line('Vínculos user_medico limpos; users preservados. Médicos e clínicas removidos.');
+        } else {
+            $this->line('Utilizadores não-admin, médicos e clínicas removidos.');
+        }
     }
 
     private function limparProdutos(): void

@@ -181,9 +181,7 @@
                 <th style="width: 60px;">Número</th>
                 <th style="width: 70px;">Data</th>
                 <th>Paciente</th>
-                @if(!$medico)
-                    <th>Médico</th>
-                @endif
+                <th>Médico</th>
                 <th style="width: 70px;">Status</th>
                 <th style="width: 80px;">Valor</th>
             </tr>
@@ -194,9 +192,7 @@
                     <td>#{{ $receita->numero }}</td>
                     <td>{{ $receita->data_receita->format('d/m/Y') }}</td>
                     <td>{{ $receita->paciente->nome ?? '-' }}</td>
-                    @if(!$medico)
-                        <td>{{ $receita->medico->nome ?? '-' }}</td>
-                    @endif
+                    <td>{{ $receita->medico->nome ?? '-' }}</td>
                     <td>
                         <span class="status status-{{ $receita->status }}">
                             {{ ucfirst($receita->status) }}
@@ -206,7 +202,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ $medico ? 5 : 6 }}" style="text-align: center; padding: 20px; color: #999;">
+                    <td colspan="6" style="text-align: center; padding: 20px; color: #999;">
                         Nenhuma receita encontrada para os filtros selecionados.
                     </td>
                 </tr>
@@ -214,7 +210,7 @@
             
             @if($receitas->count() > 0)
                 <tr class="total-row">
-                    <td colspan="{{ $medico ? 4 : 5 }}" style="text-align: right;">
+                    <td colspan="5" style="text-align: right;">
                         <strong>TOTAL:</strong>
                     </td>
                     <td>

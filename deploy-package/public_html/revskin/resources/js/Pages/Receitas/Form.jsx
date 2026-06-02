@@ -35,6 +35,18 @@ const duplicarBloqueioTippyContent = (
     </div>
 );
 
+const pendenciaFinalizarTippyContent = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Resolva as pendências abaixo para finalizar.
+    </div>
+);
+
+const pendenciaSalvarTippyContent = (
+    <div className="text-xs text-gray-800 max-w-xs">
+        Resolva as pendências de produtos descontinuados para salvar.
+    </div>
+);
+
 // Mapeamento de local_uso para nomes mais descritivos
 const localUsoLabels = {
     'face': 'Creme Facial',
@@ -188,6 +200,39 @@ function ReceitaFormInner({
     const [selectedPaciente, setSelectedPaciente] = useState(receita?.paciente || initialPaciente || null);
     const [loadingPacientes, setLoadingPacientes] = useState(false);
     const lastItemRef = useRef(null);
+    const legadoRowRefs = useRef({});
+
+    const produtoLegadoIds = useMemo(() => {
+        const ids = new Set();
+        (produtos || []).forEach((p) => {
+            if (p?.legado_somente_leitura) ids.add(Number(p.id));
+        });
+        return ids;
+    }, [produtos]);
+
+    const itensLegadoIdx = useMemo(
+        () =>
+            data.itens
+                .map((item, idx) => (item.produto_id && produtoLegadoIds.has(Number(item.produto_id)) ? idx : -1))
+                .filter((idx) => idx >= 0),
+        [data.itens, produtoLegadoIds],
+    );
+    const temPendenciaLegado = itensLegadoIdx.length > 0;
+
+    const revelarPendenciasLegado = useCallback(() => {
+        const idx = itensLegadoIdx[0];
+        if (idx == null) return;
+        const el = legadoRowRefs.current[idx];
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-red-400');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-red-400'), 1800);
+        setToast({
+            message: 'Substitua os produtos descontinuados (em vermelho) antes de salvar ou finalizar.',
+            type: 'error',
+            key: Date.now(),
+        });
+    }, [itensLegadoIdx]);
 
     // Autosave function
     const performAutoSave = useCallback(async () => {
@@ -757,6 +802,14 @@ function ReceitaFormInner({
         setShowFinalizarModal(false);
     };
 
+    const handleAbrirFinalizar = () => {
+        if (temPendenciaLegado) {
+            revelarPendenciasLegado();
+            return;
+        }
+        setShowFinalizarModal(true);
+    };
+
     const toggleReceitaExpanded = (id) => {
         setExpandedReceitas(prev => ({
             ...prev,
@@ -809,6 +862,8 @@ function ReceitaFormInner({
     };
 
     const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico && !isCallcenter;
+    const canChangeMedico =
+        receitaFormIsAdmin && isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isCallcenter;
     const canCancel =
         isEditing &&
         !isCallcenter &&
@@ -983,42 +1038,60 @@ function ReceitaFormInner({
                                     </button>
                                 )}
                                 {!isReadOnly && (
-                                    <button
-                                        type="button"
-                                        onClick={handleSubmit}
-                                        disabled={processing || data.itens.length === 0}
-                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    <Tippy
+                                        content={pendenciaSalvarTippyContent}
+                                        disabled={!temPendenciaLegado}
+                                        placement="top"
+                                        theme="light-border"
+                                        {...tippyAquisicaoProps}
                                     >
-                                        {processing ? (
-                                            <>
-                                                <svg className="animate-spin h-4 w-4 text-emerald-600" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                </svg>
-                                                Salvando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                Salvar
-                                            </>
-                                        )}
-                                    </button>
+                                        <span className="w-full inline-flex">
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmit}
+                                                disabled={processing || data.itens.length === 0 || temPendenciaLegado}
+                                                className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                            >
+                                                {processing ? (
+                                                    <>
+                                                        <svg className="animate-spin h-4 w-4 text-emerald-600" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                        </svg>
+                                                        Salvando...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        Salvar
+                                                    </>
+                                                )}
+                                            </button>
+                                        </span>
+                                    </Tippy>
                                 )}
                                 {(isEditing || currentReceitaId) && data.status === 'aberta' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowFinalizarModal(true)}
-                                        disabled={processing || data.itens.length === 0}
-                                        className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                    <Tippy
+                                        content={pendenciaFinalizarTippyContent}
+                                        disabled={!temPendenciaLegado}
+                                        placement="top"
+                                        theme="light-border"
+                                        {...tippyAquisicaoProps}
                                     >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        Finalizar
-                                    </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleAbrirFinalizar}
+                                            disabled={processing || data.itens.length === 0}
+                                            className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Finalizar
+                                        </button>
+                                    </Tippy>
                                 )}
                                 {isEditing && canOpenAssistenteReceita && (
                                     <Link
@@ -1127,43 +1200,61 @@ function ReceitaFormInner({
                                 )}
 
                                 {!isReadOnly && (
-                                    <button
-                                        type="button"
-                                        onClick={handleSubmit}
-                                        disabled={processing || data.itens.length === 0}
-                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    <Tippy
+                                        content={pendenciaSalvarTippyContent}
+                                        disabled={!temPendenciaLegado}
+                                        placement="top"
+                                        theme="light-border"
+                                        {...tippyAquisicaoProps}
                                     >
-                                        {processing ? (
-                                            <>
-                                                <svg className="animate-spin h-4 w-4 text-emerald-600" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                </svg>
-                                                Salvando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                Salvar
-                                            </>
-                                        )}
-                                    </button>
+                                        <span className="inline-flex">
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmit}
+                                                disabled={processing || data.itens.length === 0 || temPendenciaLegado}
+                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                            >
+                                                {processing ? (
+                                                    <>
+                                                        <svg className="animate-spin h-4 w-4 text-emerald-600" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                        </svg>
+                                                        Salvando...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        Salvar
+                                                    </>
+                                                )}
+                                            </button>
+                                        </span>
+                                    </Tippy>
                                 )}
 
                                 {(isEditing || currentReceitaId) && data.status === 'aberta' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowFinalizarModal(true)}
-                                        disabled={processing || data.itens.length === 0}
-                                        className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                    <Tippy
+                                        content={pendenciaFinalizarTippyContent}
+                                        disabled={!temPendenciaLegado}
+                                        placement="top"
+                                        theme="light-border"
+                                        {...tippyAquisicaoProps}
                                     >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        Finalizar
-                                    </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleAbrirFinalizar}
+                                            disabled={processing || data.itens.length === 0}
+                                            className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Finalizar
+                                        </button>
+                                    </Tippy>
                                 )}
 
                                 {isEditing && canOpenAssistenteReceita && (
@@ -1243,12 +1334,28 @@ function ReceitaFormInner({
                                 {!isMedico && (
                                     <div className="flex flex-col gap-1 min-w-0 w-full lg:flex-row lg:items-center lg:gap-2 lg:w-auto lg:max-w-full">
                                         <span className="text-gray-500 flex-shrink-0">Médico:</span>
-                                        <span className="font-medium text-gray-900 break-words">
-                                            {nomeExibicaoSemTitulo(
-                                                medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
-                                                    || receita?.medico?.nome
-                                            ) || '-'}
-                                        </span>
+                                        {canChangeMedico ? (
+                                            <select
+                                                value={data.medico_id}
+                                                onChange={(e) => setData('medico_id', e.target.value)}
+                                                disabled={isReadOnly || !medicos?.length}
+                                                className="min-h-[32px] px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 max-w-full w-full sm:w-auto min-w-[12rem] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                            >
+                                                <option value="">Selecione</option>
+                                                {medicos?.map((medico) => (
+                                                    <option key={medico.id} value={medico.id}>
+                                                        {nomeExibicaoSemTitulo(medico.nome)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <span className="font-medium text-gray-900 break-words">
+                                                {nomeExibicaoSemTitulo(
+                                                    medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                        || receita?.medico?.nome
+                                                ) || '-'}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                                 <div className={`inline-flex items-center shrink-0 px-2 py-0.5 rounded text-xs font-medium leading-tight ${
@@ -1357,8 +1464,25 @@ function ReceitaFormInner({
                                     />
                                 </div>
 
-                                {/* Medico — só alterável em nova receita */}
-                                {isEditing ? (
+                                {/* Médico — admin pode alterar com receita aberta (backend sincroniza atendimento em aberto) */}
+                                {isEditing && canChangeMedico ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
+                                        <select
+                                            value={data.medico_id}
+                                            onChange={(e) => setData('medico_id', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                            disabled={isReadOnly || !medicos?.length}
+                                        >
+                                            <option value="">Selecione</option>
+                                            {medicos?.map((medico) => (
+                                                <option key={medico.id} value={medico.id}>
+                                                    {nomeExibicaoSemTitulo(medico.nome)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : isEditing ? (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
                                         <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
@@ -1494,6 +1618,7 @@ function ReceitaFormInner({
                                                     onRemoveItem={removeItem}
                                                     isLastItem={index === data.itens.length - 1}
                                                     lastItemRef={lastItemRef}
+                                                    registerRef={(i, el) => { legadoRowRefs.current[i] = el; }}
                                                     formatItemTotal={(it) =>
                                                         it.imprimir
                                                             ? new Intl.NumberFormat('pt-BR', {
@@ -1587,6 +1712,7 @@ function ReceitaFormInner({
                                                     onRemoveItem={removeItem}
                                                     isLastItem={index === data.itens.length - 1}
                                                     lastItemRef={lastItemRef}
+                                                    registerRef={(i, el) => { legadoRowRefs.current[i] = el; }}
                                                     formatItemTotal={(it) =>
                                                         it.imprimir
                                                             ? new Intl.NumberFormat('pt-BR', {

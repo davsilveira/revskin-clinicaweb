@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/*
+ * react-day-picker v9: o cabeçalho de dias usa <table> + <thead>/<tr>/<th>.
+ * Preflight/utilitários podem degradar o modelo de exibição da tabela em popovers
+ * estreitos — força layout de tabela para alinhar dom–sáb com as colunas numéricas.
+ */
+.rdp-month_grid {
+    display: table;
+    width: 100%;
+    min-width: 17rem;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+.rdp-month_grid thead {
+    display: table-header-group;
+}
+.rdp-month_grid tbody {
+    display: table-row-group;
+}
+.rdp-month_grid tr {
+    display: table-row;
+}
+.rdp-month_grid th,
+.rdp-month_grid td {
+    display: table-cell;
+    vertical-align: middle;
+}
+
 .login-hero-panel {
     display: none;
     position: relative;

@@ -17,6 +17,7 @@ class Medico extends Model
 
     protected $fillable = [
         'apelido',
+        'nome_legado',
         'crm',
         'uf_crm',
         'cpf',
@@ -143,13 +144,50 @@ class Medico extends Model
     }
 
     /**
-     * Get nome from linked User (fonte unica).
+     * Nome para exibição: User com medico_id, depois users da pivot user_medico, apelido, texto com CRM.
      */
     public function getNomeAttribute(): ?string
     {
-        return $this->linkedUser?->name
-            ?? $this->apelido
-            ?? ($this->crm ? "Médico {$this->crm}" : null);
+        $fromLinked = trim((string) ($this->linkedUser?->name ?? ''));
+        if ($fromLinked !== '') {
+            return $fromLinked;
+        }
+
+        if (! $this->relationLoaded('users')) {
+            $this->loadMissing(['users:id,name']);
+        }
+
+        if ($this->users->isNotEmpty()) {
+            $fromPivot = trim((string) ($this->users->sortBy('name')->first()?->name ?? ''));
+            if ($fromPivot !== '') {
+                return $fromPivot;
+            }
+        }
+
+        $apelido = trim((string) ($this->apelido ?? ''));
+        if ($apelido !== '') {
+            return $apelido;
+        }
+
+        $nomeLegado = trim((string) ($this->nome_legado ?? ''));
+        if ($nomeLegado !== '') {
+            return $nomeLegado;
+        }
+
+        if (! $this->crm) {
+            return null;
+        }
+
+        $crmRaw = trim((string) $this->crm);
+        $hasCrmEmbeddedUf = (bool) preg_match('/crm\s*[-:]?\s*[a-z]{2}\b/ui', $crmRaw)
+            || preg_match('/^\s*crm\s*[-–]?\s*/ui', $crmRaw);
+
+        $uf = trim((string) ($this->uf_crm ?? ''));
+        if ($uf !== '' && ! $hasCrmEmbeddedUf) {
+            return "Médico CRM-{$uf} {$crmRaw}";
+        }
+
+        return "Médico {$crmRaw}";
     }
 
     /**

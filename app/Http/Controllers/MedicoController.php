@@ -25,30 +25,31 @@ class MedicoController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403, 'Acesso restrito a administradores.');
 
-        $query = Medico::query()
+        $medicos = Medico::query()
             ->leftJoin('users', 'users.medico_id', '=', 'medicos.id')
             ->select('medicos.*')
             ->with(['clinica:id,nome', 'clinicas:id,nome', 'enderecos', 'linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('users.name', 'like', "%{$search}%")
+                        ->orWhere('medicos.nome_legado', 'like', "%{$search}%")
+                        ->orWhere('medicos.apelido', 'like', "%{$search}%")
                         ->orWhere('medicos.crm', 'like', "%{$search}%")
                         ->orWhere('medicos.cpf', 'like', "%{$search}%");
                 });
             })
-            ->when($request->clinica_id, fn($q, $clinicaId) => $q->where('medicos.clinica_id', $clinicaId))
-            ->when($request->has('ativo'), fn($q) => $q->where('medicos.ativo', $request->boolean('ativo')))
+            ->when($request->clinica_id, fn ($q, $clinicaId) => $q->where('medicos.clinica_id', $clinicaId))
+            ->when($request->has('ativo'), fn ($q) => $q->where('medicos.ativo', $request->boolean('ativo')))
             ->orderBy('users.name', 'asc')
             ->paginate(15)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function ($medico) {
+                $medico->email = $medico->email1;
+                $medico->telefone = $medico->telefone1;
+                $medico->celular = $medico->telefone2;
 
-        // Map database fields to frontend fields
-        $medicos = $medicosQuery->through(function ($medico) {
-            $medico->email = $medico->email1;
-            $medico->telefone = $medico->telefone1;
-            $medico->celular = $medico->telefone2;
-            return $medico;
-        });
+                return $medico;
+            });
 
         $clinicas = Clinica::ativo()->orderBy('nome')->get(['id', 'nome']);
 

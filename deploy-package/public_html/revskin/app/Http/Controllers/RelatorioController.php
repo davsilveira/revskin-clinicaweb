@@ -75,7 +75,7 @@ class RelatorioController extends Controller
         $dados = null;
         // Executar query se houver filtros ou se houver paginação (page parameter)
         if ($request->has('medico_id') || $request->has('data_inicio') || $request->has('page')) {
-            $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
+            $query = Receita::with(['paciente:id,nome', 'medico:id,apelido,crm,uf_crm', 'medico.linkedUser:id,name,medico_id', 'medico.users:id,name'])
                 ->whereIn('status', ['finalizada', 'aberta'])
                 ->when($request->medico_id, fn ($q, $id) => $q->where('medico_id', $id))
                 ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
@@ -117,7 +117,7 @@ class RelatorioController extends Controller
             'data_fim' => 'nullable|date',
         ]);
 
-        $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
+        $query = Receita::with(['paciente:id,nome', 'medico:id,apelido,crm,uf_crm', 'medico.linkedUser:id,name,medico_id', 'medico.users:id,name'])
             ->whereIn('status', ['finalizada', 'aberta'])
             ->when($request->medico_id, fn ($q, $id) => $q->where('medico_id', $id))
             ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
