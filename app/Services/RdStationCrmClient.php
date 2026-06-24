@@ -238,7 +238,10 @@ class RdStationCrmClient
             ->contentType('application/json');
 
         return match (strtoupper($method)) {
-            'GET' => $http->get($url, $data),
+            // Laravel Http::get($url, []) drops query params already present in $url.
+            'GET' => $data !== []
+                ? $http->get($url, $data)
+                : $http->get($url),
             'POST' => $http->post($url, $data),
             'PUT' => $http->put($url, $data),
             'PATCH' => $http->patch($url, $data),
