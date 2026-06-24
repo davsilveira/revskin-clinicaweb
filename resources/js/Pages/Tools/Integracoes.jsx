@@ -167,6 +167,22 @@ const formatDate = (value) => {
     }
 };
 
+const formatRetrySchedule = (row) => {
+    if (row.in_flight && row.last_dispatched_at) {
+        return `Enviado ${formatDate(row.last_dispatched_at)}`;
+    }
+    if (row.next_retry_at) {
+        return formatDate(row.next_retry_at);
+    }
+    if (row.exhausted) {
+        if (row.job_label === 'Importar pacientes') {
+            return 'Cron (10 min)';
+        }
+        return 'Sem auto-retry';
+    }
+    return '—';
+};
+
 function IntegrationFilters({
     days,
     queue,
@@ -452,7 +468,7 @@ function RetryStateTable({ rows }) {
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">{row.fast_retries_left}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{row.delayed_retry_left}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(row.next_retry_at)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatRetrySchedule(row)}</td>
                             <td className="px-4 py-3">
                                 {row.exhausted ? (
                                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge('exhausted')}`}>

@@ -32,6 +32,7 @@ class IntegrationJobFailureRetryService
     {
         $this->ingestFromFailedJobs();
         $this->dispatchDueRetries();
+        $this->cleanupOrphanStates();
         $this->cleanupInFlightSuccesses();
     }
 
@@ -103,6 +104,8 @@ class IntegrationJobFailureRetryService
         }
 
         if ($state->last_failed_job_uuid === $row->uuid) {
+            $this->repairMissingNextRetryAt($state, $row, $failedAt);
+
             return;
         }
 
@@ -313,6 +316,61 @@ class IntegrationJobFailureRetryService
                 ]);
             }
             $state->delete();
+        }
+    }
+
+    public function cleanupOrphanStates(): void
+    {
+        $activeFingerprints = array_flip(array_keys($this->latestFailedByFingerprint()));
+
+        IntegrationJobFailureState::query()
+            ->where('in_flight', false)
+            ->get()
+            ->each(function (IntegrationJobFailureState $state) use ($activeFingerprints) {
+                if (isset($activeFingerprints[$state->fingerprint])) {
+                    return;
+                }
+
+                if ($this->logDebug) {
+                    Log::debug('integration_retry: removendo estado órfão', [
+                        'fingerprint' => $state->fingerprint,
+                    ]);
+                }
+
+                $state->delete();
+            });
+    }
+
+    /**
+     * @param  stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string, exception: string }  $row
+     */
+    private function repairMissingNextRetryAt(
+        IntegrationJobFailureState $state,
+        stdClass $row,
+        Carbon $failedAt
+    ): void {
+        if ($state->in_flight || $state->exhausted || $state->next_retry_at !== null) {
+            return;
+        }
+
+        if ($state->fast_retries_left <= 0 && $state->delayed_retry_left <= 0) {
+            return;
+        }
+
+        if ($this->shouldDeferToSchedule($row)) {
+            return;
+        }
+
+        $state->next_retry_at = $state->fast_retries_left > 0
+            ? $failedAt->copy()->addMinutes($this->fastRetryMinutes($row))
+            : $failedAt->copy()->addHours(self::DELAYED_INTERVAL_HOURS);
+        $state->save();
+
+        if ($this->logDebug) {
+            Log::debug('integration_retry: next_retry_at reparado', [
+                'fingerprint' => $state->fingerprint,
+                'next' => $state->next_retry_at->toIso8601String(),
+            ]);
         }
     }
 

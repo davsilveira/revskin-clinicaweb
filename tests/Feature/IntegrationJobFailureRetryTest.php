@@ -81,9 +81,53 @@ class IntegrationJobFailureRetryTest extends TestCase
         $this->assertSame(0, (int) $state->fast_retries_left);
     }
 
-    private function insertFailedJob(SyncProdutosTinyJob|PullPacientesTinyJob $job, string $exception = 'test'): void
+    #[Test]
+    public function ingest_repairs_missing_next_retry_at_for_same_failed_uuid(): void
     {
+        $t0 = Carbon::parse('2026-01-15 10:00:00');
+        Carbon::setTestNow($t0);
+
+        $job = new SyncProdutosTinyJob;
         $uuid = (string) str()->uuid();
+        $this->insertFailedJobWithUuid($job, $uuid);
+
+        $service = new IntegrationJobFailureRetryService(false);
+        $service->ingestFromFailedJobs();
+
+        $state = IntegrationJobFailureState::first();
+        $this->assertNotNull($state);
+        $state->update(['next_retry_at' => null, 'in_flight' => false]);
+
+        $service->ingestFromFailedJobs();
+        $state->refresh();
+
+        $this->assertNotNull($state->next_retry_at);
+        $this->assertSame(
+            $t0->copy()->addMinutes(5)->format('Y-m-d H:i:s'),
+            $state->next_retry_at->format('Y-m-d H:i:s')
+        );
+    }
+
+    #[Test]
+    public function cleanup_orphan_states_removes_states_without_failed_job(): void
+    {
+        IntegrationJobFailureState::query()->create([
+            'fingerprint' => 'orphan-fingerprint',
+            'last_failed_job_uuid' => (string) str()->uuid(),
+            'next_retry_at' => null,
+            'fast_retries_left' => 3,
+            'delayed_retry_left' => 1,
+            'exhausted' => false,
+            'in_flight' => false,
+        ]);
+
+        (new IntegrationJobFailureRetryService(false))->run();
+
+        $this->assertDatabaseCount('integration_job_failure_states', 0);
+    }
+
+    private function insertFailedJobWithUuid(SyncProdutosTinyJob|PullPacientesTinyJob $job, string $uuid, string $exception = 'test'): void
+    {
         $inner = [
             'uuid' => $uuid,
             'displayName' => $job::class,
@@ -97,5 +141,10 @@ class IntegrationJobFailureRetryTest extends TestCase
             'exception' => $exception,
             'failed_at' => now(),
         ]);
+    }
+
+    private function insertFailedJob(SyncProdutosTinyJob|PullPacientesTinyJob $job, string $exception = 'test'): void
+    {
+        $this->insertFailedJobWithUuid($job, (string) str()->uuid(), $exception);
     }
 }

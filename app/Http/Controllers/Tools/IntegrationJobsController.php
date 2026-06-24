@@ -81,6 +81,7 @@ class IntegrationJobsController extends Controller
             }
             $retryService->resetStateForManualRetry($uuid);
             if (Artisan::call('queue:retry', ['id' => [$uuid]]) === 0) {
+                $retryService->markInFlightForManualRetry($uuid);
                 $retried++;
             }
         }

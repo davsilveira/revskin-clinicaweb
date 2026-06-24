@@ -62,6 +62,13 @@
             padding-bottom: 14px;
             border-bottom: 1px solid #bbb;
         }
+        .receita-numero {
+            font-size: 11px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            letter-spacing: 0.02em;
+        }
         .paciente-para {
             font-size: 12px;
             font-weight: bold;
@@ -355,6 +362,7 @@
     @endif
 
     <div class="bloco-paciente">
+        <div class="receita-numero">Receita nº {{ $receita->numero ?? ('REC-'.$receita->id) }}</div>
         <div class="paciente-para">Para:
             {{ mb_strtoupper(trim((string) ($pac->nome ?? '')), 'UTF-8') }}
         </div>

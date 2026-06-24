@@ -361,11 +361,15 @@ class IntegrationJobInspector
 
         return $statesByFingerprint
             ->filter(function (IntegrationJobFailureState $state) use ($since, $failedByFingerprint, $filters) {
-                if ($state->updated_at === null || $state->updated_at->lt($since)) {
+                $failedRow = $failedByFingerprint[$state->fingerprint] ?? null;
+
+                if ($failedRow === null && ! $state->in_flight) {
                     return false;
                 }
 
-                $failedRow = $failedByFingerprint[$state->fingerprint] ?? null;
+                if ($state->updated_at === null || $state->updated_at->lt($since)) {
+                    return false;
+                }
 
                 if ($filters->queue && ($failedRow['queue'] ?? null) !== $filters->queue) {
                     return false;
