@@ -19,11 +19,11 @@ else
     PHP=php
 fi
 
-PHP_MAJOR=$("$PHP" -r 'echo PHP_MAJOR_VERSION;".".PHP_MINOR_VERSION;' 2>/dev/null || echo "unknown")
-echo "    PHP=$PHP ($PHP_MAJOR)"
+PHP_VERSION=$("$PHP" -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
+echo "    PHP=$PHP ($PHP_VERSION)"
 
-if [ "$PHP_MAJOR" = "unknown" ] || { [ "$PHP_MAJOR" != "8.4" ] && [ "$PHP_MAJOR" != "8.5" ]; }; then
-    echo "ERRO: PHP $PHP_MAJOR em $PHP — requer >= 8.4."
+if ! "$PHP" -r 'exit version_compare(PHP_VERSION, "8.4.0", ">=") ? 0 : 1;' 2>/dev/null; then
+    echo "ERRO: PHP $PHP_VERSION em $PHP — requer >= 8.4."
     echo "      Hostinger: hPanel → Avançado → Configuração PHP → 8.4"
     echo "      Ou export HOSTINGER_PHP=/opt/alt/php84/usr/bin/php antes de rodar este script."
     exit 1
