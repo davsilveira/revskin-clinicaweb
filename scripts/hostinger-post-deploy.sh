@@ -7,10 +7,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="${HOSTINGER_APP_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 PUBLIC_HTML="${HOSTINGER_PUBLIC_HTML:-$(dirname "$APP_DIR")}"
 
-if [ -x /usr/bin/php ]; then
-    PHP="/usr/bin/php"
+if [ -n "${HOSTINGER_PHP:-}" ] && [ -x "${HOSTINGER_PHP}" ]; then
+    PHP="${HOSTINGER_PHP}"
+elif [ -x /opt/alt/php84/usr/bin/php ]; then
+    PHP=/opt/alt/php84/usr/bin/php
+elif [ -x /usr/bin/php84 ]; then
+    PHP=/usr/bin/php84
+elif [ -x /usr/bin/php ]; then
+    PHP=/usr/bin/php
 else
-    PHP="${HOSTINGER_PHP:-php}"
+    PHP=php
+fi
+
+PHP_MAJOR=$("$PHP" -r 'echo PHP_MAJOR_VERSION;".".PHP_MINOR_VERSION;' 2>/dev/null || echo "unknown")
+echo "    PHP=$PHP ($PHP_MAJOR)"
+
+if [ "$PHP_MAJOR" = "unknown" ] || { [ "$PHP_MAJOR" != "8.4" ] && [ "$PHP_MAJOR" != "8.5" ]; }; then
+    echo "ERRO: PHP $PHP_MAJOR em $PHP — requer >= 8.4."
+    echo "      Hostinger: hPanel → Avançado → Configuração PHP → 8.4"
+    echo "      Ou export HOSTINGER_PHP=/opt/alt/php84/usr/bin/php antes de rodar este script."
+    exit 1
 fi
 
 echo "==> Post-deploy Revskin"
