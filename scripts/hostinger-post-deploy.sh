@@ -43,7 +43,16 @@ fi
 
 $PHP artisan down --retry=60 2>/dev/null || true
 
-$PHP artisan migrate --force
+finish_deploy() {
+    $PHP artisan up 2>/dev/null || true
+}
+trap finish_deploy EXIT
+
+if ! $PHP artisan migrate --force; then
+    echo "AVISO: migrate falhou — o schema pode já estar atualizado (ex.: coluna duplicada)."
+    echo "       Revise a tabela migrations no banco se necessário."
+fi
+
 $PHP artisan optimize:clear
 $PHP artisan config:cache
 $PHP artisan route:cache
@@ -55,6 +64,7 @@ ln -sfn "$APP_DIR/storage/app/public" "$PUBLIC_HTML/storage"
 
 $PHP artisan storage:link --force 2>/dev/null || true
 
-$PHP artisan up 2>/dev/null || true
+trap - EXIT
+finish_deploy
 
 echo "==> Post-deploy concluído."
