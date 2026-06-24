@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\CancelarPedidoTinyJob;
 use App\Jobs\CriarNegociacaoRdStationJob;
 use App\Jobs\CriarPedidoTinyJob;
 use App\Jobs\ProcessWebhookTinyJob;
@@ -17,6 +18,7 @@ class IntegrationJobFingerprint
     public const MANAGED_CLASSES = [
         CriarNegociacaoRdStationJob::class,
         CriarPedidoTinyJob::class,
+        CancelarPedidoTinyJob::class,
         ProcessWebhookTinyJob::class,
         SyncClienteTinyJob::class,
         SyncVendaTinyJob::class,
@@ -34,6 +36,7 @@ class IntegrationJobFingerprint
     public const JOB_LABELS = [
         CriarNegociacaoRdStationJob::class => 'Criar negociação',
         CriarPedidoTinyJob::class => 'Criar pedido',
+        CancelarPedidoTinyJob::class => 'Cancelar pedido',
         ProcessWebhookTinyJob::class => 'Webhook pedido',
         SyncClienteTinyJob::class => 'Sync cliente',
         SyncVendaTinyJob::class => 'Sync venda',

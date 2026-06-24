@@ -13,6 +13,7 @@ use App\Models\ReceitaItem;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\ReceitaProdutoLegadoGuard;
+use App\Services\TinyPedidoSync;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -572,6 +573,8 @@ class ReceitaController extends Controller
         if (! request()->user()->canAccessPaciente($receita->paciente)) {
             abort(403, 'Acesso não autorizado.');
         }
+
+        TinyPedidoSync::agendarCancelamento($receita);
 
         $receita->update(['status' => 'cancelada', 'ativo' => false]);
 

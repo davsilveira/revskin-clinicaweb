@@ -7,6 +7,7 @@ use App\Models\Medico;
 use App\Models\Produto;
 use App\Models\ReceitaItemAquisicao;
 use App\Models\Setting;
+use App\Services\TinyPedidoSync;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -146,6 +147,11 @@ class CallCenterController extends Controller
             $this->registrarDatasAquisicao($atendimento);
         }
 
+        if ($novoStatus === AtendimentoCallcenter::STATUS_CANCELADO && $statusAnterior !== $novoStatus) {
+            $atendimento->load('receita');
+            TinyPedidoSync::agendarCancelamento($atendimento->receita);
+        }
+
         return back()->with('success', 'Status atualizado com sucesso!');
     }
 
@@ -204,6 +210,14 @@ class CallCenterController extends Controller
             'ids' => 'required|array',
             'ids.*' => 'exists:atendimentos_callcenter,id',
         ]);
+
+        $atendimentos = AtendimentoCallcenter::with('receita')
+            ->whereIn('id', $validated['ids'])
+            ->get();
+
+        foreach ($atendimentos as $atendimento) {
+            TinyPedidoSync::agendarCancelamento($atendimento->receita);
+        }
 
         AtendimentoCallcenter::whereIn('id', $validated['ids'])
             ->update([

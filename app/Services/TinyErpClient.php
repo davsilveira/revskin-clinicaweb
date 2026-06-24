@@ -602,16 +602,42 @@ class TinyErpClient
         return $this->makeRequest('PUT', "pedidos/{$id}", $data);
     }
 
-    public function atualizarSituacaoPedido(int $id, string $situacao): array
+    public function atualizarSituacaoPedido(int $id, string|int $situacao): array
     {
         if ($this->isV2()) {
             return $this->makeV2Request('pedido.alterar.situacao.php', [
                 'id' => $id,
-                'situacao' => $situacao,
+                'situacao' => is_int($situacao) ? (string) $situacao : $situacao,
             ]);
         }
 
         return $this->makeRequest('PUT', "pedidos/{$id}/situacao", ['situacao' => $situacao]);
+    }
+
+    public const SITUACAO_CANCELADA_V3 = 2;
+
+    public function cancelarPedido(int $id): array
+    {
+        if ($this->isV2()) {
+            return $this->atualizarSituacaoPedido($id, 'cancelado');
+        }
+
+        return $this->atualizarSituacaoPedido($id, self::SITUACAO_CANCELADA_V3);
+    }
+
+    public static function isSituacaoPedidoCancelada(mixed $situacao): bool
+    {
+        if ($situacao === null || $situacao === '') {
+            return false;
+        }
+
+        if (is_numeric($situacao)) {
+            return (int) $situacao === self::SITUACAO_CANCELADA_V3;
+        }
+
+        $norm = mb_strtolower(trim((string) $situacao));
+
+        return in_array($norm, ['cancelado', 'cancelada', 'devolvido', 'devolvida'], true);
     }
 
     // ─── V2 Data Normalization / Payload Building ──────────────
