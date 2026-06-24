@@ -163,19 +163,27 @@ class RdStationCrmClient
      */
     public function makeRequest(string $method, string $endpoint, array $data = [], array $query = [], bool $jsonPreserveZeroFraction = false): array
     {
+        $url = rtrim($this->baseUrl, '/').'/'.ltrim($endpoint, '/');
+        if (! empty($query)) {
+            $url .= '?'.http_build_query($query);
+        }
+
+        return $this->executeAuthenticatedRequest($method, $url, $data, $jsonPreserveZeroFraction);
+    }
+
+    /**
+     * @param  bool  $jsonPreserveZeroFraction  quando true, envia floats JSON como `100.0` em vez de `100` — exigência do CRM v2 para `one_time_price`, `price`, etc.
+     */
+    protected function executeAuthenticatedRequest(string $method, string $url, array $data = [], bool $jsonPreserveZeroFraction = false): array
+    {
         $token = $this->obterAccessToken();
 
-        if (!$token) {
+        if (! $token) {
             return [
                 'status' => 'error',
                 'message' => $this->lastError ?? 'Não foi possível obter access token.',
                 'requires_auth' => true,
             ];
-        }
-
-        $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
-        if (!empty($query)) {
-            $url .= '?' . http_build_query($query);
         }
 
         Log::debug('RD Station CRM Request', ['method' => $method, 'url' => $url]);
@@ -204,7 +212,7 @@ class RdStationCrmClient
             }
 
             Log::error('RD Station CRM Error', [
-                'endpoint' => $endpoint,
+                'url' => $url,
                 'status' => $response->status(),
                 'body' => $response->json(),
             ]);
@@ -216,7 +224,8 @@ class RdStationCrmClient
                 'data' => $response->json(),
             ];
         } catch (\Exception $e) {
-            Log::error('RD Station CRM Exception', ['endpoint' => $endpoint, 'message' => $e->getMessage()]);
+            Log::error('RD Station CRM Exception', ['url' => $url, 'message' => $e->getMessage()]);
+
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
@@ -301,9 +310,48 @@ class RdStationCrmClient
         return 'name:'.$nome;
     }
 
+    protected function formatRdqlMatchFilter(string $nome): string
+    {
+        $nome = trim($nome);
+        if ($nome === '') {
+            return 'name:~';
+        }
+        if (preg_match('/[\s"\\\\]/', $nome)) {
+            return 'name:~"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $nome).'"';
+        }
+
+        return 'name:~'.$nome;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function buildNameSearchFilters(string $nome): array
+    {
+        $nome = trim($nome);
+        if ($nome === '') {
+            return ['name:~', 'name:'];
+        }
+
+        $filters = [
+            $this->formatRdqlMatchFilter($nome),
+            $this->formatRdqlNameFilter($nome),
+        ];
+
+        $firstToken = strtok($nome, ' ');
+        if (is_string($firstToken) && $firstToken !== '' && $firstToken !== $nome) {
+            $filters[] = $this->formatRdqlMatchFilter($firstToken);
+            $filters[] = $this->formatRdqlNameFilter($firstToken);
+        }
+
+        return array_values(array_unique($filters));
+    }
+
     protected function normalizeNome(string $nome): string
     {
-        return mb_strtolower(trim(Str::ascii($nome)));
+        $collapsed = preg_replace('/\s+/u', ' ', trim($nome));
+
+        return mb_strtolower(Str::ascii($collapsed ?? ''));
     }
 
     /**
@@ -378,30 +426,47 @@ class RdStationCrmClient
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return list<array<string, mixed>>
      */
-    protected function buscarOrganizacaoPorNomeExato(string $nome, bool $useMatchFallback = false): ?array
+    protected function listarRecursoComFiltro(string $endpoint, string $filter, int $pageSize = 25, int $maxPages = 10): array
     {
-        $filters = [$this->formatRdqlNameFilter($nome)];
-        if ($useMatchFallback) {
-            $term = trim($nome);
-            if ($term !== '') {
-                $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $term);
-                $firstToken = strtok($term, ' ');
-                if (is_string($firstToken) && $firstToken !== '' && $firstToken !== $term) {
-                    $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $firstToken);
-                }
+        $url = rtrim($this->baseUrl, '/').'/'.ltrim($endpoint, '/');
+        $url .= '?'.http_build_query($this->buildListQuery($filter, $pageSize));
+
+        $items = [];
+        for ($page = 0; $page < $maxPages; $page++) {
+            $result = $this->executeAuthenticatedRequest('GET', $url);
+            if ($result['status'] !== 'success') {
+                break;
             }
+
+            $items = array_merge($items, $this->extrairItensListagem($result));
+
+            $next = $result['data']['links']['next'] ?? null;
+            if (! is_string($next) || $next === '') {
+                break;
+            }
+
+            $url = $next;
         }
 
-        foreach ($filters as $filter) {
-            $result = $this->listarOrganizacoes($filter, 25);
-            foreach ($this->extrairItensListagem($result) as $org) {
-                if (! isset($org['id'])) {
+        return $items;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function buscarRecursoPorNome(string $endpoint, string $nome): ?array
+    {
+        $normalizedTarget = $this->normalizeNome($nome);
+
+        foreach ($this->buildNameSearchFilters($nome) as $filter) {
+            foreach ($this->listarRecursoComFiltro($endpoint, $filter) as $item) {
+                if (! isset($item['id'])) {
                     continue;
                 }
-                if ($this->normalizeNome((string) ($org['name'] ?? '')) === $this->normalizeNome($nome)) {
-                    return $org;
+                if ($this->normalizeNome((string) ($item['name'] ?? '')) === $normalizedTarget) {
+                    return $item;
                 }
             }
         }
@@ -412,33 +477,17 @@ class RdStationCrmClient
     /**
      * @return array<string, mixed>|null
      */
-    protected function buscarContatoPorNomeExato(string $nome, bool $useMatchFallback = false): ?array
+    protected function buscarOrganizacaoPorNomeExato(string $nome): ?array
     {
-        $filters = [$this->formatRdqlNameFilter($nome)];
-        if ($useMatchFallback) {
-            $term = trim($nome);
-            if ($term !== '') {
-                $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $term);
-                $firstToken = strtok($term, ' ');
-                if (is_string($firstToken) && $firstToken !== '' && $firstToken !== $term) {
-                    $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $firstToken);
-                }
-            }
-        }
+        return $this->buscarRecursoPorNome('organizations', $nome);
+    }
 
-        foreach ($filters as $filter) {
-            $result = $this->listarContatos($filter, 25);
-            foreach ($this->extrairItensListagem($result) as $contact) {
-                if (! isset($contact['id'])) {
-                    continue;
-                }
-                if ($this->normalizeNome((string) ($contact['name'] ?? '')) === $this->normalizeNome($nome)) {
-                    return $contact;
-                }
-            }
-        }
-
-        return null;
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function buscarContatoPorNomeExato(string $nome): ?array
+    {
+        return $this->buscarRecursoPorNome('contacts', $nome);
     }
 
     public function listarOrganizacoes(string $filter = '', int $limit = 20): array
@@ -469,30 +518,24 @@ class RdStationCrmClient
     {
         $context = ['paciente_nome' => $nome, 'existing_org_id' => $existingOrgId];
 
-        if (!empty($existingOrgId)) {
+        if (! empty($existingOrgId)) {
             $getResult = $this->obterOrganizacao($existingOrgId);
             if ($getResult['status'] === 'success') {
                 $org = $getResult['data']['data'] ?? $getResult['data'] ?? [];
-                $orgName = $org['name'] ?? '';
-                if (trim($orgName) === trim($nome)) {
-                    Log::info('RD Station CRM: Organização reutilizada (rd_organization_id)', [
-                        ...$context,
-                        'organization_id' => $existingOrgId,
-                        'org_name' => $orgName,
-                        'action' => 'reused',
-                    ]);
-                    return ['status' => 'success', 'data' => $org, 'action' => 'reused'];
-                }
-                Log::warning('RD Station CRM: rd_organization_id existe mas nome não confere, buscando por nome', [
+                Log::info('RD Station CRM: Organização reutilizada (rd_organization_id)', [
                     ...$context,
-                    'org_name_no_rd' => $orgName,
+                    'organization_id' => $existingOrgId,
+                    'org_name' => $org['name'] ?? null,
+                    'action' => 'reused',
                 ]);
-            } else {
-                Log::info('RD Station CRM: rd_organization_id inválido ou org removida, buscando por nome', [
-                    ...$context,
-                    'get_error' => $getResult['message'] ?? null,
-                ]);
+
+                return ['status' => 'success', 'data' => $org, 'action' => 'reused'];
             }
+
+            Log::info('RD Station CRM: rd_organization_id inválido ou org removida, buscando por nome', [
+                ...$context,
+                'get_error' => $getResult['message'] ?? null,
+            ]);
         }
 
         $org = $this->buscarOrganizacaoPorNomeExato($nome);
@@ -525,7 +568,7 @@ class RdStationCrmClient
                 ...$context,
                 'error' => $createResult['message'] ?? null,
             ]);
-            $org = $this->buscarOrganizacaoPorNomeExato($nome, true);
+            $org = $this->buscarOrganizacaoPorNomeExato($nome);
             if ($org !== null) {
                 Log::info('RD Station CRM: Organização reutilizada após erro de duplicata', [
                     ...$context,
@@ -536,6 +579,12 @@ class RdStationCrmClient
 
                 return ['status' => 'success', 'data' => $org, 'action' => 'found_after_duplicate'];
             }
+
+            Log::warning('RD Station CRM: Duplicata detectada mas organização não encontrada na busca', [
+                ...$context,
+                'filters_tried' => $this->buildNameSearchFilters($nome),
+                'error' => $createResult['message'] ?? null,
+            ]);
         }
 
         return $createResult;
@@ -599,7 +648,7 @@ class RdStationCrmClient
                 'nome' => $nome,
                 'error' => $createResult['message'] ?? null,
             ]);
-            $contact = $this->buscarContatoPorNomeExato($nome, true);
+            $contact = $this->buscarContatoPorNomeExato($nome);
             if ($contact !== null) {
                 $updateResult = $this->atualizarContato($contact['id'], $contactData);
                 if ($updateResult['status'] === 'success') {
