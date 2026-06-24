@@ -22,7 +22,7 @@ fi
 PHP_VERSION=$("$PHP" -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
 echo "    PHP=$PHP ($PHP_VERSION)"
 
-if ! "$PHP" -r 'exit version_compare(PHP_VERSION, "8.4.0", ">=") ? 0 : 1;' 2>/dev/null; then
+if [ "$PHP_VERSION" = "unknown" ] || [ "$(printf '%s\n' '8.4.0' "$PHP_VERSION" | sort -V | head -1)" != "8.4.0" ]; then
     echo "ERRO: PHP $PHP_VERSION em $PHP — requer >= 8.4."
     echo "      Hostinger: hPanel → Avançado → Configuração PHP → 8.4"
     echo "      Ou export HOSTINGER_PHP=/opt/alt/php84/usr/bin/php antes de rodar este script."
