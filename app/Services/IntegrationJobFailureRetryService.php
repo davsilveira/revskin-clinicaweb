@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\PullPacientesTinyJob;
 use App\Models\IntegrationJobFailureState;
 use Carbon\Carbon;
 use DateTimeInterface;
@@ -13,6 +14,8 @@ use stdClass;
 class IntegrationJobFailureRetryService
 {
     private const FAST_INTERVAL_MINUTES = 5;
+
+    private const PULL_PACIENTES_RETRY_MINUTES = 10;
 
     private const DELAYED_INTERVAL_HOURS = 12;
 
@@ -33,14 +36,14 @@ class IntegrationJobFailureRetryService
     }
 
     /**
-     * @return list<stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string }>
+     * @return list<stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string, exception: string }>
      */
     public function loadIntegrationFailedRows(): array
     {
         $rows = DB::table('failed_jobs')
             ->whereIn('queue', IntegrationJobFingerprint::INTEGRATION_QUEUES)
             ->orderBy('id')
-            ->get(['uuid', 'failed_at', 'payload', 'queue']);
+            ->get(['uuid', 'failed_at', 'payload', 'queue', 'exception']);
 
         $out = [];
         foreach ($rows as $row) {
@@ -65,21 +68,22 @@ class IntegrationJobFailureRetryService
     }
 
     /**
-     * @param  stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string }  $row
+     * @param  stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string, exception: string }  $row
      */
     private function ingestOneFingerprint(string $fingerprint, stdClass $row): void
     {
         $failedAt = $this->parseFailedAt($row->failed_at);
+        $skipAutoRetry = $this->shouldDeferToSchedule($row);
         $state = IntegrationJobFailureState::query()->where('fingerprint', $fingerprint)->first();
 
         if ($state === null) {
             IntegrationJobFailureState::query()->create([
                 'fingerprint' => $fingerprint,
                 'last_failed_job_uuid' => $row->uuid,
-                'next_retry_at' => $failedAt->copy()->addMinutes(self::FAST_INTERVAL_MINUTES),
-                'fast_retries_left' => 3,
-                'delayed_retry_left' => 1,
-                'exhausted' => false,
+                'next_retry_at' => $skipAutoRetry ? null : $failedAt->copy()->addMinutes($this->fastRetryMinutes($row)),
+                'fast_retries_left' => $skipAutoRetry ? 0 : 3,
+                'delayed_retry_left' => $skipAutoRetry ? 0 : 1,
+                'exhausted' => $skipAutoRetry,
                 'in_flight' => false,
                 'last_dispatched_at' => null,
             ]);
@@ -107,7 +111,14 @@ class IntegrationJobFailureRetryService
         $state->last_dispatched_at = null;
 
         if ($state->fast_retries_left > 0) {
-            $state->next_retry_at = $failedAt->copy()->addMinutes(self::FAST_INTERVAL_MINUTES);
+            if ($this->shouldDeferToSchedule($row)) {
+                $state->fast_retries_left = 0;
+                $state->delayed_retry_left = 0;
+                $state->exhausted = true;
+                $state->next_retry_at = null;
+            } else {
+                $state->next_retry_at = $failedAt->copy()->addMinutes($this->fastRetryMinutes($row));
+            }
         } elseif ($state->delayed_retry_left > 0) {
             $state->next_retry_at = $failedAt->copy()->addHours(self::DELAYED_INTERVAL_HOURS);
         } else {
@@ -303,6 +314,45 @@ class IntegrationJobFailureRetryService
             }
             $state->delete();
         }
+    }
+
+    /**
+     * @param  stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string, exception: string }  $row
+     */
+    private function fastRetryMinutes(stdClass $row): int
+    {
+        if ($this->isPullPacientesJob($row)) {
+            return self::PULL_PACIENTES_RETRY_MINUTES;
+        }
+
+        return self::FAST_INTERVAL_MINUTES;
+    }
+
+    /**
+     * @param  stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string, exception: string }  $row
+     */
+    private function shouldDeferToSchedule(stdClass $row): bool
+    {
+        return $this->isPullPacientesJob($row) && $this->isTinyRateLimitException((string) ($row->exception ?? ''));
+    }
+
+    /**
+     * @param  stdClass&object{ uuid: string, failed_at: string, payload: string, queue: string, exception: string }  $row
+     */
+    private function isPullPacientesJob(stdClass $row): bool
+    {
+        $parsed = IntegrationJobFingerprint::fromFailedJobPayload((string) $row->payload);
+
+        return ($parsed['class'] ?? null) === PullPacientesTinyJob::class;
+    }
+
+    private function isTinyRateLimitException(string $exception): bool
+    {
+        $lower = mb_strtolower($exception);
+
+        return str_contains($lower, 'api bloqueada')
+            || str_contains($lower, 'excedido o número de acessos')
+            || str_contains($lower, 'excedido o numero de acessos');
     }
 
     private function parseFailedAt(mixed $value): Carbon

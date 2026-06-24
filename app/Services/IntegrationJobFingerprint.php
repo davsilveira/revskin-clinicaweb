@@ -41,12 +41,20 @@ class IntegrationJobFingerprint
         PullPacientesTinyJob::class => 'Importar pacientes',
     ];
 
+    /** @var array<class-string, string> Jobs ativos no filtro da UI */
+    public const FILTER_JOB_LABELS = [
+        CriarNegociacaoRdStationJob::class => 'Criar negociação',
+        SyncClienteTinyJob::class => 'Sync cliente',
+        SyncProdutosTinyJob::class => 'Sync produtos',
+        PullPacientesTinyJob::class => 'Importar pacientes',
+    ];
+
     /**
      * @return list<array{value: class-string, label: string}>
      */
     public static function jobOptions(): array
     {
-        return collect(self::JOB_LABELS)
+        return collect(self::FILTER_JOB_LABELS)
             ->map(fn (string $label, string $class) => [
                 'value' => class_basename($class),
                 'label' => $label,

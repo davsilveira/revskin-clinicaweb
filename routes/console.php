@@ -21,8 +21,11 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::job(new SyncProdutosTinyJob)->dailyAt('12:00')->name('tiny-sync-produtos-12h');
 Schedule::job(new SyncProdutosTinyJob)->dailyAt('00:00')->name('tiny-sync-produtos-00h');
 
-// Tiny → ClincaWeb: contatos alterados no ERP (API V2)
-Schedule::job(new PullPacientesTinyJob)->dailyAt('04:00')->name('tiny-pull-pacientes-04h');
+// Tiny → ClincaWeb: contatos alterados no ERP (API V2), incremental a cada 10 min
+Schedule::job(new PullPacientesTinyJob)
+    ->everyTenMinutes()
+    ->withoutOverlapping()
+    ->name('tiny-pull-pacientes');
 
 // Reenvio automático de jobs falhos (RD/Tiny): 5 min + 12 h (ver IntegrationJobFailureRetryService)
 Schedule::command('integration:retry-failed')->everyMinute()->name('integration-retry-failed');

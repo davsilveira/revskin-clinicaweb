@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\PullPacientesTinyJob;
 use App\Jobs\SyncProdutosTinyJob;
 use App\Models\IntegrationJobFailureState;
 use App\Services\IntegrationJobFailureRetryService;
@@ -66,12 +67,26 @@ class IntegrationJobFailureRetryTest extends TestCase
         $this->assertSame(2, (int) $state->fast_retries_left);
     }
 
-    private function insertFailedJob(SyncProdutosTinyJob $job): void
+    #[Test]
+    public function pull_pacientes_rate_limit_defers_auto_retry_to_schedule(): void
+    {
+        $this->insertFailedJob(new PullPacientesTinyJob, 'RuntimeException: API Bloqueada - Excedido o número de acessos a API');
+
+        (new IntegrationJobFailureRetryService(false))->ingestFromFailedJobs();
+
+        $state = IntegrationJobFailureState::first();
+        $this->assertNotNull($state);
+        $this->assertTrue($state->exhausted);
+        $this->assertNull($state->next_retry_at);
+        $this->assertSame(0, (int) $state->fast_retries_left);
+    }
+
+    private function insertFailedJob(SyncProdutosTinyJob|PullPacientesTinyJob $job, string $exception = 'test'): void
     {
         $uuid = (string) str()->uuid();
         $inner = [
             'uuid' => $uuid,
-            'displayName' => SyncProdutosTinyJob::class,
+            'displayName' => $job::class,
             'data' => ['command' => serialize($job)],
         ];
         DB::table('failed_jobs')->insert([
@@ -79,7 +94,7 @@ class IntegrationJobFailureRetryTest extends TestCase
             'connection' => 'database',
             'queue' => 'tiny-sync',
             'payload' => json_encode($inner, JSON_THROW_ON_ERROR),
-            'exception' => 'test',
+            'exception' => $exception,
             'failed_at' => now(),
         ]);
     }

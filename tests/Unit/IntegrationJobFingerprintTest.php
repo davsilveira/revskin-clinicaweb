@@ -12,6 +12,22 @@ use Tests\TestCase;
 class IntegrationJobFingerprintTest extends TestCase
 {
     #[Test]
+    public function job_options_lists_only_active_filter_jobs(): void
+    {
+        $options = IntegrationJobFingerprint::jobOptions();
+        $labels = array_column($options, 'label');
+
+        $this->assertCount(4, $options);
+        $this->assertContains('Criar negociação', $labels);
+        $this->assertContains('Sync cliente', $labels);
+        $this->assertContains('Sync produtos', $labels);
+        $this->assertContains('Importar pacientes', $labels);
+        $this->assertNotContains('Criar pedido', $labels);
+        $this->assertNotContains('Sync venda', $labels);
+        $this->assertNotContains('Webhook pedido', $labels);
+    }
+
+    #[Test]
     public function singleton_tiny_sync_jobs_produce_stable_fingerprints(): void
     {
         $job = new SyncProdutosTinyJob;

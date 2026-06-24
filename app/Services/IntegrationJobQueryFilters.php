@@ -60,11 +60,11 @@ readonly class IntegrationJobQueryFilters
             return null;
         }
 
-        if (array_key_exists($job, IntegrationJobFingerprint::JOB_LABELS)) {
+        if (array_key_exists($job, IntegrationJobFingerprint::FILTER_JOB_LABELS)) {
             return $job;
         }
 
-        foreach (IntegrationJobFingerprint::JOB_LABELS as $class => $label) {
+        foreach (IntegrationJobFingerprint::FILTER_JOB_LABELS as $class => $label) {
             if (class_basename($class) === $job) {
                 return $class;
             }

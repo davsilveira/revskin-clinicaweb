@@ -6,6 +6,7 @@ use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RdStationCrmClient
 {
@@ -302,7 +303,7 @@ class RdStationCrmClient
 
     protected function normalizeNome(string $nome): string
     {
-        return mb_strtolower(trim($nome));
+        return mb_strtolower(trim(Str::ascii($nome)));
     }
 
     /**
@@ -334,15 +335,46 @@ class RdStationCrmClient
 
     protected function isDuplicateNameError(array $result): bool
     {
-        $message = mb_strtolower((string) ($result['message'] ?? ''));
-        if ($message === '') {
+        $candidates = [(string) ($result['message'] ?? '')];
+
+        $data = $result['data'] ?? null;
+        if (is_array($data)) {
+            if (isset($data['detail'])) {
+                $candidates[] = (string) $data['detail'];
+            }
+            if (isset($data['data']['detail'])) {
+                $candidates[] = (string) $data['data']['detail'];
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($this->messageIndicatesDuplicateName($candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function messageIndicatesDuplicateName(string $message): bool
+    {
+        $text = trim($message);
+        if ($text === '') {
             return false;
         }
 
-        return str_contains($message, 'já cadastrad')
-            || str_contains($message, 'ja cadastrad')
-            || str_contains($message, 'already registered')
-            || str_contains($message, 'already exists');
+        if (str_starts_with($text, '{')) {
+            $decoded = json_decode($text, true);
+            if (is_array($decoded) && isset($decoded['detail'])) {
+                $text = (string) $decoded['detail'];
+            }
+        }
+
+        $lower = mb_strtolower($text);
+
+        return str_contains($lower, 'cadastrad')
+            || str_contains($lower, 'already registered')
+            || str_contains($lower, 'already exists');
     }
 
     /**
@@ -355,6 +387,10 @@ class RdStationCrmClient
             $term = trim($nome);
             if ($term !== '') {
                 $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $term);
+                $firstToken = strtok($term, ' ');
+                if (is_string($firstToken) && $firstToken !== '' && $firstToken !== $term) {
+                    $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $firstToken);
+                }
             }
         }
 
@@ -383,6 +419,10 @@ class RdStationCrmClient
             $term = trim($nome);
             if ($term !== '') {
                 $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $term);
+                $firstToken = strtok($term, ' ');
+                if (is_string($firstToken) && $firstToken !== '' && $firstToken !== $term) {
+                    $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $firstToken);
+                }
             }
         }
 

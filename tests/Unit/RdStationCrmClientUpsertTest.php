@@ -70,6 +70,37 @@ class RdStationCrmClientUpsertTest extends TestCase
     }
 
     #[Test]
+    public function upsert_organizacao_recovers_when_create_returns_duplicate_name_as_json_message(): void
+    {
+        Http::fake([
+            'api.rd.services/crm/v2/organizations*' => function ($request) {
+                if ($request->method() === 'POST') {
+                    return Http::response(['detail' => 'Nome Empresa já cadastrada.'], 400);
+                }
+
+                static $getCalls = 0;
+                $getCalls++;
+                if ($getCalls === 1) {
+                    return Http::response(['data' => []], 200);
+                }
+
+                return Http::response([
+                    'data' => [
+                        ['id' => 'org-json-dup', 'name' => 'Ana Costa'],
+                    ],
+                ], 200);
+            },
+        ]);
+
+        $client = new RdStationCrmClient;
+        $result = $client->upsertOrganizacao('Ana Costa', null, 'owner-1');
+
+        $this->assertSame('success', $result['status']);
+        $this->assertSame('found_after_duplicate', $result['action']);
+        $this->assertSame('org-json-dup', $result['data']['id'] ?? null);
+    }
+
+    #[Test]
     public function upsert_organizacao_returns_error_when_create_fails_for_other_reason(): void
     {
         Http::fake([
