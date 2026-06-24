@@ -274,17 +274,168 @@ Na Hostinger (shared hosting) não há processo worker contínuo. O cron executa
 
 ---
 
-## 7. Checklist rápido
+## 7. Deploy automatizado (GitHub Actions)
+
+Recomendado em vez do Git nativo da Hostinger (que implanta a raiz do repo Laravel em `public_html`, sem build nem estrutura `revskin/`).
+
+### 7.1 Pré-requisitos no GitHub
+
+**Secrets** (`Settings → Secrets and variables → Actions → Secrets`):
+
+| Secret | Valor |
+|--------|-------|
+| `HOSTINGER_HOST` | Hostname SSH (ex.: do painel Hostinger → SSH Access) |
+| `HOSTINGER_USER` | Usuário SSH (ex.: `u368085046`) |
+| `HOSTINGER_PORT` | Porta SSH (geralmente `65002`) |
+| `HOSTINGER_SSH_KEY` | Chave privada SSH (conteúdo completo do arquivo) |
+
+**Variable** (`Settings → Secrets and variables → Actions → Variables`):
+
+| Variable | Valor |
+|----------|-------|
+| `HOSTINGER_REMOTE_PATH` | Caminho absoluto do `public_html` no servidor, ex.: `/home/u368085046/domains/clinicaweb.revskin.com.br/public_html` |
+
+Adicione a **chave pública** correspondente em Hostinger → **Avançado → SSH Access**.
+
+### 7.2 O que o workflow faz
+
+Arquivo: [`.github/workflows/deploy-hostinger.yml`](.github/workflows/deploy-hostinger.yml)
+
+1. `composer install --no-dev`
+2. `npm run build` com `APP_URL=https://clinicaweb.revskin.com.br`
+3. `php artisan deploy:package --no-build` (estrutura `public_html/` + `revskin/`)
+4. **rsync** para o servidor, excluindo `revskin/storage/` e `revskin/.env`
+5. [`scripts/hostinger-post-deploy.sh`](scripts/hostinger-post-deploy.sh): migrate, cache, symlink `public_html/storage`
+
+Dispara em **push em `main`** ou manualmente em **Actions → Deploy to Hostinger → Run workflow**.
+
+### 7.3 Desativar Git da Hostinger
+
+No painel Hostinger → **Git** → desative **Implantação automática**. Caso contrário, um pull Git pode sobrescrever arquivos e apagar o `.env` de novo.
+
+### 7.4 Recriar `.env` no servidor (obrigatório se foi apagado)
+
+O `.env` fica em **`public_html/revskin/.env`** e **nunca** vai para o Git.
+
+Via SSH:
+
+```bash
+cd ~/domains/clinicaweb.revskin.com.br/public_html/revskin
+cp .env.example .env
+nano .env
+```
+
+| Variável | Onde obter |
+|----------|------------|
+| `APP_KEY` | `php artisan key:generate --show` na máquina local (invalida sessões; usuários logam de novo) |
+| `DB_*` | Painel Hostinger → Bancos de dados → MySQL |
+| `MAIL_*` | Painel Hostinger → Emails → SMTP |
+| Tiny / RD Station | Credenciais na tabela `settings` do banco (não no `.env`) |
+
+Template mínimo de produção:
+
+```env
+APP_NAME="ClincaWeb"
+APP_ENV=production
+APP_KEY=base64:...
+APP_DEBUG=false
+APP_TIMEZONE=America/Sao_Paulo
+APP_URL=https://clinicaweb.revskin.com.br
+APP_LOCALE=pt_BR
+APP_FALLBACK_LOCALE=en
+
+LOG_CHANNEL=stack
+LOG_STACK=single
+LOG_LEVEL=error
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=...
+DB_USERNAME=...
+DB_PASSWORD=...
+
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+SESSION_ENCRYPT=true
+
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+FILESYSTEM_DISK=local
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.hostinger.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@revskin.com.br
+MAIL_FROM_NAME="${APP_NAME}"
+
+VITE_APP_NAME="${APP_NAME}"
+INFOSIMPLES_ENABLED=true
+```
+
+Validar:
+
+```bash
+php artisan config:clear
+php artisan migrate:status
+```
+
+Guarde cópia do `.env` de produção **fora do Git** (1Password, backup local).
+
+### 7.5 Symlink storage
+
+O pós-deploy cria automaticamente:
+
+```text
+public_html/storage → revskin/storage/app/public
+```
+
+Sem isso, URLs como `/storage/assinaturas/...` retornam 404.
+
+Assets Vite (`/build/...`) não precisam de symlink — o `deploy:package` copia `build/` para `public_html/build/` e `revskin/public/build/`.
+
+### 7.6 Primeiro deploy vs redeploy
+
+| Situação | Ação |
+|----------|------|
+| Primeiro deploy | Criar `.env`, configurar cron (§6), rodar workflow |
+| Redeploy | Push em `main`; rsync preserva `.env` e `storage/` |
+| `.env` apagado | Recriar manualmente (§7.4) antes do pós-deploy |
+
+Pós-deploy manual (se necessário):
+
+```bash
+bash ~/domains/clinicaweb.revskin.com.br/public_html/revskin/scripts/hostinger-post-deploy.sh
+```
+
+---
+
+## 8. Checklist rápido
+
+### Deploy manual (FTP)
 
 - [ ] Build local com `APP_URL` de produção; pasta `public/build/` gerada.
 - [ ] **Redeploy:** Não sobrescrever `revskin/storage/` no servidor (preservar tabelas Karnaugh e outros arquivos gerados).
 - [ ] `schema.sql` gerado com dados atuais (`php artisan deploy:package` com SQLite ou MySQL em `deploy.local.php`).
 - [ ] `schema.sql` importado no phpMyAdmin (banco vazio ou tabelas dropadas).
 - [ ] Projeto (exceto `public`) em pasta tipo `revskin/`; conteúdo de `public/` em `public_html/`.
-- [ ] `index.php` em `public_html` ajustado para `../revskin/` (ou nome da pasta).
+- [ ] `index.php` em `public_html` ajustado para `revskin/` (ou use `deploy:package`).
 - [ ] `.env` criado em `revskin/` com APP_KEY, DB_*, APP_URL, APP_DEBUG=false.
 - [ ] Permissões em `storage/` e `bootstrap/cache/`.
-- [ ] `storage:link` (se possível) ou alternativa para arquivos em `storage/app/public`.
-- [ ] Cron: `schedule:run` a cada minuto e `queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50` (ex.: a cada 1 ou 5 minutos).
+- [ ] Symlink `public_html/storage` → `revskin/storage/app/public`.
+- [ ] Cron: `schedule:run` a cada minuto e `queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50`.
+
+### Deploy automatizado (GitHub Actions)
+
+- [ ] Secrets e variable configurados no GitHub (§7.1).
+- [ ] Chave SSH pública na Hostinger.
+- [ ] **`.env` recriado** em `public_html/revskin/` se foi apagado (§7.4).
+- [ ] Implantação automática Git Hostinger **desativada** (§7.3).
+- [ ] Primeiro workflow executado; site, login e `/build/` OK.
+- [ ] `/storage/` OK (assinatura de médico).
+- [ ] Cron configurado (§6).
 
 Depois disso, acesse `https://seudominio.com` e teste login e uma tela que use fila/agendamento para validar o cron.

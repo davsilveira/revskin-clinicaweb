@@ -1,0 +1,70 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  APP_URL: https://clinicaweb.revskin.com.br
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, pdo_mysql, zip, gd, bcmath, xml
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Build frontend
+        run: npm ci && APP_URL=${{ env.APP_URL }} npm run build
+
+      - name: Generate deploy package
+        run: php artisan deploy:package --no-build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HOSTINGER_PORT }}" "${{ secrets.HOSTINGER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Rsync to Hostinger
+        env:
+          REMOTE_PATH: ${{ vars.HOSTINGER_REMOTE_PATH }}
+        run: |
+          if [ -z "$REMOTE_PATH" ]; then
+            echo "Defina a variable HOSTINGER_REMOTE_PATH no repositório (ex.: /home/u123/domains/clinicaweb.revskin.com.br/public_html)"
+            exit 1
+          fi
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_PORT }} -o StrictHostKeyChecking=accept-new" \
+            --exclude 'revskin/storage/' \
+            --exclude 'revskin/.env' \
+            deploy-package/public_html/ \
+            "${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }}:${REMOTE_PATH}/"
+
+      - name: Post-deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          script: |
+            bash "${{ vars.HOSTINGER_REMOTE_PATH }}/revskin/scripts/hostinger-post-deploy.sh"

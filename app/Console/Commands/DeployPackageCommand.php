@@ -101,6 +101,15 @@ class DeployPackageCommand extends Command
             $this->info('Build copiado para '.$appDirName.'/public/build/ (manifest para produção).');
         }
 
+        // 5c. Script pós-deploy e .env.example (referência para recriar .env no servidor)
+        if (File::exists($basePath.'/scripts/hostinger-post-deploy.sh')) {
+            File::ensureDirectoryExists($appTargetPath.'/scripts');
+            File::copy($basePath.'/scripts/hostinger-post-deploy.sh', $appTargetPath.'/scripts/hostinger-post-deploy.sh');
+        }
+        if (File::exists($basePath.'/.env.example')) {
+            File::copy($basePath.'/.env.example', $appTargetPath.'/.env.example');
+        }
+
         // 6. Estrutura storage vazia no pacote
         $this->ensureStorageStructure($appTargetPath);
 
