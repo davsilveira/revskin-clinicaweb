@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Jobs\PullPacientesTinyJob;
+use App\Jobs\SyncClienteTinyJob;
 use App\Jobs\SyncProdutosTinyJob;
 use App\Services\IntegrationJobFingerprint;
 use PHPUnit\Framework\Attributes\Test;
@@ -46,6 +47,25 @@ class IntegrationJobFingerprintTest extends TestCase
             'displayName' => 'App\\Jobs\\ProcessExportJob',
             'data' => ['command' => 'O:0:"":0:{}'], // nunca alcançado: filtro por displayName
         ])));
+    }
+
+    #[Test]
+    public function parse_payload_extracts_paciente_id_without_restoring_model(): void
+    {
+        $command = 'O:27:"App\Jobs\SyncClienteTinyJob":3:{s:8:"paciente";O:45:"Illuminate\Contracts\Database\ModelIdentifier":5:{s:5:"class";s:19:"App\Models\Paciente";s:2:"id";i:99999;s:9:"relations";a:0:{}s:10:"connection";s:5:"mysql";s:15:"collectionClass";N;}s:5:"queue";s:9:"tiny-sync";s:5:"delay";N;}';
+
+        $payload = json_encode([
+            'displayName' => SyncClienteTinyJob::class,
+            'data' => ['command' => $command],
+        ], JSON_THROW_ON_ERROR);
+
+        $parsed = IntegrationJobFingerprint::parsePayload($payload);
+        $this->assertNotNull($parsed);
+        $this->assertSame(SyncClienteTinyJob::class, $parsed['class']);
+        $this->assertSame(99999, IntegrationJobFingerprint::describe(
+            $parsed['class'],
+            $parsed['instance']
+        )['paciente_id']);
     }
 
     private function wrapPayload(object $instance, string $class): string

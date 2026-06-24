@@ -26,7 +26,7 @@ class ImportarDadosLegado extends Command
                             {--source=docs/migration : Diretório com JSONs gerados pela extração}
                             {--only= : Importar apenas: clinicas,medicos,users,pacientes,produtos,receitas,itemAquisicoesLegado (produtos: não cria; itemAquisicoesLegado após receitas)}
                             {--dry-run : Apenas simula, não persiste nada}
-                            {--mapeamento-codigos=docs/sanitization/mapeamento-codigos-legado-base.md : Tabela markdown legado → código base (Tiny) para produtos e itens de receita}';
+                            {--mapeamento-codigos= : Markdown legado→catálogo (padrão: database/mapeamento-codigos-legado-base.md)}';
 
     protected $description = 'Importa dados extraídos do ClinicaWeb (idempotente). Usa mapeamento-codigos para localizar produtos quando o código legado ≠ base.';
 
@@ -38,6 +38,12 @@ class ImportarDadosLegado extends Command
 
     /** @var array<string, string> */
     private array $mapeamentoCodigoLegadoBase = [];
+
+    private int $receitaItensCatalogo = 0;
+
+    private int $receitaItensStub = 0;
+
+    private int $receitaItensSemProduto = 0;
 
     public function handle(): int
     {
@@ -55,11 +61,24 @@ class ImportarDadosLegado extends Command
 
         $this->loadIdMapping();
 
-        $mapPath = base_path($this->option('mapeamento-codigos'));
-        $this->mapeamentoCodigoLegadoBase = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
-        if ($this->mapeamentoCodigoLegadoBase !== []) {
-            $this->line('Mapeamento legado→base: '.\count($this->mapeamentoCodigoLegadoBase).' códigos ('.basename($mapPath).')');
+        $mapPath = $this->option('mapeamento-codigos')
+            ? base_path($this->option('mapeamento-codigos'))
+            : LegadoCodigoProdutoMapeamento::defaultFilePath();
+        if (! is_file($mapPath)) {
+            $this->error("Mapeamento obrigatório não encontrado: {$mapPath}");
+            $this->error('Crie/atualize database/mapeamento-codigos-legado-base.md antes de importar.');
+
+            return 1;
         }
+
+        $this->mapeamentoCodigoLegadoBase = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
+        if ($this->mapeamentoCodigoLegadoBase === []) {
+            $this->error('Mapeamento legado→base está vazio. Revise o markdown antes de importar.');
+
+            return 1;
+        }
+
+        $this->line('Mapeamento legado→base: '.\count($this->mapeamentoCodigoLegadoBase).' códigos ('.basename($mapPath).')');
 
         $this->info('=== Importação de Dados Legado ClinicaWeb ===');
         if ($dryRun) {
@@ -575,7 +594,9 @@ class ImportarDadosLegado extends Command
     private function importarReceitas(array $dados): void
     {
         $produtoCache = Produto::all()->keyBy('codigo');
-        $receitasSemProduto = 0;
+        $this->receitaItensCatalogo = 0;
+        $this->receitaItensStub = 0;
+        $this->receitaItensSemProduto = 0;
 
         foreach ($dados as $item) {
             if (($item['status'] ?? '') === 'cancelada') {
@@ -630,8 +651,6 @@ class ImportarDadosLegado extends Command
                     $produtoId = $this->resolverProdutoIdItemLegadoJson($receitaItem, $produtoCache);
 
                     if (! $produtoId) {
-                        $receitasSemProduto++;
-
                         continue;
                     }
 
@@ -662,8 +681,9 @@ class ImportarDadosLegado extends Command
             }
         }
 
-        if ($receitasSemProduto > 0) {
-            $this->warn("   {$receitasSemProduto} itens de receita sem produto correspondente na base");
+        $this->line("   Itens → catálogo ativo: {$this->receitaItensCatalogo} | stubs legado criados: {$this->receitaItensStub} | sem produto: {$this->receitaItensSemProduto}");
+        if ($this->receitaItensStub > 0) {
+            $this->warn('   Stubs criados: revise database/mapeamento-codigos-legado-base.md ou sincronize produtos Tiny antes de reimportar.');
         }
     }
 
@@ -743,6 +763,8 @@ class ImportarDadosLegado extends Command
         );
 
         if ($produto) {
+            $this->receitaItensCatalogo++;
+
             return $produto->id;
         }
 
@@ -753,7 +775,15 @@ class ImportarDadosLegado extends Command
             true
         );
 
-        return $stub?->id;
+        if ($stub) {
+            $this->receitaItensStub++;
+
+            return $stub->id;
+        }
+
+        $this->receitaItensSemProduto++;
+
+        return null;
     }
 
     /**
@@ -847,6 +877,11 @@ class ImportarDadosLegado extends Command
                 $s['existentes'],
                 $s['erros']
             ));
+        }
+        if ($this->receitaItensCatalogo + $this->receitaItensStub + $this->receitaItensSemProduto > 0) {
+            $this->newLine();
+            $this->line("  Itens de receita: catálogo {$this->receitaItensCatalogo} | stubs {$this->receitaItensStub} | sem match {$this->receitaItensSemProduto}");
+            $this->line('  Após importar: php artisan migration:relink-receita-produtos --fix && php artisan produtos:arquivar-legado-orfao --fix');
         }
         $this->newLine();
         $this->line("Mapeamento de IDs salvo em: {$this->mappingPath}");

@@ -23,8 +23,10 @@ class ProdutoController extends Controller
         }
 
         $query = Produto::query()
-            ->when($request->boolean('legado_somente_leitura'), fn ($q) => $q->where('legado_somente_leitura', true),
-                fn ($q) => $q->where('legado_somente_leitura', false))
+            ->when($request->boolean('legado_somente_leitura'), function ($q) {
+                // Só legados ainda «pendentes» (ativo): mapeados/arquivados (ativo=0) não aparecem aqui.
+                $q->where('legado_somente_leitura', true)->where('ativo', true);
+            }, fn ($q) => $q->where('legado_somente_leitura', false))
             ->when($search, function ($q, $s) {
                 $q->where(function ($query) use ($s) {
                     $query->where('nome', 'like', "%{$s}%")
@@ -59,10 +61,15 @@ class ProdutoController extends Controller
         }
 
         $totalGeral = Produto::where('legado_somente_leitura', false)->count();
+        $totalLegadoPendentes = Produto::query()
+            ->where('legado_somente_leitura', true)
+            ->where('ativo', true)
+            ->count();
 
         return Inertia::render('Produtos/Index', [
             'produtos' => $produtos,
             'totalGeral' => $totalGeral,
+            'totalLegadoPendentes' => $totalLegadoPendentes,
             'filters' => $filters,
             'lastSync' => Setting::get('tiny_produtos_last_sync'),
         ]);

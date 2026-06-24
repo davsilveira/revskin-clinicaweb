@@ -13,8 +13,12 @@ final class LegadoProdutoResolver
      * @param  Collection<string, Produto>  $produtoCache
      * @param  array<string, string>  $mapeamento
      */
-    public static function findPorItemLegado(array $receitaItem, Collection $produtoCache, array $mapeamento): ?Produto
-    {
+    public static function findPorItemLegado(
+        array $receitaItem,
+        Collection $produtoCache,
+        array $mapeamento,
+        ?string $fototipoPaciente = null
+    ): ?Produto {
         $legado = trim((string) ($receitaItem['codigo_produto_legado'] ?? ''));
         $codigoMapeado = trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
         $codigoBusca = $legado !== ''
@@ -23,6 +27,23 @@ final class LegadoProdutoResolver
 
         if ($codigoBusca === '' || in_array($codigoBusca, self::CODIGOS_IGNORAR, true)) {
             return null;
+        }
+
+        $fototipo = $fototipoPaciente ?? trim((string) ($receitaItem['fototipo_paciente'] ?? ''));
+        if ($fototipo !== '') {
+            foreach ([$codigoBusca, $legado] as $candidato) {
+                if ($candidato === '') {
+                    continue;
+                }
+                $resolvido = LegadoTonaliteResolver::resolverCodigo($candidato, $fototipo);
+                if ($resolvido === null) {
+                    continue;
+                }
+                $produto = self::findPorCodigo($resolvido, $produtoCache);
+                if ($produto) {
+                    return $produto;
+                }
+            }
         }
 
         $produto = self::findPorCodigo($codigoBusca, $produtoCache);
@@ -130,6 +151,12 @@ final class LegadoProdutoResolver
             $vars[] = $semSufixo;
         }
 
+        foreach (array_unique([$codigo, $dash]) as $candidato) {
+            foreach (LegadoProdutoConvencoesCodigo::variantes($candidato) as $convencao) {
+                $vars[] = $convencao;
+            }
+        }
+
         return array_values(array_unique($vars));
     }
 
@@ -157,6 +184,10 @@ final class LegadoProdutoResolver
             ? LegadoCodigoProdutoMapeamento::paraBase($legado, $mapeamento)
             : trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
 
+        if ($legado !== '' && isset($mapeamento[$legado])) {
+            return null;
+        }
+
         if ($codigoBusca === '' || in_array($codigoBusca, self::CODIGOS_IGNORAR, true)) {
             return null;
         }
@@ -173,6 +204,14 @@ final class LegadoProdutoResolver
         $codigoNovo = $legado !== '' ? mb_substr($legado, 0, 255) : $codigoBusca;
         if ($codigoNovo !== $codigoBusca && Produto::where('codigo', $codigoNovo)->exists()) {
             $codigoNovo = $codigoBusca;
+        }
+
+        $existente = $produtoCache->get($codigoNovo)
+            ?? Produto::query()->where('codigo', $codigoNovo)->first();
+        if ($existente) {
+            $produtoCache->put($existente->codigo, $existente);
+
+            return $existente;
         }
 
         $novo = Produto::create([

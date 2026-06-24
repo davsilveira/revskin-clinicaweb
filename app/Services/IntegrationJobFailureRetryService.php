@@ -206,6 +206,76 @@ class IntegrationJobFailureRetryService
         }
     }
 
+    public function resetStateForManualRetry(string $uuid): void
+    {
+        $row = DB::table('failed_jobs')->where('uuid', $uuid)->first(['payload']);
+        if ($row === null) {
+            return;
+        }
+
+        $parsed = IntegrationJobFingerprint::fromFailedJobPayload((string) $row->payload);
+        if ($parsed === null) {
+            return;
+        }
+
+        IntegrationJobFailureState::query()
+            ->where('fingerprint', $parsed['fingerprint'])
+            ->update([
+                'last_failed_job_uuid' => $uuid,
+                'fast_retries_left' => 3,
+                'delayed_retry_left' => 1,
+                'exhausted' => false,
+                'in_flight' => false,
+                'next_retry_at' => null,
+                'last_dispatched_at' => null,
+            ]);
+    }
+
+    public function markInFlightForManualRetry(string $uuid): void
+    {
+        $row = DB::table('failed_jobs')->where('uuid', $uuid)->first(['payload']);
+        if ($row === null) {
+            return;
+        }
+
+        $parsed = IntegrationJobFingerprint::fromFailedJobPayload((string) $row->payload);
+        if ($parsed === null) {
+            return;
+        }
+
+        IntegrationJobFailureState::query()
+            ->where('fingerprint', $parsed['fingerprint'])
+            ->update([
+                'in_flight' => true,
+                'last_dispatched_at' => now(),
+            ]);
+    }
+
+    public function syncStateAfterForget(string $fingerprint): void
+    {
+        $remaining = DB::table('failed_jobs')
+            ->orderByDesc('failed_at')
+            ->get(['uuid', 'payload']);
+
+        foreach ($remaining as $failedRow) {
+            $parsed = IntegrationJobFingerprint::fromFailedJobPayload((string) $failedRow->payload);
+            if (($parsed['fingerprint'] ?? null) !== $fingerprint) {
+                continue;
+            }
+
+            IntegrationJobFailureState::query()
+                ->where('fingerprint', $fingerprint)
+                ->update([
+                    'last_failed_job_uuid' => $failedRow->uuid,
+                    'in_flight' => false,
+                ]);
+
+            return;
+        }
+
+        IntegrationJobFailureState::query()->where('fingerprint', $fingerprint)->delete();
+    }
+
     public function cleanupInFlightSuccesses(): void
     {
         $activeFingerprints = array_keys($this->latestFailedByFingerprint());

@@ -23,7 +23,7 @@ class RelinkReceitaProdutosLegado extends Command
         $fix = $this->option('fix');
         $sourceDir = base_path($this->option('source'));
         $jsonPath = rtrim($sourceDir, '/').'/receitas.json';
-        $mapPath = base_path('docs/sanitization/mapeamento-codigos-legado-base.md');
+        $mapPath = LegadoCodigoProdutoMapeamento::defaultFilePath();
         $mapeamento = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
 
         if (! is_file($jsonPath)) {

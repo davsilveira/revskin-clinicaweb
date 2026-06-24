@@ -130,6 +130,10 @@ final class LegadoProdutoResolver
             $vars[] = $semSufixo;
         }
 
+        foreach (LegadoProdutoConvencoesCodigo::variantes($codigo) as $convencao) {
+            $vars[] = $convencao;
+        }
+
         return array_values(array_unique($vars));
     }
 
@@ -156,6 +160,10 @@ final class LegadoProdutoResolver
         $codigoBusca = $legado !== ''
             ? LegadoCodigoProdutoMapeamento::paraBase($legado, $mapeamento)
             : trim((string) ($receitaItem['codigo_produto_mapeado'] ?? ''));
+
+        if ($legado !== '' && isset($mapeamento[$legado])) {
+            return null;
+        }
 
         if ($codigoBusca === '' || in_array($codigoBusca, self::CODIGOS_IGNORAR, true)) {
             return null;

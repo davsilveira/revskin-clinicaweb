@@ -8,7 +8,11 @@ createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => {
         const pages = import.meta.glob('./Pages/**/*.jsx', { eager: true });
-        return pages[`./Pages/${name}.jsx`];
+        const page = pages[`./Pages/${name}.jsx`];
+        if (!page) {
+            throw new Error(`Página Inertia não encontrada: ${name}`);
+        }
+        return page;
     },
     setup({ el, App, props }) {
         const root = createRoot(el);

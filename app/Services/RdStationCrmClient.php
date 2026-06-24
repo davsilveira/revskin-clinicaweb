@@ -272,13 +272,138 @@ class RdStationCrmClient
 
     // ─── Organizations (Empresas) ───────────────────────────────
 
-    public function listarOrganizacoes(string $filter = '', int $limit = 20): array
+    protected function buildListQuery(string $filter, int $limit): array
     {
-        $query = ['limit' => $limit];
-        if ($filter) {
+        $query = [
+            'page' => [
+                'size' => $limit,
+                'number' => 1,
+            ],
+        ];
+        if ($filter !== '') {
             $query['filter'] = $filter;
         }
-        return $this->makeRequest('GET', 'organizations', [], $query);
+
+        return $query;
+    }
+
+    protected function formatRdqlNameFilter(string $nome): string
+    {
+        $nome = trim($nome);
+        if ($nome === '') {
+            return 'name:';
+        }
+        if (preg_match('/[\s"\\\\]/', $nome)) {
+            return 'name:"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $nome).'"';
+        }
+
+        return 'name:'.$nome;
+    }
+
+    protected function normalizeNome(string $nome): string
+    {
+        return mb_strtolower(trim($nome));
+    }
+
+    /**
+     * @param  array{status: string, data?: mixed}  $result
+     * @return list<array<string, mixed>>
+     */
+    protected function extrairItensListagem(array $result): array
+    {
+        if ($result['status'] !== 'success') {
+            return [];
+        }
+
+        $payload = $result['data'] ?? [];
+        if (! is_array($payload)) {
+            return [];
+        }
+
+        $items = $payload['data'] ?? $payload['items'] ?? $payload;
+        if (! is_array($items)) {
+            return [];
+        }
+
+        if ($items !== [] && ! array_is_list($items)) {
+            return [$items];
+        }
+
+        return array_values(array_filter($items, fn ($item) => is_array($item)));
+    }
+
+    protected function isDuplicateNameError(array $result): bool
+    {
+        $message = mb_strtolower((string) ($result['message'] ?? ''));
+        if ($message === '') {
+            return false;
+        }
+
+        return str_contains($message, 'já cadastrad')
+            || str_contains($message, 'ja cadastrad')
+            || str_contains($message, 'already registered')
+            || str_contains($message, 'already exists');
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function buscarOrganizacaoPorNomeExato(string $nome, bool $useMatchFallback = false): ?array
+    {
+        $filters = [$this->formatRdqlNameFilter($nome)];
+        if ($useMatchFallback) {
+            $term = trim($nome);
+            if ($term !== '') {
+                $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $term);
+            }
+        }
+
+        foreach ($filters as $filter) {
+            $result = $this->listarOrganizacoes($filter, 25);
+            foreach ($this->extrairItensListagem($result) as $org) {
+                if (! isset($org['id'])) {
+                    continue;
+                }
+                if ($this->normalizeNome((string) ($org['name'] ?? '')) === $this->normalizeNome($nome)) {
+                    return $org;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function buscarContatoPorNomeExato(string $nome, bool $useMatchFallback = false): ?array
+    {
+        $filters = [$this->formatRdqlNameFilter($nome)];
+        if ($useMatchFallback) {
+            $term = trim($nome);
+            if ($term !== '') {
+                $filters[] = 'name:~'.str_replace(['\\', '"'], ['\\\\', '\\"'], $term);
+            }
+        }
+
+        foreach ($filters as $filter) {
+            $result = $this->listarContatos($filter, 25);
+            foreach ($this->extrairItensListagem($result) as $contact) {
+                if (! isset($contact['id'])) {
+                    continue;
+                }
+                if ($this->normalizeNome((string) ($contact['name'] ?? '')) === $this->normalizeNome($nome)) {
+                    return $contact;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public function listarOrganizacoes(string $filter = '', int $limit = 20): array
+    {
+        return $this->makeRequest('GET', 'organizations', [], $this->buildListQuery($filter, $limit));
     }
 
     public function criarOrganizacao(array $data): array
@@ -330,31 +455,16 @@ class RdStationCrmClient
             }
         }
 
-        $filter = 'name:"' . addslashes($nome) . '"';
-        $result = $this->listarOrganizacoes($filter, 1);
+        $org = $this->buscarOrganizacaoPorNomeExato($nome);
+        if ($org !== null) {
+            Log::info('RD Station CRM: Organização encontrada por nome', [
+                ...$context,
+                'organization_id' => $org['id'],
+                'org_name' => $org['name'] ?? null,
+                'action' => 'found',
+            ]);
 
-        if ($result['status'] === 'success') {
-            $items = $result['data']['data'] ?? $result['data']['items'] ?? $result['data'] ?? [];
-            if (is_array($items) && !empty($items)) {
-                $org = is_array($items[0] ?? null) ? $items[0] : $items;
-                if (isset($org['id'])) {
-                    $orgName = $org['name'] ?? '';
-                    if (trim($orgName) !== trim($nome)) {
-                        Log::warning('RD Station CRM: Match parcial ignorado, criando nova organização', [
-                            ...$context,
-                            'org_encontrada_nome' => $orgName,
-                        ]);
-                    } else {
-                        Log::info('RD Station CRM: Organização encontrada por nome', [
-                            ...$context,
-                            'organization_id' => $org['id'],
-                            'org_name' => $orgName,
-                            'action' => 'found',
-                        ]);
-                        return ['status' => 'success', 'data' => $org, 'action' => 'found'];
-                    }
-                }
-            }
+            return ['status' => 'success', 'data' => $org, 'action' => 'found'];
         }
 
         $orgData = ['name' => $nome];
@@ -366,7 +476,28 @@ class RdStationCrmClient
         $createResult = $this->criarOrganizacao($orgData);
         if ($createResult['status'] === 'success') {
             $createResult['action'] = 'created';
+
+            return $createResult;
         }
+
+        if ($this->isDuplicateNameError($createResult)) {
+            Log::warning('RD Station CRM: Organização duplicada ao criar, buscando existente', [
+                ...$context,
+                'error' => $createResult['message'] ?? null,
+            ]);
+            $org = $this->buscarOrganizacaoPorNomeExato($nome, true);
+            if ($org !== null) {
+                Log::info('RD Station CRM: Organização reutilizada após erro de duplicata', [
+                    ...$context,
+                    'organization_id' => $org['id'],
+                    'org_name' => $org['name'] ?? null,
+                    'action' => 'found_after_duplicate',
+                ]);
+
+                return ['status' => 'success', 'data' => $org, 'action' => 'found_after_duplicate'];
+            }
+        }
+
         return $createResult;
     }
 
@@ -374,11 +505,7 @@ class RdStationCrmClient
 
     public function listarContatos(string $filter = '', int $limit = 20): array
     {
-        $query = ['limit' => $limit];
-        if ($filter) {
-            $query['filter'] = $filter;
-        }
-        return $this->makeRequest('GET', 'contacts', [], $query);
+        return $this->makeRequest('GET', 'contacts', [], $this->buildListQuery($filter, $limit));
     }
 
     public function criarContato(array $data): array
@@ -393,9 +520,6 @@ class RdStationCrmClient
 
     public function upsertContato(string $nome, ?string $telefone, ?string $email, ?string $organizationId, ?string $ownerId = null): array
     {
-        $filter = 'name:"' . addslashes($nome) . '"';
-        $result = $this->listarContatos($filter, 1);
-
         $contactData = ['name' => $nome];
         if ($organizationId) {
             $contactData['organization_id'] = $organizationId;
@@ -410,27 +534,43 @@ class RdStationCrmClient
             $contactData['emails'] = [['email' => $email]];
         }
 
-        if ($result['status'] === 'success') {
-            $items = $result['data']['data'] ?? $result['data']['items'] ?? $result['data'] ?? [];
-            if (is_array($items) && !empty($items)) {
-                $contact = is_array($items[0] ?? null) ? $items[0] : $items;
-                if (isset($contact['id'])) {
-                    Log::info('RD Station CRM: Contato encontrado, atualizando', ['id' => $contact['id'], 'nome' => $nome]);
-                    $updateResult = $this->atualizarContato($contact['id'], $contactData);
-                    if ($updateResult['status'] === 'success') {
-                        $updateResult['action'] = 'updated';
-                        $updateResult['data'] = array_merge($contact, $updateResult['data']['data'] ?? $updateResult['data'] ?? []);
-                    }
-                    return $updateResult;
-                }
+        $contact = $this->buscarContatoPorNomeExato($nome);
+        if ($contact !== null) {
+            Log::info('RD Station CRM: Contato encontrado, atualizando', ['id' => $contact['id'], 'nome' => $nome]);
+            $updateResult = $this->atualizarContato($contact['id'], $contactData);
+            if ($updateResult['status'] === 'success') {
+                $updateResult['action'] = 'updated';
+                $updateResult['data'] = array_merge($contact, $updateResult['data']['data'] ?? $updateResult['data'] ?? []);
             }
+
+            return $updateResult;
         }
 
         Log::info('RD Station CRM: Criando novo contato', ['nome' => $nome]);
         $createResult = $this->criarContato($contactData);
         if ($createResult['status'] === 'success') {
             $createResult['action'] = 'created';
+
+            return $createResult;
         }
+
+        if ($this->isDuplicateNameError($createResult)) {
+            Log::warning('RD Station CRM: Contato duplicado ao criar, buscando existente', [
+                'nome' => $nome,
+                'error' => $createResult['message'] ?? null,
+            ]);
+            $contact = $this->buscarContatoPorNomeExato($nome, true);
+            if ($contact !== null) {
+                $updateResult = $this->atualizarContato($contact['id'], $contactData);
+                if ($updateResult['status'] === 'success') {
+                    $updateResult['action'] = 'updated_after_duplicate';
+                    $updateResult['data'] = array_merge($contact, $updateResult['data']['data'] ?? $updateResult['data'] ?? []);
+                }
+
+                return $updateResult;
+            }
+        }
+
         return $createResult;
     }
 

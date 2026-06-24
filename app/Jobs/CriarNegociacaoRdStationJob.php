@@ -39,6 +39,15 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
 
         $receita = $this->receita->fresh(['paciente', 'medico.linkedUser', 'itens.produto']);
 
+        if ($receita->rd_deal_id) {
+            Log::info('RD Station CRM: Negociação já sincronizada, ignorando', [
+                'receita_id' => $receita->id,
+                'rd_deal_id' => $receita->rd_deal_id,
+            ]);
+
+            return;
+        }
+
         if (! $receita->paciente) {
             Log::warning('RD Station CRM: Receita não possui paciente', [
                 'receita_id' => $receita->id,

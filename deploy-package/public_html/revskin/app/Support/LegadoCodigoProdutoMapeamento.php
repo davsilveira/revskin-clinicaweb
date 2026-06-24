@@ -3,10 +3,28 @@
 namespace App\Support;
 
 /**
- * Lê a tabela "Código Legado → Código Base" em {@see docs/sanitization/mapeamento-codigos-legado-base.md}.
+ * Lê a tabela "Código Legado → Código Base" em {@see database/mapeamento-codigos-legado-base.md}.
  */
 final class LegadoCodigoProdutoMapeamento
 {
+    public static function defaultFilePath(): string
+    {
+        $tracked = base_path('database/mapeamento-codigos-legado-base.md');
+        if (is_file($tracked)) {
+            return $tracked;
+        }
+
+        return base_path('docs/sanitization/mapeamento-codigos-legado-base.md');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function carregar(): array
+    {
+        return self::fromMarkdownFile(self::defaultFilePath());
+    }
+
     /**
      * @return array<string, string>
      */

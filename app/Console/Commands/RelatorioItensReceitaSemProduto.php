@@ -27,7 +27,9 @@ class RelatorioItensReceitaSemProduto extends Command
             return 1;
         }
 
-        $mapPath = base_path($this->option('mapeamento-codigos'));
+        $mapPath = $this->option('mapeamento-codigos')
+            ? base_path($this->option('mapeamento-codigos'))
+            : LegadoCodigoProdutoMapeamento::defaultFilePath();
         $mapeamento = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
 
         $receitas = json_decode((string) file_get_contents($jsonPath), true);

@@ -373,6 +373,19 @@ export default function DashboardLayout({ children }) {
                                     {showLabels && <span className="font-medium">Exportar</span>}
                                 </Link>
 
+                                <Link
+                                    href="/tools/integracoes"
+                                    className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
+                                        isActive('/tools/integracoes')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                    title={!showLabels ? 'Integrações' : undefined}
+                                >
+                                    <NavIconExport />
+                                    {showLabels && <span className="font-medium">Integrações</span>}
+                                </Link>
+
                                 {showLabels && (
                                     <div className="pt-4 pb-2">
                                         <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">

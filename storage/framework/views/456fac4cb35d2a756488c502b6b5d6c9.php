@@ -12,8 +12,7 @@
         <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700" rel="stylesheet" />
 
         <!-- Scripts -->
-        <?php if(app()->environment('production') && file_exists(public_path('build/manifest.json'))): ?>
-            
+        <?php if(file_exists(public_path('build/manifest.json')) && ! filter_var(env('VITE_DEV', false), FILTER_VALIDATE_BOOL)): ?>
             <?php
                 $manifest = json_decode(file_get_contents(public_path('build/manifest.json')), true);
                 $cssEntry = $manifest['resources/css/app.css'] ?? null;
@@ -21,6 +20,12 @@
             ?>
             <?php if($cssEntry && isset($cssEntry['file'])): ?>
                 <link rel="stylesheet" href="<?php echo e(asset('build/' . $cssEntry['file'])); ?>">
+            <?php endif; ?>
+            
+            <?php if($jsEntry && ! empty($jsEntry['css'])): ?>
+                <?php $__currentLoopData = (array) $jsEntry['css']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $chunkCss): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <link rel="stylesheet" href="<?php echo e(asset('build/' . $chunkCss)); ?>">
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             <?php endif; ?>
             <?php if($jsEntry && isset($jsEntry['file'])): ?>
                 <script type="module" src="<?php echo e(asset('build/' . $jsEntry['file'])); ?>"></script>

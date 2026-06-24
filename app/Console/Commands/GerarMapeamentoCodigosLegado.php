@@ -22,7 +22,7 @@ class GerarMapeamentoCodigosLegado extends Command
     {
         $sourceDir = base_path($this->option('source'));
         $jsonPath = rtrim($sourceDir, '/').'/receitas.json';
-        $mapPath = base_path('docs/sanitization/mapeamento-codigos-legado-base.md');
+        $mapPath = LegadoCodigoProdutoMapeamento::defaultFilePath();
         $existing = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
         $minScore = (int) $this->option('min-score');
 

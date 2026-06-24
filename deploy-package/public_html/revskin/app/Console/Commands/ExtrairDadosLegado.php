@@ -153,7 +153,9 @@ class ExtrairDadosLegado extends Command
             mkdir($outputDir, 0755, true);
         }
 
-        $mapPath = base_path($this->option('mapeamento-codigos'));
+        $mapPath = $this->option('mapeamento-codigos')
+            ? base_path($this->option('mapeamento-codigos'))
+            : LegadoCodigoProdutoMapeamento::defaultFilePath();
         $this->mapeamentoCodigoLegadoBase = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
         if ($this->mapeamentoCodigoLegadoBase !== []) {
             $this->line('Mapeamento legado→base: '.\count($this->mapeamentoCodigoLegadoBase).' códigos ('.basename($mapPath).')');

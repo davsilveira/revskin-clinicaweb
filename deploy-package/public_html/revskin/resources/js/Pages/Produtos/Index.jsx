@@ -24,7 +24,7 @@ function statusFilterFromFilters(filters) {
     return a === true || a === '1' || a === 1 ? '1' : '0';
 }
 
-export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync }) {
+export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendentes = 0, filters, lastSync }) {
     const { auth, flash } = usePage().props;
     const isAdmin = auth.user.role === 'admin';
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -253,7 +253,9 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                         <>
                             {(produtos?.total != null || totalGeral != null) && (
                                 <p className="font-medium text-gray-800">
-                                    {produtos?.total ?? 0} / {totalGeral ?? 0} cadastrados
+                                    {statusFilter === 'legado'
+                                        ? `${produtos?.total ?? 0} descontinuado(s) pendente(s) de ${totalLegadoPendentes ?? 0}`
+                                        : `${produtos?.total ?? 0} / ${totalGeral ?? 0} cadastrados`}
                                 </p>
                             )}
                             {lastSync && (
@@ -308,7 +310,7 @@ export default function ProdutosIndex({ produtos, totalGeral, filters, lastSync 
                             <option value="1">Ativos</option>
                             <option value="0">Inativos</option>
                             <option value="pendentes">Pendentes</option>
-                            <option value="legado">Descontinuados</option>
+                            <option value="legado">Descontinuados (pendentes)</option>
                         </select>
                     </div>
                 </div>

@@ -21,6 +21,7 @@ use App\Http\Controllers\RelatorioExportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TabelaKarnaughController;
 use App\Http\Controllers\TinyIntegrationController;
+use App\Http\Controllers\Tools\IntegrationJobsController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -135,6 +136,18 @@ Route::middleware(['auth'])->group(function () {
         ->name('tools.infosimples.lookup');
     Route::delete('/tools/infosimples/history', [InfosimplesIntegrationController::class, 'clearHistory'])
         ->name('tools.infosimples.clearHistory');
+
+    // Ferramentas — monitor de jobs de integração (admin)
+    Route::middleware('admin')->group(function () {
+        Route::get('/tools/integracoes', [IntegrationJobsController::class, 'index'])
+            ->name('tools.integracoes.index');
+        Route::post('/tools/integracoes/failed/{uuid}/retry', [IntegrationJobsController::class, 'retry'])
+            ->name('tools.integracoes.retry');
+        Route::post('/tools/integracoes/failed/retry-batch', [IntegrationJobsController::class, 'retryBatch'])
+            ->name('tools.integracoes.retry-batch');
+        Route::delete('/tools/integracoes/failed/{uuid}', [IntegrationJobsController::class, 'forget'])
+            ->name('tools.integracoes.forget');
+    });
 
     // Cadastros - Produtos (Call Center and Admin)
     Route::middleware('callcenter')->group(function () {

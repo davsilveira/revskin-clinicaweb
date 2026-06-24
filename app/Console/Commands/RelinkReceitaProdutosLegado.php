@@ -23,7 +23,7 @@ class RelinkReceitaProdutosLegado extends Command
         $fix = $this->option('fix');
         $sourceDir = base_path($this->option('source'));
         $jsonPath = rtrim($sourceDir, '/').'/receitas.json';
-        $mapPath = base_path('docs/sanitization/mapeamento-codigos-legado-base.md');
+        $mapPath = LegadoCodigoProdutoMapeamento::defaultFilePath();
         $mapeamento = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
 
         if (! is_file($jsonPath)) {
@@ -119,7 +119,12 @@ class RelinkReceitaProdutosLegado extends Command
                     continue;
                 }
 
-                $produto = LegadoProdutoResolver::findPorItemLegado($ji, $produtoCache, $mapeamento);
+                $produto = LegadoProdutoResolver::findPorItemLegado(
+                    $ji,
+                    $produtoCache,
+                    $mapeamento,
+                    $json['fototipo_paciente'] ?? null
+                );
                 if (! $produto || $produto->legado_somente_leitura) {
                     $semMatch++;
 

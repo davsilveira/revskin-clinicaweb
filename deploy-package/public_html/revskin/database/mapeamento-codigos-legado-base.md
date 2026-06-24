@@ -1,0 +1,63 @@
+# Mapeamento Código Legado → Código Catálogo (Tiny)
+
+Tabela usada por `LegadoCodigoProdutoMapeamento`, importação legado, relink de receitas e convenções em `LegadoProdutoConvencoesCodigo`.
+
+| Código legado | Código base (catálogo ativo) |
+|---------------|------------------------------|
+| AZELAICO-IVERMECTINA-30G | AZELAICO 30G |
+| BIONAISSANCE-SENSITIVE | BIONAISSANCE 100G |
+| CLAREADOR-HIPOALERGENICO-SERUM-6 | CLAREADOR HYDRAVELT 6 |
+| CLAREADOR-HIPOALERGENICO-SERUM-8 | CLAREADOR HYDRAVELT 8 |
+| CLINDAMICINA-PEROXIDO | DESINFLAM CLINDA 30G |
+| CORPO-CREME | HYDRAESSENTIAL |
+| z-CORPO-CREME | HYDRAESSENTIAL |
+| DEMERANE-ULTRA-G30 | DEMERANE 30G |
+| DEMERANE-ULTRA-G50 | DEMERANE 50G |
+| ESTRIAS-CREME | ESTRIAS |
+| HYDRAMINCE-DYNAMISEE-1 | DYNAMISEE 1 |
+| HYDRAMINCE-DYNAMISEE-2 | DYNAMISEE 2 |
+| HYDRAMINCE-DYNAMISEE-3 | DYNAMISEE 3 |
+| zzz_HYDRAMINCE-DYNAMISEE-3 | DYNAMISEE 3 |
+| HYDRAMINCE-SYNCHRON | SYNCHRON |
+| IVERMECTINA-20G | IVERMECTINA ROSACEA |
+| MAOS-DIA | DIA MAOS |
+| MAOS-NOITE-R0,035H12-DYN3 | NOITE MAOS R0,035H12 |
+| METRONIDAZOL-15G | METRONIDAZOL ROSACEA 15G |
+| NOITE-GLICOLICO-3-GESTANTE | NOITE GLICOLICO GESTANTE |
+| NOITE-HIPOALERGENICO-LUMI-HYDRAVELT | NOITE LUMI HYDRAVELT |
+| NOITE-HIPOALERGENICO-R0,0015-DYN3 | R0,0015H6-DYN3 |
+| NOITE-HIPOALERGENICO-R0,0015-HYDRAVELT | NOITE R0,0015 HYDRAVELT |
+| NOITE-HIPOALERGENICO-R0,0025-HYDRAVELT | NOITE R0,0025 HYDRAVELT |
+| NOITE-HIPOALERGENICO-R0,01-HYDRAVELT | NOITE R0,01 HYDRAVELT |
+| NOITE-HIPOALERGENICO-RETINOL-LUMI-DYN3 | NOITE RETINOL HYDRAVELT PLUS |
+| NOITE-HIPOALERGENICO-RETINOL-LUMI-HYDRAVELT | NOITE RETINOL HYDRAVELT |
+| TONALITE-1-G30 | TONALITE 1 30G |
+| TONALITE-1-G50 | TONALITE 1 50G |
+| TONALITE-1,5-G30 | TONALITE 1,5 30G |
+| TONALITE-1,5-G50 | TONALITE 1,5 50G |
+| TONALITE-2-G30 | TONALITE 2 30G |
+| TONALITE-2-G50 | TONALITE 2 50G |
+| TONALITE-2,5-G30 | TONALITE 2,5 30G |
+| TONALITE-2,5-G50 | TONALITE 2,5 50G |
+| TONALITE-3-G30 | TONALITE 3 30G |
+| TONALITE-3-G50 | TONALITE 3 50G |
+| TONALITE-3,5-G30 | TONALITE 3,5 30G |
+| TONALITE-3,5-G50 | TONALITE 3,5 50G |
+| TONALITE-4-G30 | TONALITE 4 30G |
+| TONALITE-4-G50 | TONALITE 4 50G |
+| TONALITE-4,5-G30 | TONALITE 4,5 30G |
+| TONALITE-4,5-G50 | TONALITE 4,5 50G |
+| W-HYALU-GEL-HYDRAVELT | HYALU GEL |
+
+## Sem mapeamento automático (revisão manual)
+
+- **TONALITE-___-G30** — tom indefinido (placeholder); escolher tom 1–4,5 no catálogo
+- **W-TONALITE-1-MEZZOTONO-A-G30** — linha Mezzotono descontinuada; sem SKU ativo
+- **SUICO-G50** / **SUICO-G100** — sem equivalente no catálogo Tiny atual
+- **w-Apostila Paciente** — material informativo, não é produto de venda
+
+## Uso na Migração
+
+- `ImportarDadosLegado` / `ExtrairDadosLegado`: `LegadoCodigoProdutoMapeamento::paraBase()` antes de `LegadoProdutoResolver::findPorCodigo()`.
+- `migration:relink-receita-produtos --fix`: atualiza `receita_itens.produto_id` com o mapa acima.
+- `php artisan produtos:validar-mapeamento-legado`: cobertura dos stubs `legado_somente_leitura` no banco.

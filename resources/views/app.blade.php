@@ -12,8 +12,7 @@
         <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700" rel="stylesheet" />
 
         <!-- Scripts -->
-        @if(app()->environment('production') && file_exists(public_path('build/manifest.json')))
-            {{-- Forçar uso de assets compilados em produção --}}
+        @if(file_exists(public_path('build/manifest.json')) && ! filter_var(env('VITE_DEV', false), FILTER_VALIDATE_BOOL))
             @php
                 $manifest = json_decode(file_get_contents(public_path('build/manifest.json')), true);
                 $cssEntry = $manifest['resources/css/app.css'] ?? null;
@@ -32,7 +31,7 @@
                 <script type="module" src="{{ asset('build/' . $jsEntry['file']) }}"></script>
             @endif
         @else
-            {{-- Modo desenvolvimento --}}
+            {{-- Modo desenvolvimento (VITE_DEV=true ou sem build/manifest) --}}
             @viteReactRefresh
             @vite(['resources/css/app.css', 'resources/js/app.jsx'])
         @endif

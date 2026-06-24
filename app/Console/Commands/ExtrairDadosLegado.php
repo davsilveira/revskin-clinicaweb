@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 class ExtrairDadosLegado extends Command
 {
     protected $signature = 'migration:extrair-legado
-                            {--sql=docs/clinicaweb/database/bkp_cw2_20260325.sql : Arquivo SQL dump do ClinicaWeb}
+                            {--sql=docs/clinicaweb/database/bkp_cw2_20260610.sql : Arquivo SQL dump do ClinicaWeb}
                             {--output=docs/migration : Diretório de saída para JSONs e CSVs}
                             {--sem-csv : Não gerar arquivos CSV (apenas JSON)}
                             {--incluir-receitas-canceladas : Incluir receitas com ativo=0 no legado (omitidas por omissão)}
@@ -153,7 +153,9 @@ class ExtrairDadosLegado extends Command
             mkdir($outputDir, 0755, true);
         }
 
-        $mapPath = base_path($this->option('mapeamento-codigos'));
+        $mapPath = $this->option('mapeamento-codigos')
+            ? base_path($this->option('mapeamento-codigos'))
+            : LegadoCodigoProdutoMapeamento::defaultFilePath();
         $this->mapeamentoCodigoLegadoBase = LegadoCodigoProdutoMapeamento::fromMarkdownFile($mapPath);
         if ($this->mapeamentoCodigoLegadoBase !== []) {
             $this->line('Mapeamento legado→base: '.\count($this->mapeamentoCodigoLegadoBase).' códigos ('.basename($mapPath).')');
@@ -890,6 +892,16 @@ class ExtrairDadosLegado extends Command
             $pacienteByReceita[$row[1]] = $row[0];
         }
 
+        $fototipoByPaciente = [];
+        $cPac = self::COLS_PACIENTE;
+        foreach ($this->dadosBrutos['paciente'] ?? [] as $row) {
+            $pacienteId = $this->col($row, $cPac, 'id');
+            if ($pacienteId === null || $pacienteId === '') {
+                continue;
+            }
+            $fototipoByPaciente[$pacienteId] = $this->colStr($row, $cPac, 'fototipo');
+        }
+
         // receita_itens: receita_id(0), receita_item_id(1)
         $itensByReceita = $this->buildGroupIndex('receita_itens', 0, 1);
 
@@ -988,11 +1000,16 @@ class ExtrairDadosLegado extends Command
                 ];
             }
 
+            $legadoPacienteId = $pacienteByReceita[$receitaId] ?? null;
+
             $receitas[] = [
                 'legado_id' => $receitaId,
                 'numero_legado' => $this->colStr($row, $c, 'receita_numero'),
                 'data_receita' => $this->colStr($row, $c, 'dta_receita'),
-                'legado_paciente_id' => $pacienteByReceita[$receitaId] ?? null,
+                'legado_paciente_id' => $legadoPacienteId,
+                'fototipo_paciente' => $legadoPacienteId !== null
+                    ? ($fototipoByPaciente[$legadoPacienteId] ?? null)
+                    : null,
                 'legado_medico_id' => $medicoByReceita[$receitaId] ?? null,
                 'anotacoes' => $this->colStr($row, $c, 'observacao'),
                 'subtotal' => $this->col($row, $c, 'vlr_subtotal'),
