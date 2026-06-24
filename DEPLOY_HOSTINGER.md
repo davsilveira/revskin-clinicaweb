@@ -16,7 +16,7 @@ Um único comando gera o pacote pronto para FTP (build, pastas e opcionalmente o
    php artisan deploy:package
    ```
    Exige **Node 20+** para o build. Se já tiver rodado `npm run build` antes, use `php artisan deploy:package --no-build`.
-3. Será criada a pasta **`deploy-package/`** com:
+3. Será criada a pasta **`deploy-package/`** (gerada localmente ou no CI; **não** vai para o Git) com:
    - **`public_html/`** – enviar **todo** o conteúdo desta pasta para o **`public_html`** da Hostinger (único destino; a Hostinger não permite upload fora de `public_html`). Dentro já vêm `index.php`, `build/`, `images/` e a subpasta **`revskin/`** (app, vendor, etc.), protegida por `.htaccess`.
    - **`schema.sql`** – gerado automaticamente (a partir do SQLite local ou MySQL em `deploy.local.php`); importe no phpMyAdmin.
    - **`LEIA-ME.txt`** – resumo dos passos (FTP, .env, cron).
