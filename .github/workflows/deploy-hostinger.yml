@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Setup PHP
@@ -32,7 +32,7 @@ jobs:
         run: composer install --no-dev --optimize-autoloader --no-interaction
 
       - name: Build frontend
-        run: npm ci && APP_URL=${{ env.APP_URL }} npm run build
+        run: npm ci --legacy-peer-deps && APP_URL=${{ env.APP_URL }} npm run build
 
       - name: Generate deploy package
         run: php artisan deploy:package --no-build
