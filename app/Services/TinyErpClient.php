@@ -21,10 +21,55 @@ class TinyErpClient
 
     protected string $apiVersion;
 
-    public function __construct()
+    protected ?int $v2RequestBudget = null;
+
+    protected int $v2RequestCount = 0;
+
+    protected ?TinyApiRateLimiter $rateLimiter = null;
+
+    public function __construct(?TinyApiRateLimiter $rateLimiter = null)
     {
         $this->apiVersion = Setting::get('tiny_api_version', 'v3');
         $this->baseUrl = Setting::get('tiny_url_base', 'https://api.tiny.com.br/public-api/v3');
+        $this->rateLimiter = $rateLimiter ?? new TinyApiRateLimiter;
+    }
+
+    public function setV2RequestBudget(?int $budget): self
+    {
+        $this->v2RequestBudget = $budget;
+
+        return $this;
+    }
+
+    public function getV2RequestCount(): int
+    {
+        return $this->v2RequestCount;
+    }
+
+    public function resetV2RequestCount(): self
+    {
+        $this->v2RequestCount = 0;
+
+        return $this;
+    }
+
+    public static function isRateLimitError(array $result): bool
+    {
+        $code = $result['status_code'] ?? null;
+        if (in_array($code, [6, 11], true)) {
+            return true;
+        }
+
+        $msg = mb_strtolower((string) ($result['message'] ?? ''));
+
+        return str_contains($msg, 'api bloqueada')
+            || str_contains($msg, 'excedido o número de acessos')
+            || str_contains($msg, 'excedido o numero de acessos');
+    }
+
+    public static function isBudgetExhaustedError(array $result): bool
+    {
+        return ($result['status_code'] ?? null) === 'budget_exhausted';
     }
 
     public function isV2(): bool
@@ -51,6 +96,14 @@ class TinyErpClient
 
     protected function makeV2Request(string $endpoint, array $extraParams = []): array
     {
+        if ($this->v2RequestBudget !== null && $this->v2RequestCount >= $this->v2RequestBudget) {
+            return [
+                'status' => 'error',
+                'message' => 'Orçamento de chamadas API esgotado nesta execução.',
+                'status_code' => 'budget_exhausted',
+            ];
+        }
+
         $token = $this->getV2Token();
         if (! $token) {
             return [
@@ -60,13 +113,39 @@ class TinyErpClient
             ];
         }
 
+        $this->rateLimiter->acquire();
+
         $url = rtrim($this->baseUrlV2, '/').'/'.ltrim($endpoint, '/');
         $params = array_merge(['token' => $token, 'formato' => 'JSON'], $extraParams);
 
         Log::debug('Tiny ERP V2 Request', ['url' => $url, 'params' => array_diff_key($params, ['token' => ''])]);
 
+        $result = $this->executeV2Post($url, $params);
+        $this->v2RequestCount++;
+
+        if ($result['status'] === 'error' && self::isRateLimitError($result)) {
+            Log::warning('Tiny ERP V2: rate limit atingido, aguardando 65s para retry', [
+                'url' => $url,
+                'codigo' => $result['status_code'] ?? null,
+            ]);
+            sleep(max(0, (int) config('services.tiny.v2_rate_limit_retry_seconds', 65)));
+            $this->rateLimiter->acquire();
+            $result = $this->executeV2Post($url, $params);
+            $this->v2RequestCount++;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{status: string, data?: mixed, message?: string, status_code?: mixed, requires_auth?: bool}
+     */
+    protected function executeV2Post(string $url, array $params): array
+    {
         try {
             $response = Http::timeout(30)->asForm()->post($url, $params);
+
+            $this->rateLimiter->recordFromResponseHeader($response->header('x-limit-api'));
 
             if (! $response->successful()) {
                 Log::error('Tiny ERP V2 HTTP Error', ['url' => $url, 'status' => $response->status()]);

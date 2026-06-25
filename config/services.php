@@ -50,5 +50,9 @@ return [
         'base_url' => env('INFOSIMPLES_BASE_URL', 'https://api.infosimples.com/api/v2/consultas'),
     ],
 
+    'tiny' => [
+        'v2_rate_limit_retry_seconds' => (int) env('TINY_V2_RATE_LIMIT_RETRY_SECONDS', 65),
+    ],
+
 ];
 

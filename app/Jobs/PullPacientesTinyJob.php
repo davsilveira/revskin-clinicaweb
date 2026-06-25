@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -22,6 +23,8 @@ class PullPacientesTinyJob implements ShouldQueue
     public int $tries = 1;
 
     public int $timeout = 600;
+
+    private const CHECKPOINT_KEY = 'tiny_contatos_pull_checkpoint';
 
     public function __construct()
     {
@@ -43,14 +46,25 @@ class PullPacientesTinyJob implements ShouldQueue
             return;
         }
 
-        $runStart = Carbon::now();
         $since = $this->watermarkCarbon();
         $dataMinima = $since->format('d/m/Y H:i:s');
+        $checkpoint = $this->loadCheckpoint();
+
+        if ($checkpoint !== null && ($checkpoint['data_minima'] ?? '') === $dataMinima) {
+            $runStart = Carbon::parse((string) $checkpoint['run_start']);
+            $pagina = max(1, (int) ($checkpoint['pagina'] ?? 1));
+        } else {
+            $runStart = Carbon::now();
+            $pagina = 1;
+            $this->clearCheckpoint();
+        }
 
         $importNew = $this->truthySetting('tiny_pull_import_new', false);
         $somenteCliente = $this->truthySetting('tiny_pull_somente_tipo_cliente', true);
+        $apiBudget = max(1, (int) Setting::get('tiny_contatos_pull_api_budget', 80));
 
-        $pagina = 1;
+        $client->resetV2RequestCount()->setV2RequestBudget($apiBudget);
+
         $numeroPaginas = 1;
         $updated = 0;
         $imported = 0;
@@ -60,6 +74,9 @@ class PullPacientesTinyJob implements ShouldQueue
             'data_minima_atualizacao' => $dataMinima,
             'import_novos' => $importNew,
             'somente_tipo_cliente' => $somenteCliente,
+            'pagina_inicial' => $pagina,
+            'api_budget' => $apiBudget,
+            'retomando_checkpoint' => $checkpoint !== null && ($checkpoint['data_minima'] ?? '') === $dataMinima,
         ]);
 
         do {
@@ -69,6 +86,10 @@ class PullPacientesTinyJob implements ShouldQueue
                 'dataMinimaAtualizacao' => $dataMinima,
                 'situacao' => 'Ativo',
             ]);
+
+            if ($this->shouldPauseRun($result, $client, $pagina, $dataMinima, $runStart)) {
+                return;
+            }
 
             if ($result['status'] !== 'success') {
                 Log::error('Tiny ERP: Pull pacientes — erro ao listar contatos', [
@@ -82,31 +103,59 @@ class PullPacientesTinyJob implements ShouldQueue
             $itens = $data['itens'] ?? [];
             $numeroPaginas = max(1, (int) ($data['paginacao']['numero_paginas'] ?? 1));
 
+            $existingByTinyId = $this->preloadPacientesByTinyId($itens);
+
             foreach ($itens as $item) {
                 $tinyId = isset($item['id']) ? (int) $item['id'] : null;
                 if (! $tinyId) {
                     continue;
                 }
 
-                $obter = $client->obterContato($tinyId);
-                if ($obter['status'] !== 'success') {
-                    Log::warning('Tiny ERP: Pull — falha ao obter contato', [
-                        'tiny_id' => $tinyId,
-                        'message' => $obter['message'] ?? null,
-                    ]);
+                $tinyIdStr = (string) $tinyId;
+                $pacienteExistente = $existingByTinyId->get($tinyIdStr);
+                $contato = null;
+                $fromListOnly = false;
+
+                if ($pacienteExistente !== null) {
+                    $contato = $item;
+                    $fromListOnly = true;
+                } elseif (! $importNew) {
                     $skipped++;
 
                     continue;
+                } elseif ($somenteCliente) {
+                    $obter = $client->obterContato($tinyId);
+                    if ($this->shouldPauseRun($obter, $client, $pagina, $dataMinima, $runStart)) {
+                        return;
+                    }
+                    if ($obter['status'] !== 'success') {
+                        Log::warning('Tiny ERP: Pull — falha ao obter contato', [
+                            'tiny_id' => $tinyId,
+                            'message' => $obter['message'] ?? null,
+                        ]);
+                        $skipped++;
+
+                        continue;
+                    }
+                    $contato = $obter['data'] ?? [];
+                    if (! is_array($contato)) {
+                        $skipped++;
+
+                        continue;
+                    }
+                } else {
+                    $contato = $item;
+                    $fromListOnly = true;
                 }
 
-                $contato = $obter['data'] ?? [];
-                if (! is_array($contato)) {
-                    $skipped++;
-
-                    continue;
-                }
-
-                $r = $this->processarContato($contato, $tinyId, $importNew, $somenteCliente);
+                $r = $this->processarContato(
+                    $contato,
+                    $tinyId,
+                    $importNew,
+                    $somenteCliente,
+                    $fromListOnly,
+                    $pacienteExistente
+                );
                 if ($r === 'updated') {
                     $updated++;
                 } elseif ($r === 'imported') {
@@ -120,12 +169,94 @@ class PullPacientesTinyJob implements ShouldQueue
         } while ($pagina <= $numeroPaginas);
 
         Setting::set('tiny_contatos_pull_since', $runStart->copy()->subDays(2)->toIso8601String());
+        $this->clearCheckpoint();
 
         Log::info('Tiny ERP: Pull de pacientes concluído', [
             'atualizados' => $updated,
             'importados' => $imported,
             'ignorados' => $skipped,
+            'api_calls' => $client->getV2RequestCount(),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    private function shouldPauseRun(
+        array $result,
+        TinyErpClient $client,
+        int $pagina,
+        string $dataMinima,
+        Carbon $runStart
+    ): bool {
+        if (TinyErpClient::isBudgetExhaustedError($result) || TinyErpClient::isRateLimitError($result)) {
+            $this->saveCheckpoint($pagina, $dataMinima, $runStart);
+            Log::info('Tiny ERP: Pull de pacientes pausado (budget ou rate limit)', [
+                'pagina' => $pagina,
+                'motivo' => $result['message'] ?? null,
+                'api_calls' => $client->getV2RequestCount(),
+            ]);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $itens
+     * @return Collection<string, Paciente>
+     */
+    private function preloadPacientesByTinyId(array $itens): Collection
+    {
+        $tinyIds = collect($itens)
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
+        if ($tinyIds === []) {
+            return collect();
+        }
+
+        return Paciente::query()
+            ->whereIn('tiny_id', $tinyIds)
+            ->get()
+            ->keyBy(fn (Paciente $p) => (string) $p->tiny_id);
+    }
+
+    /**
+     * @return array{pagina: int, data_minima: string, run_start: string}|null
+     */
+    private function loadCheckpoint(): ?array
+    {
+        $raw = Setting::get(self::CHECKPOINT_KEY);
+        if (! $raw) {
+            return null;
+        }
+
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+
+            return is_array($decoded) ? $decoded : null;
+        }
+
+        return is_array($raw) ? $raw : null;
+    }
+
+    private function saveCheckpoint(int $pagina, string $dataMinima, Carbon $runStart): void
+    {
+        Setting::set(self::CHECKPOINT_KEY, json_encode([
+            'pagina' => $pagina,
+            'data_minima' => $dataMinima,
+            'run_start' => $runStart->toIso8601String(),
+        ]));
+    }
+
+    private function clearCheckpoint(): void
+    {
+        Setting::set(self::CHECKPOINT_KEY, null);
     }
 
     private function watermarkCarbon(): Carbon
@@ -139,7 +270,6 @@ class PullPacientesTinyJob implements ShouldQueue
             }
         }
 
-        // Primeira execução: só último dia (job diário; evita pico de chamadas na API)
         return Carbon::now()->subDay();
     }
 
@@ -160,18 +290,26 @@ class PullPacientesTinyJob implements ShouldQueue
     /**
      * @return 'updated'|'imported'|'skipped'
      */
-    private function processarContato(array $contato, int $tinyId, bool $importNew, bool $somenteCliente): string
-    {
+    private function processarContato(
+        array $contato,
+        int $tinyId,
+        bool $importNew,
+        bool $somenteCliente,
+        bool $fromListOnly,
+        ?Paciente $paciente = null
+    ): string {
         $digits = TinyContatoMapper::onlyDigitsCpfCnpj($contato);
         $tipo = (string) ($contato['tipo_pessoa'] ?? $contato['tipoPessoa'] ?? '');
         $tinyIdStr = (string) $tinyId;
 
-        $paciente = Paciente::query()->where('tiny_id', $tinyIdStr)->first();
+        $paciente ??= Paciente::query()->where('tiny_id', $tinyIdStr)->first();
 
-        $tinyDt = TinyContatoMapper::parseDataAtualizacao(TinyContatoMapper::contatoDataAtualizacaoRaw($contato));
+        $tinyDt = $fromListOnly
+            ? Carbon::now()
+            : TinyContatoMapper::parseDataAtualizacao(TinyContatoMapper::contatoDataAtualizacaoRaw($contato));
 
         if ($paciente) {
-            if ($tinyDt && $paciente->tiny_updated_at && $tinyDt->lte($paciente->tiny_updated_at)) {
+            if (! $fromListOnly && $tinyDt && $paciente->tiny_updated_at && $tinyDt->lte($paciente->tiny_updated_at)) {
                 return 'skipped';
             }
 
@@ -202,7 +340,7 @@ class PullPacientesTinyJob implements ShouldQueue
             return 'skipped';
         }
 
-        if ($somenteCliente && ! TinyContatoMapper::contatoTemTipoCliente($contato)) {
+        if ($somenteCliente && ! $fromListOnly && ! TinyContatoMapper::contatoTemTipoCliente($contato)) {
             return 'skipped';
         }
 
