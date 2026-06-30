@@ -17,8 +17,9 @@ class IntegrationJobFingerprintTest extends TestCase
         $options = IntegrationJobFingerprint::jobOptions();
         $labels = array_column($options, 'label');
 
-        $this->assertCount(4, $options);
+        $this->assertCount(5, $options);
         $this->assertContains('Criar negociação', $labels);
+        $this->assertContains('Marcar negociação perdida', $labels);
         $this->assertContains('Sync cliente', $labels);
         $this->assertContains('Sync produtos', $labels);
         $this->assertContains('Importar pacientes', $labels);

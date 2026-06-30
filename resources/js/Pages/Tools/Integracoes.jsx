@@ -15,6 +15,7 @@ const TABS = [
 
 const QUEUE_LABELS = {
     'rd-sync': 'RD Station',
+    'rd-webhooks': 'RD Webhooks',
     'tiny-sync': 'oList',
     'tiny-webhooks': 'oList Webhooks',
 };

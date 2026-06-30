@@ -247,3 +247,6 @@ Route::middleware(['auth'])->group(function () {
 // Webhook Tiny ERP (outside auth - receives external requests)
 Route::post('/api/webhooks/tiny/pedido-finalizado', [\App\Http\Controllers\WebhookTinyController::class, 'pedidoFinalizado'])
     ->name('webhooks.tiny.pedido-finalizado');
+
+Route::post('/api/webhooks/rd/crm-deal-updated', [\App\Http\Controllers\WebhookRdController::class, 'crmDealUpdated'])
+    ->name('webhooks.rd.crm-deal-updated');

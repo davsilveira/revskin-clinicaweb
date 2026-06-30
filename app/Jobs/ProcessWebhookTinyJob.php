@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\AtendimentoCallcenter;
+use App\Services\ReceitaCancelamentoService;
 use App\Models\Produto;
 use App\Models\Receita;
 use App\Models\ReceitaItem;
@@ -321,31 +321,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
 
     protected function processarCancelamento(Receita $receita): void
     {
-        $receita->load('itens');
-
-        foreach ($receita->itens as $item) {
-            $item->update(['vendido' => false]);
-        }
-
-        $itemIds = $receita->itens->pluck('id')->toArray();
-        ReceitaItemAquisicao::whereIn('receita_item_id', $itemIds)
-            ->where(function ($query) {
-                $query->where('tiny_pedido_id', $this->pedidoId)
-                    ->orWhereNull('tiny_pedido_id');
-            })
-            ->delete();
-
-        $receita->update(['status' => 'cancelada', 'ativo' => false]);
-
-        $atendimento = $receita->atendimentoCallcenter;
-        if ($atendimento) {
-            $atendimento->update(['status' => AtendimentoCallcenter::STATUS_CANCELADO]);
-        }
-
-        Log::info('Tiny ERP: Receita e atendimento marcados como cancelados', [
-            'receita_id' => $receita->id,
-            'itens_revertidos' => count($itemIds),
-        ]);
+        ReceitaCancelamentoService::cancelarReceita($receita, (string) $this->pedidoId);
     }
 
     public function failed(?Throwable $exception): void

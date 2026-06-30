@@ -47,6 +47,9 @@ class SettingsController extends Controller
                     'medico_field_id' => $settings['rd_medico_field_id'] ?? '69a955ea78fde3001f6f61dc',
                     'receita_field_id' => $settings['rd_receita_field_id'] ?? '699efc3a13a467001cb81ea1',
                     'owner_id' => $settings['rd_owner_id'] ?? '',
+                    'cancelamento_field_id' => $settings['rd_cancelamento_field_id'] ?? '',
+                    'cancelamento_field_value' => $settings['rd_cancelamento_field_value'] ?? '',
+                    'webhook_secret' => $settings['rd_webhook_secret'] ?? '',
                 ],
                 'isAuthenticated' => $rdHasRefreshToken,
             ],
@@ -174,6 +177,9 @@ class SettingsController extends Controller
             'medico_field_id' => 'nullable|string',
             'receita_field_id' => 'nullable|string',
             'owner_id' => 'nullable|string',
+            'cancelamento_field_id' => 'nullable|string',
+            'cancelamento_field_value' => 'nullable|string',
+            'webhook_secret' => 'nullable|string',
         ]);
 
         Setting::set('rd_enabled', $validated['enabled'] ?? false);
@@ -202,6 +208,17 @@ class SettingsController extends Controller
         }
         if (array_key_exists('owner_id', $validated)) {
             Setting::set('rd_owner_id', $validated['owner_id'] ? trim($validated['owner_id']) : null);
+        }
+        if (array_key_exists('cancelamento_field_id', $validated)) {
+            Setting::set('rd_cancelamento_field_id', $validated['cancelamento_field_id'] ? trim($validated['cancelamento_field_id']) : null);
+        }
+        if (array_key_exists('cancelamento_field_value', $validated)) {
+            Setting::set('rd_cancelamento_field_value', $validated['cancelamento_field_value'] !== null && $validated['cancelamento_field_value'] !== ''
+                ? trim($validated['cancelamento_field_value'])
+                : null);
+        }
+        if (array_key_exists('webhook_secret', $validated)) {
+            Setting::set('rd_webhook_secret', $validated['webhook_secret'] ? trim($validated['webhook_secret']) : null);
         }
 
         return back()->with('success', 'Configurações do RD Station salvas com sucesso!');

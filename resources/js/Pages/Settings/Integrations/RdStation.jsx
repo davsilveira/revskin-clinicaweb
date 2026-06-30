@@ -23,6 +23,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
         medico_field_id: settings.medico_field_id || '69a955ea78fde3001f6f61dc',
         receita_field_id: settings.receita_field_id || '699efc3a13a467001cb81ea1',
         owner_id: settings.owner_id || '',
+        cancelamento_field_id: settings.cancelamento_field_id || '',
+        cancelamento_field_value: settings.cancelamento_field_value || '',
+        webhook_secret: settings.webhook_secret || '',
     });
 
     transform((data) => {
@@ -33,6 +36,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
             medico_field_id: data.medico_field_id,
             receita_field_id: data.receita_field_id,
             owner_id: data.owner_id,
+            cancelamento_field_id: data.cancelamento_field_id,
+            cancelamento_field_value: data.cancelamento_field_value,
+            webhook_secret: data.webhook_secret,
         };
 
         if (data.client_id && data.client_id.trim() !== '') {
@@ -155,6 +161,15 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
     );
+
+    const handleGenerateWebhookSecret = () => {
+        const bytes = new Uint8Array(24);
+        window.crypto.getRandomValues(bytes);
+        const secret = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        setData('webhook_secret', secret);
+    };
+
+    const webhookUrl = `${window.location.origin}/api/webhooks/rd/crm-deal-updated`;
 
     const canTest = settings.has_client_id && settings.has_client_secret;
 
@@ -414,6 +429,79 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             </div>
                         </div>
 
+                        <div className="border-t border-gray-200 pt-4 sm:pt-5">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">Cancelamento de receita</h3>
+                            <p className="text-xs text-gray-500 mb-4">
+                                Ao cancelar uma receita no ClinicaWeb, o sistema preenche um campo customizado na negociacao do RD.
+                                Configure uma automacao no RD para marcar a negociacao como perdida quando esse campo receber o valor informado.
+                            </p>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <Input
+                                        label="ID do Campo - Cancelamento"
+                                        value={data.cancelamento_field_id}
+                                        onChange={(event) => setData('cancelamento_field_id', event.target.value)}
+                                        placeholder="ID do campo personalizado na negociacao"
+                                        error={errors.cancelamento_field_id}
+                                    />
+                                </div>
+
+                                <div>
+                                    <Input
+                                        label="Valor do Campo - Cancelamento"
+                                        value={data.cancelamento_field_value}
+                                        onChange={(event) => setData('cancelamento_field_value', event.target.value)}
+                                        placeholder="Ex.: Sim, Cancelado"
+                                        error={errors.cancelamento_field_value}
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Valor exato que a automacao do RD deve detectar (label ou ID da opcao, conforme o tipo do campo).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="border-t border-gray-200 pt-4 sm:pt-5">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">Webhook RD (negociacao atualizada)</h3>
+                            <p className="text-xs text-gray-500 mb-4">
+                                Configure no RD CRM o evento <strong>Negociacao atualizada</strong> (<code>crm_deal_updated</code>)
+                                apontando para a URL abaixo. Quando a negociacao ficar com status perdida (<code>lost</code>), a receita sera cancelada aqui.
+                            </p>
+
+                            <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 sm:p-4 mb-4">
+                                <p className="font-medium text-blue-800 text-sm">URL do webhook</p>
+                                <code className="mt-2 block text-xs bg-white p-2 rounded border border-blue-300 break-all">
+                                    {webhookUrl}
+                                </code>
+                                <p className="text-xs text-blue-600 mt-2">
+                                    Header recomendado no RD: <code>X-RD-Webhook-Secret: {'{segredo abaixo}'}</code>
+                                </p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <Input
+                                        label="Segredo do Webhook"
+                                        value={data.webhook_secret}
+                                        onChange={(event) => setData('webhook_secret', event.target.value)}
+                                        placeholder="Gere ou informe um segredo"
+                                        error={errors.webhook_secret}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateWebhookSecret}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                    Gerar segredo aleatorio
+                                </button>
+                                <p className="text-xs text-gray-500">
+                                    Se vazio, o endpoint aceita requisicoes sem autenticacao (nao recomendado em producao).
+                                </p>
+                            </div>
+                        </div>
+
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                             <button
                                 type="submit"
@@ -463,6 +551,18 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                                 Preencher campos personalizados (Medico e Receita)
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Marcar negociacao como perdida ao cancelar receita (campo customizado)
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Cancelar receita via webhook quando negociacao ficar perdida no RD
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

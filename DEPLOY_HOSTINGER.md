@@ -233,10 +233,10 @@ Substitua `seu_usuario` e o caminho real do projeto. O `schedule:run` executa os
 Como não há processo “worker” rodando 24h na shared host, use o cron para processar a fila de forma limitada a cada minuto (ou a cada 5 minutos):
 
 ```bash
-/usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50
+/usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,rd-webhooks,tiny-webhooks --stop-when-empty --max-time=50
 ```
 
-- `--queue=default,tiny-sync,exports,rd-sync,tiny-webhooks`: processa todas as filas usadas pelo sistema (Tiny, exportações, RD Station, webhooks). Sem isso, apenas a fila `default` seria processada e os jobs nunca rodariam.
+- `--queue=default,tiny-sync,exports,rd-sync,rd-webhooks,tiny-webhooks`: processa todas as filas usadas pelo sistema (Tiny, exportações, RD Station, webhooks). Sem isso, apenas a fila `default` seria processada e os jobs nunca rodariam.
 - `--stop-when-empty`: para quando não houver mais jobs (evita ficar rodando à toa).
 - `--max-time=50`: sai após 50 segundos para não ultrapassar o limite de tempo do cron (ex.: 60 s).
 
@@ -244,7 +244,7 @@ Como não há processo “worker” rodando 24h na shared host, use o cron para 
 
 ```text
 * * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan schedule:run >> /dev/null 2>&1
-* * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50 >> /dev/null 2>&1
+* * * * * /usr/bin/php /home/seu_usuario/public_html/revskin/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,rd-webhooks,tiny-webhooks --stop-when-empty --max-time=50 >> /dev/null 2>&1
 ```
 
 O caminho do PHP pode variar (ex.: `php` em vez de `/usr/bin/php`). A Hostinger costuma mostrar o caminho correto na tela de Cron Jobs.
@@ -426,7 +426,7 @@ bash ~/domains/clinicaweb.revskin.com.br/public_html/revskin/scripts/hostinger-p
 - [ ] `.env` criado em `revskin/` com APP_KEY, DB_*, APP_URL, APP_DEBUG=false.
 - [ ] Permissões em `storage/` e `bootstrap/cache/`.
 - [ ] Symlink `public_html/storage` → `revskin/storage/app/public`.
-- [ ] Cron: `schedule:run` a cada minuto e `queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50`.
+- [ ] Cron: `schedule:run` a cada minuto e `queue:work database --queue=default,tiny-sync,exports,rd-sync,rd-webhooks,tiny-webhooks --stop-when-empty --max-time=50`.
 
 ### Deploy automatizado (GitHub Actions)
 

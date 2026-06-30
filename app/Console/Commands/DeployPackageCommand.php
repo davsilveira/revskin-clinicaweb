@@ -485,7 +485,7 @@ A pasta {$appDirName}/ fica DENTRO de public_html e é protegida por .htaccess.
    - schedule:run a cada minuto:
      * * * * * /usr/bin/php /home/SEU_USUARIO/public_html/{$appDirName}/artisan schedule:run >> /dev/null 2>&1
    - queue:work (processar fila) a cada minuto (todas as filas: default,tiny-sync,exports,rd-sync,tiny-webhooks):
-     * * * * * /usr/bin/php /home/SEU_USUARIO/public_html/{$appDirName}/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,tiny-webhooks --stop-when-empty --max-time=50 >> /dev/null 2>&1
+     * * * * * /usr/bin/php /home/SEU_USUARIO/public_html/{$appDirName}/artisan queue:work database --queue=default,tiny-sync,exports,rd-sync,rd-webhooks,tiny-webhooks --stop-when-empty --max-time=50 >> /dev/null 2>&1
 
 Instruções completas: ver DEPLOY_HOSTINGER.md na raiz do projeto.
 TEXT;

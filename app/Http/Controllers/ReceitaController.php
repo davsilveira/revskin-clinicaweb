@@ -13,6 +13,7 @@ use App\Models\ReceitaItem;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\ReceitaProdutoLegadoGuard;
+use App\Services\RdNegociacaoSync;
 use App\Services\TinyPedidoSync;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -575,6 +576,7 @@ class ReceitaController extends Controller
         }
 
         TinyPedidoSync::agendarCancelamento($receita);
+        RdNegociacaoSync::agendarMarcarPerdida($receita);
 
         $receita->update(['status' => 'cancelada', 'ativo' => false]);
 

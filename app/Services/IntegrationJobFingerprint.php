@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Jobs\CancelarPedidoTinyJob;
 use App\Jobs\CriarNegociacaoRdStationJob;
 use App\Jobs\CriarPedidoTinyJob;
+use App\Jobs\MarcarNegociacaoPerdidaRdJob;
+use App\Jobs\ProcessWebhookRdJob;
 use App\Jobs\ProcessWebhookTinyJob;
 use App\Jobs\PullPacientesTinyJob;
 use App\Jobs\SyncClienteTinyJob;
@@ -17,6 +19,8 @@ class IntegrationJobFingerprint
     /** @var list<class-string> */
     public const MANAGED_CLASSES = [
         CriarNegociacaoRdStationJob::class,
+        MarcarNegociacaoPerdidaRdJob::class,
+        ProcessWebhookRdJob::class,
         CriarPedidoTinyJob::class,
         CancelarPedidoTinyJob::class,
         ProcessWebhookTinyJob::class,
@@ -28,6 +32,7 @@ class IntegrationJobFingerprint
 
     public const INTEGRATION_QUEUES = [
         'rd-sync',
+        'rd-webhooks',
         'tiny-sync',
         'tiny-webhooks',
     ];
@@ -35,6 +40,8 @@ class IntegrationJobFingerprint
     /** @var array<class-string, string> */
     public const JOB_LABELS = [
         CriarNegociacaoRdStationJob::class => 'Criar negociação',
+        MarcarNegociacaoPerdidaRdJob::class => 'Marcar negociação perdida',
+        ProcessWebhookRdJob::class => 'Webhook negociação RD',
         CriarPedidoTinyJob::class => 'Criar pedido',
         CancelarPedidoTinyJob::class => 'Cancelar pedido',
         ProcessWebhookTinyJob::class => 'Webhook pedido',
@@ -47,6 +54,7 @@ class IntegrationJobFingerprint
     /** @var array<class-string, string> Jobs ativos no filtro da UI */
     public const FILTER_JOB_LABELS = [
         CriarNegociacaoRdStationJob::class => 'Criar negociação',
+        MarcarNegociacaoPerdidaRdJob::class => 'Marcar negociação perdida',
         SyncClienteTinyJob::class => 'Sync cliente',
         SyncProdutosTinyJob::class => 'Sync produtos',
         PullPacientesTinyJob::class => 'Importar pacientes',
@@ -114,10 +122,12 @@ class IntegrationJobFingerprint
 
         match ($class) {
             CriarNegociacaoRdStationJob::class,
+            MarcarNegociacaoPerdidaRdJob::class,
             CriarPedidoTinyJob::class => self::assignModelRef($job, 'receita', self::extractModelId($command, 'receita')),
             SyncClienteTinyJob::class => self::assignModelRef($job, 'paciente', self::extractModelId($command, 'paciente')),
             SyncVendaTinyJob::class => self::assignModelRef($job, 'atendimento', self::extractModelId($command, 'atendimento')),
             ProcessWebhookTinyJob::class => self::assignWebhookScalars($job, $command),
+            ProcessWebhookRdJob::class => self::assignRdWebhookScalars($job, $command),
             default => null,
         };
 
@@ -139,6 +149,21 @@ class IntegrationJobFingerprint
 
         if (self::hasSerializedProperty($command, 'situacao')) {
             $job->situacao = self::extractScalar($command, 'situacao');
+        }
+    }
+
+    private static function assignRdWebhookScalars(object $job, string $command): void
+    {
+        if (($dealId = self::extractScalar($command, 'dealId')) !== null) {
+            $job->dealId = $dealId;
+        }
+
+        if (self::hasSerializedProperty($command, 'status')) {
+            $job->status = self::extractScalar($command, 'status');
+        }
+
+        if (($transactionUuid = self::extractScalar($command, 'transactionUuid')) !== null) {
+            $job->transactionUuid = $transactionUuid;
         }
     }
 
@@ -230,6 +255,7 @@ class IntegrationJobFingerprint
 
         return match ($class) {
             CriarNegociacaoRdStationJob::class,
+            MarcarNegociacaoPerdidaRdJob::class,
             CriarPedidoTinyJob::class => array_merge($base, [
                 'receita_id' => self::modelId($job->receita ?? null),
                 'context_label' => self::modelId($job->receita ?? null)
@@ -253,6 +279,11 @@ class IntegrationJobFingerprint
                 'situacao' => isset($job->situacao) ? (string) $job->situacao : null,
                 'context_label' => isset($job->pedidoId)
                     ? 'Pedido Tiny #'.$job->pedidoId
+                    : null,
+            ]),
+            ProcessWebhookRdJob::class => array_merge($base, [
+                'context_label' => isset($job->dealId)
+                    ? 'Negociação RD #'.$job->dealId
                     : null,
             ]),
             SyncProdutosTinyJob::class,
@@ -279,6 +310,7 @@ class IntegrationJobFingerprint
     {
         return match ($class) {
             CriarNegociacaoRdStationJob::class,
+            MarcarNegociacaoPerdidaRdJob::class,
             CriarPedidoTinyJob::class => self::make($class, 'receita', self::modelId($job->receita ?? null) ?? 0),
 
             ProcessWebhookTinyJob::class => self::make(
@@ -286,6 +318,13 @@ class IntegrationJobFingerprint
                 'webhook',
                 (string) ($job->pedidoId ?? ''),
                 (string) ($job->situacao ?? '')
+            ),
+            ProcessWebhookRdJob::class => self::make(
+                $class,
+                'rd-webhook',
+                (string) ($job->dealId ?? ''),
+                (string) ($job->status ?? ''),
+                (string) ($job->transactionUuid ?? '')
             ),
             SyncClienteTinyJob::class => self::make($class, 'paciente', self::modelId($job->paciente ?? null) ?? 0),
             SyncVendaTinyJob::class => self::make($class, 'atendimento', self::modelId($job->atendimento ?? null) ?? 0),
