@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Services\RdWebhookAuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
@@ -52,6 +53,8 @@ class SettingsController extends Controller
                     'webhook_secret' => $settings['rd_webhook_secret'] ?? '',
                 ],
                 'isAuthenticated' => $rdHasRefreshToken,
+                'webhook_receipts' => RdWebhookAuditLog::all(),
+                'webhook_last_received_at' => RdWebhookAuditLog::lastReceivedAt(),
             ],
         ]);
     }
@@ -261,6 +264,16 @@ class SettingsController extends Controller
                 'message' => 'Erro ao conectar: ' . $e->getMessage(),
             ], 400);
         }
+    }
+
+    public function rdWebhookLog()
+    {
+        $this->ensureAdmin();
+
+        return response()->json([
+            'receipts' => RdWebhookAuditLog::all(),
+            'last_received_at' => RdWebhookAuditLog::lastReceivedAt(),
+        ]);
     }
 
     protected function ensureAdmin(): void

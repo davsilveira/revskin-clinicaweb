@@ -7,6 +7,7 @@ use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Receita;
 use App\Models\Setting;
+use App\Services\RdWebhookAuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -34,6 +35,28 @@ class WebhookRdControllerTest extends TestCase
 
         $response->assertUnauthorized();
         Bus::assertNothingDispatched();
+
+        $log = RdWebhookAuditLog::all();
+        $this->assertCount(1, $log);
+        $this->assertSame('rejected_auth', $log[0]['outcome']);
+    }
+
+    #[Test]
+    public function records_audit_log_when_webhook_is_dispatched(): void
+    {
+        Bus::fake();
+
+        $response = $this->postJson('/api/webhooks/rd/crm-deal-updated', $this->payload('lost'), [
+            'X-RD-Webhook-Secret' => 'segredo-teste',
+        ]);
+
+        $response->assertOk();
+
+        $log = RdWebhookAuditLog::all();
+        $this->assertCount(1, $log);
+        $this->assertSame('dispatched', $log[0]['outcome']);
+        $this->assertSame('deal-123', $log[0]['deal_id']);
+        $this->assertSame('lost', $log[0]['status']);
     }
 
     #[Test]

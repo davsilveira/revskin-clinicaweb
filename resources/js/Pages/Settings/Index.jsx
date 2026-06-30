@@ -60,6 +60,8 @@ export default function SettingsIndex({ tiny, rdstation }) {
                                 <RdStationSettings
                                     settings={rdstation?.settings || {}}
                                     isAuthenticated={rdstation?.isAuthenticated || false}
+                                    webhookReceipts={rdstation?.webhook_receipts || []}
+                                    webhookLastReceivedAt={rdstation?.webhook_last_received_at || null}
                                     onToast={setToast}
                                 />
                             )}

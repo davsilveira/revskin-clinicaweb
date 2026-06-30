@@ -4,7 +4,13 @@ import Input from '@/Components/Form/Input';
 import Checkbox from '@/Components/Form/Checkbox';
 import Toast from '@/Components/Toast';
 
-export default function RdStationSettings({ settings, onToast, isAuthenticated }) {
+export default function RdStationSettings({
+    settings,
+    onToast,
+    isAuthenticated,
+    webhookReceipts = [],
+    webhookLastReceivedAt = null,
+}) {
     const [toast, setToast] = useState(null);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
@@ -12,6 +18,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
     const [removeClientSecret, setRemoveClientSecret] = useState(false);
     const [authorizing, setAuthorizing] = useState(false);
     const [disconnecting, setDisconnecting] = useState(false);
+    const [receipts, setReceipts] = useState(webhookReceipts);
+    const [lastReceivedAt, setLastReceivedAt] = useState(webhookLastReceivedAt);
+    const [refreshingWebhookLog, setRefreshingWebhookLog] = useState(false);
 
     const { data, setData, put, processing, errors, transform } = useForm({
         enabled: settings.enabled || false,
@@ -170,6 +179,39 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
     };
 
     const webhookUrl = `${window.location.origin}/api/webhooks/rd/crm-deal-updated`;
+
+    const outcomeLabels = {
+        dispatched: 'Job enfileirado',
+        rejected_auth: 'Rejeitado (segredo)',
+        ignored_event: 'Evento ignorado',
+        missing_deal_id: 'Sem ID da negociacao',
+    };
+
+    const formatReceivedAt = (value) => {
+        if (!value) return '—';
+        try {
+            return new Date(value).toLocaleString('pt-BR');
+        } catch {
+            return value;
+        }
+    };
+
+    const handleRefreshWebhookLog = async () => {
+        setRefreshingWebhookLog(true);
+        try {
+            const response = await fetch('/settings/integrations/rd-station/webhook-log', {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            const data = await response.json();
+            if (response.ok) {
+                setReceipts(data.receipts || []);
+                setLastReceivedAt(data.last_received_at || null);
+            }
+        } finally {
+            setRefreshingWebhookLog(false);
+        }
+    };
 
     const canTest = settings.has_client_id && settings.has_client_secret;
 
@@ -511,6 +553,75 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                                 <p className="text-xs text-gray-500">
                                     Se vazio, o endpoint aceita requisicoes sem autenticacao (nao recomendado em producao).
                                 </p>
+                            </div>
+
+                            <div className="border-t border-gray-200 pt-4 mt-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-900">Log de recebimentos do webhook</h4>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Ultimo hit no endpoint ClinicaWeb:{' '}
+                                            <strong>{formatReceivedAt(lastReceivedAt)}</strong>
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleRefreshWebhookLog}
+                                        disabled={refreshingWebhookLog}
+                                        className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                                    >
+                                        {refreshingWebhookLog ? 'Atualizando...' : 'Atualizar log'}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                                    Se esta lista estiver vazia apos alterar uma negociacao no RD, o POST nao esta chegando em{' '}
+                                    <code className="text-xs">{webhookUrl}</code>. Confirme se o RD/autz apontam para esta URL (nao so para webhook.autz.com.br).
+                                </p>
+                                {receipts.length === 0 ? (
+                                    <p className="text-sm text-gray-500 italic">Nenhum webhook registrado ainda.</p>
+                                ) : (
+                                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                        <table className="min-w-full text-xs">
+                                            <thead className="bg-gray-50 text-gray-600">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left font-medium">Quando</th>
+                                                    <th className="px-3 py-2 text-left font-medium">Resultado</th>
+                                                    <th className="px-3 py-2 text-left font-medium">Evento</th>
+                                                    <th className="px-3 py-2 text-left font-medium">Status</th>
+                                                    <th className="px-3 py-2 text-left font-medium">Deal</th>
+                                                    <th className="px-3 py-2 text-left font-medium">IP</th>
+                                                    <th className="px-3 py-2 text-left font-medium">Formato</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {receipts.map((row) => (
+                                                    <tr key={row.id || row.received_at}>
+                                                        <td className="px-3 py-2 whitespace-nowrap text-gray-700">
+                                                            {formatReceivedAt(row.received_at)}
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <span className={
+                                                                row.outcome === 'dispatched'
+                                                                    ? 'text-green-700'
+                                                                    : row.outcome === 'rejected_auth'
+                                                                        ? 'text-red-700'
+                                                                        : 'text-gray-600'
+                                                            }>
+                                                                {outcomeLabels[row.outcome] || row.outcome || '—'}
+                                                                {row.http_status ? ` (${row.http_status})` : ''}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-gray-700">{row.event_name || '—'}</td>
+                                                        <td className="px-3 py-2 text-gray-700">{row.status || '—'}</td>
+                                                        <td className="px-3 py-2 text-gray-700 font-mono">{row.deal_id || '—'}</td>
+                                                        <td className="px-3 py-2 text-gray-500">{row.ip || '—'}</td>
+                                                        <td className="px-3 py-2 text-gray-500">{row.payload_shape || '—'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

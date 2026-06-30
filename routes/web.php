@@ -235,6 +235,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('settings.rdstation.update');
         Route::post('/settings/integrations/rd-station/test', [SettingsController::class, 'testRdStation'])
             ->name('settings.rdstation.test');
+        Route::get('/settings/integrations/rd-station/webhook-log', [SettingsController::class, 'rdWebhookLog'])
+            ->name('settings.rdstation.webhook-log');
 
         Route::prefix('integracoes/rd-station')->name('rdstation.')->group(function () {
             Route::get('/auth-url', [RdStationIntegrationController::class, 'getAuthorizationUrl'])->name('auth-url');

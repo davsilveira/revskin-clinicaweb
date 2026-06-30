@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessWebhookRdJob;
 use App\Models\Setting;
+use App\Services\RdWebhookAuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +13,22 @@ class WebhookRdController extends Controller
 {
     public function crmDealUpdated(Request $request): JsonResponse
     {
+        $rawPayload = $request->all();
+        $payload = $this->normalizarPayload($rawPayload);
+        $document = is_array($payload['document'] ?? null) ? $payload['document'] : [];
+
+        $auditBase = [
+            'ip' => $request->ip(),
+            'event_name' => (string) ($payload['event_name'] ?? ''),
+            'deal_id' => isset($document['id']) ? (string) $document['id'] : null,
+            'status' => isset($document['status']) ? (string) $document['status'] : null,
+            'transaction_uuid' => (string) ($payload['transaction_uuid'] ?? ''),
+            'payload_shape' => $this->descreverFormatoPayload($rawPayload, $payload),
+            'has_secret_header' => $request->header('X-RD-Webhook-Secret') !== null,
+        ];
+
+        Log::info('RD Station CRM: Webhook endpoint acionado', $auditBase);
+
         if (! $this->validarSecret($request)) {
             Log::warning('RD Station CRM: Webhook rejeitado — segredo inválido ou ausente', [
                 'ip' => $request->ip(),
@@ -19,18 +36,21 @@ class WebhookRdController extends Controller
                 'has_bearer' => str_starts_with((string) $request->header('Authorization', ''), 'Bearer '),
             ]);
 
+            RdWebhookAuditLog::record(array_merge($auditBase, [
+                'outcome' => 'rejected_auth',
+                'http_status' => 401,
+            ]));
+
             return response()->json([
                 'success' => false,
                 'message' => 'Não autorizado',
             ], 401);
         }
 
-        $payload = $this->normalizarPayload($request->all());
-        $eventName = (string) ($payload['event_name'] ?? '');
-        $document = $payload['document'] ?? [];
-        $dealId = isset($document['id']) ? (string) $document['id'] : null;
-        $status = isset($document['status']) ? (string) $document['status'] : null;
-        $transactionUuid = (string) ($payload['transaction_uuid'] ?? '');
+        $eventName = $auditBase['event_name'];
+        $dealId = $auditBase['deal_id'];
+        $status = $auditBase['status'];
+        $transactionUuid = $auditBase['transaction_uuid'];
 
         Log::info('RD Station CRM: Webhook recebido', [
             'event_name' => $eventName,
@@ -40,6 +60,11 @@ class WebhookRdController extends Controller
         ]);
 
         if ($eventName !== 'crm_deal_updated') {
+            RdWebhookAuditLog::record(array_merge($auditBase, [
+                'outcome' => 'ignored_event',
+                'http_status' => 200,
+            ]));
+
             return response()->json([
                 'success' => true,
                 'message' => 'Evento ignorado',
@@ -50,6 +75,11 @@ class WebhookRdController extends Controller
             Log::warning('RD Station CRM: Webhook sem ID da negociação', [
                 'payload' => $payload,
             ]);
+
+            RdWebhookAuditLog::record(array_merge($auditBase, [
+                'outcome' => 'missing_deal_id',
+                'http_status' => 400,
+            ]));
 
             return response()->json([
                 'success' => false,
@@ -63,6 +93,11 @@ class WebhookRdController extends Controller
             $transactionUuid !== '' ? $transactionUuid : uniqid('rd-', true),
             $payload
         );
+
+        RdWebhookAuditLog::record(array_merge($auditBase, [
+            'outcome' => 'dispatched',
+            'http_status' => 200,
+        ]));
 
         return response()->json([
             'success' => true,
@@ -90,6 +125,31 @@ class WebhookRdController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * @param  array<string|int, mixed>  $rawPayload
+     * @param  array<string, mixed>  $payload
+     */
+    private function descreverFormatoPayload(array $rawPayload, array $payload): string
+    {
+        if (isset($rawPayload[0]) && is_array($rawPayload[0])) {
+            return 'wrapper_array';
+        }
+
+        if (isset($rawPayload['body']) && is_array($rawPayload['body'])) {
+            return 'wrapper_body';
+        }
+
+        if ($payload !== $rawPayload) {
+            return 'normalized';
+        }
+
+        if ($payload === []) {
+            return 'empty';
+        }
+
+        return 'plain';
     }
 
     /**
