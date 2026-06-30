@@ -13,6 +13,12 @@ class WebhookRdController extends Controller
     public function crmDealUpdated(Request $request): JsonResponse
     {
         if (! $this->validarSecret($request)) {
+            Log::warning('RD Station CRM: Webhook rejeitado — segredo inválido ou ausente', [
+                'ip' => $request->ip(),
+                'has_secret_header' => $request->header('X-RD-Webhook-Secret') !== null,
+                'has_bearer' => str_starts_with((string) $request->header('Authorization', ''), 'Bearer '),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Não autorizado',

@@ -467,8 +467,9 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Webhook RD (negociacao atualizada)</h3>
                             <p className="text-xs text-gray-500 mb-4">
                                 Configure no RD CRM o evento <strong>Negociacao atualizada</strong> (<code>crm_deal_updated</code>)
-                                apontando para a URL abaixo. Quando a negociacao ficar com status perdida (<code>lost</code>), a receita sera cancelada aqui.
-                                Webhooks com status <code>ongoing</code> (ex.: apos preencher o campo de cancelamento) sao ignorados — isso e esperado.
+                                apontando para a URL abaixo. A receita sera cancelada aqui quando a negociacao ficar com status perdida (<code>lost</code>)
+                                <strong> ou </strong>
+                                quando o campo de cancelamento configurado acima receber o valor informado (ex.: <code>Cancelada</code>).
                             </p>
 
                             <div className="bg-amber-50 rounded-lg border border-amber-200 p-3 sm:p-4 mb-4">

@@ -2,28 +2,37 @@
 
 namespace Tests\Unit;
 
+use App\Jobs\CancelarPedidoTinyJob;
 use App\Jobs\PullPacientesTinyJob;
 use App\Jobs\SyncClienteTinyJob;
 use App\Jobs\SyncProdutosTinyJob;
+use App\Models\Medico;
+use App\Models\Paciente;
+use App\Models\Receita;
 use App\Services\IntegrationJobFingerprint;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class IntegrationJobFingerprintTest extends TestCase
 {
+    use RefreshDatabase;
+
     #[Test]
     public function job_options_lists_only_active_filter_jobs(): void
     {
         $options = IntegrationJobFingerprint::jobOptions();
         $labels = array_column($options, 'label');
 
-        $this->assertCount(5, $options);
+        $this->assertCount(8, $options);
         $this->assertContains('Criar negociação', $labels);
         $this->assertContains('Marcar negociação perdida', $labels);
+        $this->assertContains('Webhook negociação RD', $labels);
+        $this->assertContains('Criar pedido', $labels);
+        $this->assertContains('Cancelar pedido', $labels);
         $this->assertContains('Sync cliente', $labels);
         $this->assertContains('Sync produtos', $labels);
         $this->assertContains('Importar pacientes', $labels);
-        $this->assertNotContains('Criar pedido', $labels);
         $this->assertNotContains('Sync venda', $labels);
         $this->assertNotContains('Webhook pedido', $labels);
     }
@@ -83,6 +92,31 @@ class IntegrationJobFingerprintTest extends TestCase
             $parsed['class'],
             $parsed['instance']
         )['paciente_id']);
+    }
+
+    #[Test]
+    public function parse_payload_extracts_receita_id_for_cancelar_pedido_tiny_job(): void
+    {
+        $medico = Medico::create(['nome' => 'Dr. Integração']);
+        $paciente = Paciente::create(['nome' => 'Paciente Integração', 'medico_id' => $medico->id]);
+        $receita = Receita::create([
+            'numero' => '1-0099',
+            'data_receita' => now()->toDateString(),
+            'paciente_id' => $paciente->id,
+            'medico_id' => $medico->id,
+            'status' => 'finalizada',
+            'ativo' => true,
+        ]);
+
+        $payload = $this->wrapPayload(new CancelarPedidoTinyJob($receita), CancelarPedidoTinyJob::class);
+
+        $parsed = IntegrationJobFingerprint::parsePayload($payload);
+        $this->assertNotNull($parsed);
+        $this->assertSame(CancelarPedidoTinyJob::class, $parsed['class']);
+        $this->assertSame($receita->id, IntegrationJobFingerprint::describe(
+            $parsed['class'],
+            $parsed['instance']
+        )['receita_id']);
     }
 
     private function wrapPayload(object $instance, string $class): string

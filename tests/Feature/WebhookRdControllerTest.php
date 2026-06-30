@@ -132,28 +132,52 @@ class WebhookRdControllerTest extends TestCase
     }
 
     #[Test]
-    public function real_world_ongoing_payload_dispatches_job_but_does_not_cancel_receita(): void
+    public function real_world_ongoing_payload_does_not_cancel_without_field_settings(): void
     {
         Bus::fake();
 
         $receita = $this->makeReceita('6a4280ac2af4850027e797c8', 'finalizada');
 
-        $response = $this->postJson('/api/webhooks/rd/crm-deal-updated', $this->realWorldPayload('ongoing'), [
-            'X-RD-Webhook-Secret' => 'segredo-teste',
-        ]);
-
-        $response->assertOk();
-        Bus::assertDispatched(ProcessWebhookRdJob::class);
-
         (new ProcessWebhookRdJob(
             '6a4280ac2af4850027e797c8',
             'ongoing',
-            '789c4c43-ongoing-test',
+            '789c4c43-ongoing-no-settings',
             $this->realWorldPayload('ongoing')
         ))->handle();
 
         $receita->refresh();
         $this->assertSame('finalizada', $receita->status);
+    }
+
+    #[Test]
+    public function real_world_ongoing_payload_cancels_when_custom_field_matches_settings(): void
+    {
+        Setting::set('rd_cancelamento_field_id', '6a3d26162a6bb20028631528');
+        Setting::set('rd_cancelamento_field_value', 'Cancelada');
+
+        $receita = $this->makeReceita('6a4280ac2af4850027e797c8', 'finalizada');
+
+        (new ProcessWebhookRdJob(
+            '6a4280ac2af4850027e797c8',
+            'ongoing',
+            '789c4c43-ongoing-cancelada',
+            $this->realWorldPayload('ongoing')
+        ))->handle();
+
+        $receita->refresh();
+        $this->assertSame('cancelada', $receita->status);
+        $this->assertFalse((bool) $receita->ativo);
+    }
+
+    #[Test]
+    public function motivo_cancelamento_returns_custom_field_for_ongoing_with_matching_field(): void
+    {
+        Setting::set('rd_cancelamento_field_id', '6a3d26162a6bb20028631528');
+        Setting::set('rd_cancelamento_field_value', 'Cancelada');
+
+        $motivo = ProcessWebhookRdJob::motivoCancelamento('ongoing', $this->realWorldPayload('ongoing'));
+
+        $this->assertSame('custom_field', $motivo);
     }
 
     #[Test]

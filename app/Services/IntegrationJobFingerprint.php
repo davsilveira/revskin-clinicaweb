@@ -56,6 +56,8 @@ class IntegrationJobFingerprint
         CriarNegociacaoRdStationJob::class => 'Criar negociação',
         MarcarNegociacaoPerdidaRdJob::class => 'Marcar negociação perdida',
         ProcessWebhookRdJob::class => 'Webhook negociação RD',
+        CriarPedidoTinyJob::class => 'Criar pedido',
+        CancelarPedidoTinyJob::class => 'Cancelar pedido',
         SyncClienteTinyJob::class => 'Sync cliente',
         SyncProdutosTinyJob::class => 'Sync produtos',
         PullPacientesTinyJob::class => 'Importar pacientes',
@@ -124,7 +126,8 @@ class IntegrationJobFingerprint
         match ($class) {
             CriarNegociacaoRdStationJob::class,
             MarcarNegociacaoPerdidaRdJob::class,
-            CriarPedidoTinyJob::class => self::assignModelRef($job, 'receita', self::extractModelId($command, 'receita')),
+            CriarPedidoTinyJob::class,
+            CancelarPedidoTinyJob::class => self::assignModelRef($job, 'receita', self::extractModelId($command, 'receita')),
             SyncClienteTinyJob::class => self::assignModelRef($job, 'paciente', self::extractModelId($command, 'paciente')),
             SyncVendaTinyJob::class => self::assignModelRef($job, 'atendimento', self::extractModelId($command, 'atendimento')),
             ProcessWebhookTinyJob::class => self::assignWebhookScalars($job, $command),
@@ -257,7 +260,8 @@ class IntegrationJobFingerprint
         return match ($class) {
             CriarNegociacaoRdStationJob::class,
             MarcarNegociacaoPerdidaRdJob::class,
-            CriarPedidoTinyJob::class => array_merge($base, [
+            CriarPedidoTinyJob::class,
+            CancelarPedidoTinyJob::class => array_merge($base, [
                 'receita_id' => self::modelId($job->receita ?? null),
                 'context_label' => self::modelId($job->receita ?? null)
                     ? 'Receita #'.self::modelId($job->receita ?? null)
@@ -312,7 +316,8 @@ class IntegrationJobFingerprint
         return match ($class) {
             CriarNegociacaoRdStationJob::class,
             MarcarNegociacaoPerdidaRdJob::class,
-            CriarPedidoTinyJob::class => self::make($class, 'receita', self::modelId($job->receita ?? null) ?? 0),
+            CriarPedidoTinyJob::class,
+            CancelarPedidoTinyJob::class => self::make($class, 'receita', self::modelId($job->receita ?? null) ?? 0),
 
             ProcessWebhookTinyJob::class => self::make(
                 $class,

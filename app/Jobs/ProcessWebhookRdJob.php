@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Receita;
+use App\Models\Setting;
 use App\Services\ReceitaCancelamentoService;
 use App\Services\TinyPedidoSync;
 use Illuminate\Bus\Queueable;
@@ -47,8 +48,9 @@ class ProcessWebhookRdJob implements ShouldQueue
 
         Cache::put($cacheKey, true, now()->addDay());
 
-        if ($this->status !== 'lost') {
-            Log::info('RD Station CRM: Webhook ignorado — status não é lost', [
+        $motivo = self::motivoCancelamento($this->status, $this->payload);
+        if ($motivo === null) {
+            Log::info('RD Station CRM: Webhook ignorado — sem gatilho de cancelamento', [
                 'deal_id' => $this->dealId,
                 'status' => $this->status,
                 'custom_fields' => self::resumirCustomFields($this->payload),
@@ -62,6 +64,7 @@ class ProcessWebhookRdJob implements ShouldQueue
         if (! $receita) {
             Log::info('RD Station CRM: Nenhuma receita vinculada à negociação', [
                 'deal_id' => $this->dealId,
+                'motivo' => $motivo,
             ]);
 
             return;
@@ -71,6 +74,7 @@ class ProcessWebhookRdJob implements ShouldQueue
             Log::info('RD Station CRM: Receita já cancelada', [
                 'receita_id' => $receita->id,
                 'deal_id' => $this->dealId,
+                'motivo' => $motivo,
             ]);
 
             return;
@@ -82,6 +86,7 @@ class ProcessWebhookRdJob implements ShouldQueue
         Log::info('RD Station CRM: Receita cancelada a partir do webhook', [
             'receita_id' => $receita->id,
             'deal_id' => $this->dealId,
+            'motivo' => $motivo,
         ]);
     }
 
@@ -91,6 +96,66 @@ class ProcessWebhookRdJob implements ShouldQueue
             'deal_id' => $this->dealId,
             'error' => $exception?->getMessage(),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public static function motivoCancelamento(string $status, array $payload): ?string
+    {
+        if ($status === 'lost') {
+            return 'lost';
+        }
+
+        if (self::campoCancelamentoBate($payload)) {
+            return 'custom_field';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private static function campoCancelamentoBate(array $payload): bool
+    {
+        $fieldId = trim((string) Setting::get('rd_cancelamento_field_id', ''));
+        $fieldValue = trim((string) Setting::get('rd_cancelamento_field_value', ''));
+
+        if ($fieldId === '' || $fieldValue === '') {
+            return false;
+        }
+
+        $document = $payload['document'] ?? [];
+        $fields = $document['deal_custom_fields'] ?? [];
+
+        if (! is_array($fields)) {
+            return false;
+        }
+
+        foreach ($fields as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $customField = $entry['custom_field'] ?? [];
+            $id = is_array($customField) ? (string) ($customField['id'] ?? '') : '';
+
+            if ($id !== $fieldId) {
+                continue;
+            }
+
+            $value = $entry['value'] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            if ((string) $value === $fieldValue) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
