@@ -433,7 +433,8 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Cancelamento de receita</h3>
                             <p className="text-xs text-gray-500 mb-4">
                                 Ao cancelar uma receita no ClinicaWeb, o sistema preenche um campo customizado na negociacao do RD.
-                                Configure uma automacao no RD para marcar a negociacao como perdida quando esse campo receber o valor informado.
+                                Configure uma automacao no RD para marcar a negociacao como <strong>perdida</strong> (<code>lost</code>) quando esse campo receber o valor informado.
+                                Sem essa automacao, o ClinicaWeb recebera webhooks com status <code>ongoing</code> e a receita nao sera cancelada pelo RD.
                             </p>
 
                             <div className="space-y-4">
@@ -467,7 +468,17 @@ export default function RdStationSettings({ settings, onToast, isAuthenticated }
                             <p className="text-xs text-gray-500 mb-4">
                                 Configure no RD CRM o evento <strong>Negociacao atualizada</strong> (<code>crm_deal_updated</code>)
                                 apontando para a URL abaixo. Quando a negociacao ficar com status perdida (<code>lost</code>), a receita sera cancelada aqui.
+                                Webhooks com status <code>ongoing</code> (ex.: apos preencher o campo de cancelamento) sao ignorados — isso e esperado.
                             </p>
+
+                            <div className="bg-amber-50 rounded-lg border border-amber-200 p-3 sm:p-4 mb-4">
+                                <p className="font-medium text-amber-800 text-sm">Proxy / forward (autz, n8n, etc.)</p>
+                                <p className="text-xs text-amber-700 mt-2">
+                                    Encaminhe apenas o JSON interno do evento (campos <code>event_name</code>, <code>document</code>, <code>transaction_uuid</code>),
+                                    nao o envelope com <code>headers</code> ou array wrapper. Se usar segredo abaixo, inclua no forward o header{' '}
+                                    <code>X-RD-Webhook-Secret</code> — o RD nao envia esse header nativamente.
+                                </p>
+                            </div>
 
                             <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 sm:p-4 mb-4">
                                 <p className="font-medium text-blue-800 text-sm">URL do webhook</p>

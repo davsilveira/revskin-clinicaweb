@@ -19,7 +19,7 @@ class WebhookRdController extends Controller
             ], 401);
         }
 
-        $payload = $request->all();
+        $payload = $this->normalizarPayload($request->all());
         $eventName = (string) ($payload['event_name'] ?? '');
         $document = $payload['document'] ?? [];
         $dealId = isset($document['id']) ? (string) $document['id'] : null;
@@ -84,5 +84,31 @@ class WebhookRdController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Aceita JSON plano do RD ou envelope de proxy (ex.: autz/n8n com chave `body`).
+     *
+     * @param  array<string|int, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function normalizarPayload(array $payload): array
+    {
+        if (isset($payload[0]) && is_array($payload[0])) {
+            $first = $payload[0];
+            if (isset($first['body']) && is_array($first['body'])) {
+                return $first['body'];
+            }
+        }
+
+        if (
+            isset($payload['body'])
+            && is_array($payload['body'])
+            && isset($payload['body']['event_name'])
+        ) {
+            return $payload['body'];
+        }
+
+        return $payload;
     }
 }

@@ -51,6 +51,7 @@ class ProcessWebhookRdJob implements ShouldQueue
             Log::info('RD Station CRM: Webhook ignorado — status não é lost', [
                 'deal_id' => $this->dealId,
                 'status' => $this->status,
+                'custom_fields' => self::resumirCustomFields($this->payload),
             ]);
 
             return;
@@ -90,5 +91,36 @@ class ProcessWebhookRdJob implements ShouldQueue
             'deal_id' => $this->dealId,
             'error' => $exception?->getMessage(),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private static function resumirCustomFields(array $payload): array
+    {
+        $document = $payload['document'] ?? [];
+        $fields = $document['deal_custom_fields'] ?? [];
+
+        if (! is_array($fields)) {
+            return [];
+        }
+
+        $resumo = [];
+
+        foreach ($fields as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $customField = $entry['custom_field'] ?? [];
+            $label = is_array($customField)
+                ? (string) ($customField['label'] ?? $customField['id'] ?? 'campo')
+                : 'campo';
+
+            $resumo[$label] = $entry['value'] ?? null;
+        }
+
+        return $resumo;
     }
 }

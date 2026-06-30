@@ -55,6 +55,7 @@ class IntegrationJobFingerprint
     public const FILTER_JOB_LABELS = [
         CriarNegociacaoRdStationJob::class => 'Criar negociação',
         MarcarNegociacaoPerdidaRdJob::class => 'Marcar negociação perdida',
+        ProcessWebhookRdJob::class => 'Webhook negociação RD',
         SyncClienteTinyJob::class => 'Sync cliente',
         SyncProdutosTinyJob::class => 'Sync produtos',
         PullPacientesTinyJob::class => 'Importar pacientes',
