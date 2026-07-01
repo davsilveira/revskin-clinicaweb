@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Services\RdWebhookAuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WebhookRdController extends Controller
@@ -86,6 +87,35 @@ class WebhookRdController extends Controller
                 'message' => 'ID da negociação não encontrado no payload',
             ], 400);
         }
+
+        // Deduplicação por conteúdo: proxies (ex.: autz.com.br/n8n) podem entregar o
+        // mesmo evento duas vezes com transaction_uuid diferente. Como o dedup do job
+        // (ProcessWebhookRdJob) é feito por transaction_uuid, ele não pega esse caso —
+        // então checamos aqui, antes de despachar, usando um identificador do próprio
+        // conteúdo do evento (deal + status + updated_at/event_timestamp).
+        $updatedAt = isset($document['updated_at']) ? (string) $document['updated_at'] : '';
+        $eventTimestamp = (string) ($payload['event_timestamp'] ?? '');
+        $contentKey = 'rd_webhook_evt:'.md5($dealId.'|'.$status.'|'.($updatedAt !== '' ? $updatedAt : $eventTimestamp));
+
+        if (Cache::has($contentKey)) {
+            Log::info('RD Station CRM: Evento duplicado (mesmo conteúdo, transaction_uuid diferente) ignorado', [
+                'deal_id' => $dealId,
+                'status' => $status,
+                'transaction_uuid' => $transactionUuid,
+            ]);
+
+            RdWebhookAuditLog::record(array_merge($auditBase, [
+                'outcome' => 'duplicate_event',
+                'http_status' => 200,
+            ]));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Evento duplicado ignorado',
+            ]);
+        }
+
+        Cache::put($contentKey, true, now()->addMinutes(10));
 
         ProcessWebhookRdJob::dispatch(
             $dealId,

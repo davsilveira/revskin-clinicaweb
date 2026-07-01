@@ -2,6 +2,7 @@
 
 use App\Jobs\PullPacientesTinyJob;
 use App\Jobs\SyncProdutosTinyJob;
+use App\Services\IntegrationJobFingerprint;
 use Illuminate\Support\Facades\Schedule;
 
 /*
@@ -29,3 +30,12 @@ Schedule::job(new PullPacientesTinyJob)
 
 // Reenvio automático de jobs falhos (RD/Tiny): 5 min + 12 h (ver IntegrationJobFailureRetryService)
 Schedule::command('integration:retry-failed')->everyMinute()->name('integration-retry-failed');
+
+// Rede de segurança: garante que as filas de integração (RD/Tiny) sejam processadas
+// mesmo que o cron manual configurado no painel de hospedagem fique desatualizado
+// (ex.: uma fila nova adicionada ao código, mas não à linha de cron do queue:work).
+// A lista de filas vem de IntegrationJobFingerprint::INTEGRATION_QUEUES, então basta
+// atualizar aquela constante para que esta rede de segurança acompanhe.
+Schedule::command(
+    'queue:work database --queue='.implode(',', IntegrationJobFingerprint::INTEGRATION_QUEUES).' --stop-when-empty --max-time=50'
+)->everyMinute()->withoutOverlapping()->name('integration-queues-worker');

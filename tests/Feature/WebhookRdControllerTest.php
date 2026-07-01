@@ -77,6 +77,35 @@ class WebhookRdControllerTest extends TestCase
     }
 
     #[Test]
+    public function ignores_duplicate_event_with_same_content_but_different_transaction_uuid(): void
+    {
+        Bus::fake();
+
+        $payload = $this->payload('lost');
+        $payload['transaction_uuid'] = 'tx-uuid-A';
+
+        $first = $this->postJson('/api/webhooks/rd/crm-deal-updated', $payload, [
+            'X-RD-Webhook-Secret' => 'segredo-teste',
+        ]);
+        $first->assertOk();
+
+        $duplicate = $payload;
+        $duplicate['transaction_uuid'] = 'tx-uuid-B';
+
+        $second = $this->postJson('/api/webhooks/rd/crm-deal-updated', $duplicate, [
+            'X-RD-Webhook-Secret' => 'segredo-teste',
+        ]);
+        $second->assertOk();
+
+        Bus::assertDispatchedTimes(ProcessWebhookRdJob::class, 1);
+
+        $log = RdWebhookAuditLog::all();
+        $this->assertCount(2, $log);
+        $this->assertSame('duplicate_event', $log[0]['outcome']);
+        $this->assertSame('dispatched', $log[1]['outcome']);
+    }
+
+    #[Test]
     public function ignores_non_deal_updated_events_with_ok(): void
     {
         Bus::fake();
