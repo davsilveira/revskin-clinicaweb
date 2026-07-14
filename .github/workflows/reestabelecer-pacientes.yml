@@ -1,0 +1,65 @@
+name: Reestabelecer pacientes de médico (reparo)
+
+# Executa o comando de reparo `medicos:reestabelecer-pacientes` em PRODUÇÃO via SSH.
+# Roda em dry-run por padrão; marque "force" para aplicar de fato.
+# Requer que o código já esteja deployado (o comando precisa existir no servidor).
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "E-mail do usuário médico afetado"
+        required: true
+        default: "giovana.naccarato@revskin.com.br"
+      origem:
+        description: "ID do médico de origem (deixe vazio para auto-detectar por CRM)"
+        required: false
+        default: ""
+      force:
+        description: "Aplicar de fato (desmarcado = apenas simula / dry-run)"
+        type: boolean
+        required: false
+        default: false
+      apagar_origem:
+        description: "Apagar o médico de origem (vazio) ao final"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  reparo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar comando de reparo via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: IN_EMAIL,IN_ORIGEM,IN_FORCE,IN_APAGAR,APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -euo pipefail
+
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))"
+
+            ARGS="medicos:reestabelecer-pacientes $IN_EMAIL"
+            if [ -n "$IN_ORIGEM" ]; then ARGS="$ARGS --origem=$IN_ORIGEM"; fi
+            if [ "$IN_FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
+            if [ "$IN_APAGAR" = "true" ]; then ARGS="$ARGS --apagar-origem"; fi
+
+            echo "==> php artisan $ARGS"
+            "$PHP" artisan $ARGS
+        env:
+          IN_EMAIL: ${{ inputs.email }}
+          IN_ORIGEM: ${{ inputs.origem }}
+          IN_FORCE: ${{ inputs.force }}
+          IN_APAGAR: ${{ inputs.apagar_origem }}
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin

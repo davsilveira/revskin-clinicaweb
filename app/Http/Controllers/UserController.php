@@ -224,11 +224,16 @@ class UserController extends Controller
                 'is_active' => $validated['is_active'],
             ]);
         } else {
+            // Importante: NÃO zerar medico_id ao trocar para um papel não-médico.
+            // O registro em `medicos` (e todos os pacientes com aquele medico_id)
+            // continua vinculado ao usuário. Assim, se o papel voltar a ser
+            // "médico", reaproveitamos o mesmo médico em vez de criar um novo,
+            // preservando o vínculo dos pacientes. As checagens de acesso usam
+            // o papel (isMedico()), então um medico_id remanescente é inofensivo.
             $user->update([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'role' => $validated['role'],
-                'medico_id' => null,
                 'clinica_id' => $validated['role'] === 'secretaria' ? ($validated['clinica_id'] ?? null) : null,
                 'is_active' => $validated['is_active'],
             ]);
