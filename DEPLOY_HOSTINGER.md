@@ -1,12 +1,34 @@
-# Deploy Revskin na Hostinger (FileZilla + sem build/migrations no servidor)
-
-Este guia considera que você **não** vai rodar `npm run build` nem `php artisan migrate` no servidor, e que usará **FileZilla** para enviar os arquivos. Inclui configuração de **cron** para filas (queue) e agendamento (schedule).
+# Deploy Revskin na Hostinger
 
 **URL de produção:** https://clinicaweb.revskin.com.br
 
 ---
 
-## 0. Método rápido: comando `deploy:package`
+## ⭐ Método atual (padrão): GitHub Actions — deploy automático no push
+
+O deploy hoje é **automatizado**: todo `git push` na branch **`main`** dispara o workflow
+[`.github/workflows/deploy-hostinger.yml`](.github/workflows/deploy-hostinger.yml), que faz build, gera o pacote e envia por **rsync via SSH** para a Hostinger, rodando migrations/cache no fim. **Não** é preciso rodar `npm run build`, gerar `deploy-package/` nem usar FileZilla.
+
+**Para publicar uma alteração, basta:**
+
+```bash
+git checkout main
+git pull
+# ... commit das suas mudanças ...
+git push origin main        # dispara o deploy automaticamente
+```
+
+Também dá para disparar manualmente em **Actions → Deploy to Hostinger → Run workflow** (evento `workflow_dispatch`).
+
+Acompanhe o resultado em **Actions** (ou `gh run watch <run-id>`). Os detalhes de configuração (secrets, variables, chave SSH, script de pós-deploy) estão na **[seção 7](#7-deploy-automatizado-github-actions--detalhes-de-configuração)**.
+
+> ⚠️ **As seções 0 a 2 abaixo (comando `deploy:package` + FileZilla) são o método MANUAL antigo**, mantido apenas como *fallback* caso o GitHub Actions esteja indisponível. No dia a dia, **use o push em `main`** descrito acima. As seções 3 a 6 (`.env`, permissões, symlink de `storage`, cron) continuam válidas como referência da configuração do servidor — a maior parte já é feita automaticamente pelo `scripts/hostinger-post-deploy.sh`.
+
+---
+
+## 0. (Legado / fallback) Método rápido: comando `deploy:package`
+
+> **Método manual antigo.** Prefira o deploy por GitHub Actions (push em `main`). Use isto apenas se o workflow estiver indisponível.
 
 Um único comando gera o pacote pronto para FTP (build, pastas e opcionalmente o dump SQL), **sem alterar seu `.env` local**.
 
@@ -25,7 +47,9 @@ Depois: criar o `.env` em `public_html/revskin/.env` no servidor, configurar per
 
 ---
 
-## 1. O que fazer no seu computador (método manual)
+## 1. (Legado / fallback) O que fazer no seu computador (método manual)
+
+> **Método manual antigo.** No fluxo atual (GitHub Actions), o build e o envio são feitos pelo CI. As instruções abaixo só valem para o *fallback* via FileZilla.
 
 ### 1.1 Build dos assets (obrigatório)
 
@@ -72,7 +96,9 @@ Se preferir, você pode pegar o SQL gerado pelas migrations (por exemplo com `ph
 
 ---
 
-## 2. O que subir pelo FileZilla
+## 2. (Legado / fallback) O que subir pelo FileZilla
+
+> **Método manual antigo.** No fluxo atual o envio é feito por rsync pelo GitHub Actions. Use FileZilla apenas no *fallback*.
 
 ### 2.1 Hostinger: tudo dentro de `public_html`
 
@@ -274,9 +300,9 @@ Na Hostinger (shared hosting) não há processo worker contínuo. O cron executa
 
 ---
 
-## 7. Deploy automatizado (GitHub Actions)
+## 7. Deploy automatizado (GitHub Actions) — detalhes de configuração
 
-Recomendado em vez do Git nativo da Hostinger (que implanta a raiz do repo Laravel em `public_html`, sem build nem estrutura `revskin/`).
+**Este é o método padrão de deploy** (ver o resumo no topo do documento). Recomendado em vez do Git nativo da Hostinger (que implanta a raiz do repo Laravel em `public_html`, sem build nem estrutura `revskin/`) e em vez do envio manual por FileZilla.
 
 ### 7.1 Pré-requisitos no GitHub
 
@@ -415,7 +441,9 @@ bash ~/domains/clinicaweb.revskin.com.br/public_html/revskin/scripts/hostinger-p
 
 ## 8. Checklist rápido
 
-### Deploy manual (FTP)
+> Fluxo padrão: **push em `main`** (GitHub Actions). Comece pela checklist "Deploy automatizado" abaixo. A checklist "Deploy manual (FTP)" é do método legado/fallback.
+
+### Deploy manual (FTP) — legado / fallback
 
 - [ ] Build local com `APP_URL` de produção; pasta `public/build/` gerada.
 - [ ] **Redeploy:** Não sobrescrever `revskin/storage/` no servidor (preservar tabelas Karnaugh e outros arquivos gerados).
