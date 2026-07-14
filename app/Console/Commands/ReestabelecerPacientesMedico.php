@@ -71,7 +71,8 @@ class ReestabelecerPacientesMedico extends Command
             return self::FAILURE;
         }
         if ($origem === null) {
-            $this->info('Nenhum médico órfão correspondente foi encontrado. A médica já parece estar com seus pacientes ligados corretamente — nada a fazer.');
+            $this->info('Nenhum médico órfão correspondente foi encontrado por CRM.');
+            $this->imprimirDiagnostico($user, $destino);
 
             return self::SUCCESS;
         }
@@ -193,6 +194,83 @@ class ReestabelecerPacientesMedico extends Command
         }
 
         return array_values($candidatos)[0];
+    }
+
+    /**
+     * Quando a auto-detecção por CRM falha, ajuda o operador a achar a origem:
+     * lista médicos relacionados ao nome do usuário (nome_legado/apelido) e
+     * médicos órfãos com pacientes, com contagens e o usuário vinculado.
+     */
+    private function imprimirDiagnostico(User $user, Medico $destino): void
+    {
+        $this->newLine();
+        $this->line('DIAGNÓSTICO (somente leitura) — para escolher --origem=ID manualmente:');
+
+        // Tokens significativos do nome do usuário (>= 4 letras)
+        $tokens = array_values(array_filter(
+            preg_split('/\s+/u', mb_strtolower(trim((string) $user->name), 'UTF-8')) ?: [],
+            fn ($t) => mb_strlen($t, 'UTF-8') >= 4
+        ));
+
+        $medicos = Medico::query()->where('id', '!=', $destino->id)->get();
+        $relacionados = $medicos->filter(function (Medico $m) use ($tokens) {
+            $hay = mb_strtolower((string) ($m->nome_legado ?? '').' '.($m->apelido ?? ''), 'UTF-8');
+            foreach ($tokens as $t) {
+                if ($t !== '' && str_contains($hay, $t)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        if ($relacionados->isEmpty()) {
+            $this->line('  (nenhum médico com nome_legado/apelido parecido com "'.$user->name.'")');
+        } else {
+            $this->line('  Médicos com nome parecido com "'.$user->name.'":');
+            foreach ($relacionados as $m) {
+                $vinc = User::where('medico_id', $m->id)->pluck('email')->implode(', ');
+                $this->line(sprintf(
+                    '   - médico #%d | CRM %s | nome_legado="%s" | apelido="%s" | pacientes=%d receitas=%d | usuário=[%s]',
+                    $m->id,
+                    $m->crm ?? '—',
+                    $m->nome_legado ?? '',
+                    $m->apelido ?? '',
+                    $this->countPacientes($m->id),
+                    $this->countReceitas($m->id),
+                    $vinc !== '' ? $vinc : 'nenhum'
+                ));
+            }
+        }
+
+        // Órfãos (sem usuário) com pacientes — candidatos naturais a origem
+        $this->newLine();
+        $this->line('  Médicos ÓRFÃOS (sem usuário) com pacientes:');
+        $achouOrfao = false;
+        foreach ($medicos as $m) {
+            if ($this->temUsuarioVinculado((int) $m->id)) {
+                continue;
+            }
+            $pac = $this->countPacientes((int) $m->id);
+            if ($pac === 0) {
+                continue;
+            }
+            $achouOrfao = true;
+            $this->line(sprintf(
+                '   - médico #%d | CRM %s | nome_legado="%s" | pacientes=%d receitas=%d',
+                $m->id,
+                $m->crm ?? '—',
+                $m->nome_legado ?? '',
+                $pac,
+                $this->countReceitas((int) $m->id)
+            ));
+        }
+        if (! $achouOrfao) {
+            $this->line('   (nenhum médico órfão com pacientes)');
+        }
+
+        $this->newLine();
+        $this->line('Se identificar a origem correta acima, rode com --origem=<ID> (e --force para aplicar).');
     }
 
     private function temUsuarioVinculado(int $medicoId): bool
