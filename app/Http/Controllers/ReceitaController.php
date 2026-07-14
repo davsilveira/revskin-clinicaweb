@@ -241,12 +241,9 @@ class ReceitaController extends Controller
 
     public function edit(Request $request, Receita $receita): Response|RedirectResponse
     {
-        // Redirect finalized prescriptions to view – they are not editable
+        // Redirect finalized prescriptions to view – they are not editable.
+        // Enquanto a receita estiver em aberto, médicos e admins podem editá-la.
         if ($receita->status === 'finalizada') {
-            return redirect()->route('receitas.show', $receita);
-        }
-
-        if ($request->user()->isMedico()) {
             return redirect()->route('receitas.show', $receita);
         }
 

@@ -861,7 +861,8 @@ function ReceitaFormInner({
         }
     };
 
-    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isMedico && !isCallcenter;
+    // Médicos e admins podem editar receitas em aberto; call center permanece somente leitura.
+    const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isCallcenter;
     const canChangeMedico =
         receitaFormIsAdmin && isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isCallcenter;
     const canCancel =
