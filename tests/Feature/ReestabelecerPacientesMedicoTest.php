@@ -110,6 +110,25 @@ class ReestabelecerPacientesMedicoTest extends TestCase
         $this->assertSame(2, Paciente::where('medico_id', $novo->id)->count());
     }
 
+    public function test_vinculo_apenas_na_pivot_nao_impede_reparo(): void
+    {
+        // Cenário real de produção: o médico órfão tem uma linha remanescente na
+        // pivot user_medico (vínculo secundário), mas nenhum usuário PRINCIPAL.
+        [$user, $orfao, $novo] = $this->seedEstadoQuebrado();
+        \Illuminate\Support\Facades\DB::table('user_medico')->insert([
+            'user_id' => $user->id,
+            'medico_id' => $orfao->id,
+        ]);
+
+        $this->artisan('medicos:reestabelecer-pacientes', [
+            'email' => 'giovana@example.com',
+            '--force' => true,
+        ])->assertSuccessful();
+
+        // auto-detecção ignora o vínculo de pivot e move mesmo assim
+        $this->assertSame(2, Paciente::where('medico_id', $novo->id)->count());
+    }
+
     public function test_recusa_origem_com_usuario_vinculado(): void
     {
         [$user, $orfao, $novo] = $this->seedEstadoQuebrado();

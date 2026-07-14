@@ -150,17 +150,20 @@ class ReestabelecerPacientesMedico extends Command
 
                 return $this;
             }
-            if ($this->temUsuarioVinculado((int) $origem->id)) {
-                $this->error("Médico de origem #{$origem->id} está vinculado a um usuário — não é um órfão. Revise manualmente antes de mover.");
+            $primarios = $this->usuariosPrimarios((int) $origem->id);
+            if ($primarios !== '') {
+                $this->error("Médico de origem #{$origem->id} é o médico PRINCIPAL de outro usuário [{$primarios}]. Revise manualmente antes de mover.");
 
                 return $this;
             }
+            $this->avisarPivotStale((int) $origem->id);
 
             return $origem;
         }
 
-        // Auto-detecção: médicos órfãos (sem usuário) com pacientes, cujo CRM
-        // (apenas dígitos) bate com o do médico destino.
+        // Auto-detecção: médicos sem usuário PRINCIPAL, com pacientes, cujo CRM
+        // (apenas dígitos) bate com o do médico destino. Um vínculo apenas na
+        // pivot user_medico (secundário) NÃO desqualifica — só é avisado.
         $crmDestino = $this->crmDigits($destino->crm);
         if ($crmDestino === '') {
             $this->error('Não foi possível auto-detectar a origem: o médico destino não tem CRM para casar. Informe --origem=ID explicitamente.');
@@ -173,7 +176,7 @@ class ReestabelecerPacientesMedico extends Command
             if ($this->crmDigits($m->crm) !== $crmDestino) {
                 continue;
             }
-            if ($this->temUsuarioVinculado((int) $m->id)) {
+            if ($this->usuariosPrimarios((int) $m->id) !== '') {
                 continue;
             }
             if ($this->countPacientes((int) $m->id) === 0 && $this->countReceitas((int) $m->id) === 0) {
@@ -193,7 +196,10 @@ class ReestabelecerPacientesMedico extends Command
             return $this;
         }
 
-        return array_values($candidatos)[0];
+        $origem = array_values($candidatos)[0];
+        $this->avisarPivotStale((int) $origem->id);
+
+        return $origem;
     }
 
     /**
@@ -243,12 +249,13 @@ class ReestabelecerPacientesMedico extends Command
             }
         }
 
-        // Órfãos (sem usuário) com pacientes — candidatos naturais a origem
+        // Órfãos (sem usuário PRINCIPAL) com pacientes — candidatos naturais a origem.
+        // Um vínculo só na pivot user_medico é mostrado entre [pivot: ...].
         $this->newLine();
-        $this->line('  Médicos ÓRFÃOS (sem usuário) com pacientes:');
+        $this->line('  Médicos sem usuário PRINCIPAL, com pacientes (candidatos a --origem):');
         $achouOrfao = false;
         foreach ($medicos as $m) {
-            if ($this->temUsuarioVinculado((int) $m->id)) {
+            if ($this->usuariosPrimarios((int) $m->id) !== '') {
                 continue;
             }
             $pac = $this->countPacientes((int) $m->id);
@@ -256,30 +263,47 @@ class ReestabelecerPacientesMedico extends Command
                 continue;
             }
             $achouOrfao = true;
+            $pivot = $this->usuariosPivot((int) $m->id);
             $this->line(sprintf(
-                '   - médico #%d | CRM %s | nome_legado="%s" | pacientes=%d receitas=%d',
+                '   - médico #%d | CRM %s | nome_legado="%s" | pacientes=%d receitas=%d%s',
                 $m->id,
                 $m->crm ?? '—',
                 $m->nome_legado ?? '',
                 $pac,
-                $this->countReceitas((int) $m->id)
+                $this->countReceitas((int) $m->id),
+                $pivot !== '' ? " | [pivot: {$pivot}]" : ''
             ));
         }
         if (! $achouOrfao) {
-            $this->line('   (nenhum médico órfão com pacientes)');
+            $this->line('   (nenhum médico sem usuário principal com pacientes)');
         }
 
         $this->newLine();
         $this->line('Se identificar a origem correta acima, rode com --origem=<ID> (e --force para aplicar).');
     }
 
-    private function temUsuarioVinculado(int $medicoId): bool
+    /** E-mails de usuários cujo médico PRINCIPAL (users.medico_id) é este. */
+    private function usuariosPrimarios(int $medicoId): string
     {
-        if (User::where('medico_id', $medicoId)->exists()) {
-            return true;
-        }
+        return User::where('medico_id', $medicoId)->pluck('email')->implode(', ');
+    }
 
-        return DB::table('user_medico')->where('medico_id', $medicoId)->exists();
+    /** E-mails de usuários ligados apenas pela pivot user_medico (vínculo secundário). */
+    private function usuariosPivot(int $medicoId): string
+    {
+        return DB::table('user_medico')
+            ->join('users', 'users.id', '=', 'user_medico.user_id')
+            ->where('user_medico.medico_id', $medicoId)
+            ->pluck('users.email')
+            ->implode(', ');
+    }
+
+    private function avisarPivotStale(int $medicoId): void
+    {
+        $pivot = $this->usuariosPivot($medicoId);
+        if ($pivot !== '') {
+            $this->warn("Aviso: médico #{$medicoId} tem vínculo(s) secundário(s) na pivot user_medico [{$pivot}] — não impede o reparo (é vínculo de gestão, não o principal).");
+        }
     }
 
     private function crmDigits(?string $crm): string
