@@ -162,6 +162,10 @@ function ReceitaFormInner({
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showDuplicarModal, setShowDuplicarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
+    const [showCancelarBloqueadoModal, setShowCancelarBloqueadoModal] = useState(false);
+    const [cancelarBloqueioMotivo, setCancelarBloqueioMotivo] = useState('');
+    const [checkingCancelar, setCheckingCancelar] = useState(false);
+    const [showEditarBloqueadoModal, setShowEditarBloqueadoModal] = useState(false);
     const [expandedReceitas, setExpandedReceitas] = useState(() => {
         const list = receitasAnteriores ?? [];
         const newest = list[0];
@@ -835,13 +839,68 @@ function ReceitaFormInner({
     const handleCancelar = () => {
         const doCancel = () => {
             setShowCancelarModal(false);
-            router.delete(`/receitas/${receita.id}`);
+            router.delete(`/receitas/${receita.id}`, {
+                onError: (errors) => {
+                    const msg =
+                        errors?.message ||
+                        errors?.reason ||
+                        (typeof errors === 'string' ? errors : null) ||
+                        'Não foi possível cancelar esta receita.';
+                    setCancelarBloqueioMotivo(msg);
+                    setShowCancelarBloqueadoModal(true);
+                },
+            });
         };
         if (!viewMode && isEditing && !isCallcenter) {
             put(`/receitas/${receita.id}`, { ...inertiaPersistReceitaOptions, onSuccess: doCancel });
         } else {
             doCancel();
         }
+    };
+
+    const abrirCancelarReceita = async () => {
+        if (!receita?.id || checkingCancelar) {
+            return;
+        }
+        setCheckingCancelar(true);
+        try {
+            const response = await fetch(`/api/receitas/${receita.id}/pode-cancelar`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                setCancelarBloqueioMotivo(
+                    payload.reason || payload.message || 'Não foi possível verificar se a receita pode ser cancelada.'
+                );
+                setShowCancelarBloqueadoModal(true);
+                return;
+            }
+            if (payload.allowed === false) {
+                setCancelarBloqueioMotivo(
+                    payload.reason ||
+                        'Esta receita não pode ser cancelada porque o pedido no oList já foi faturado ou entregue.'
+                );
+                setShowCancelarBloqueadoModal(true);
+                return;
+            }
+            setShowCancelarModal(true);
+        } catch {
+            setCancelarBloqueioMotivo(
+                'Não foi possível verificar o status do pedido no oList. Tente novamente em instantes.'
+            );
+            setShowCancelarBloqueadoModal(true);
+        } finally {
+            setCheckingCancelar(false);
+        }
+    };
+
+    const handleClickEditarReceita = () => {
+        if (isMedico && receita?.status === 'finalizada') {
+            setShowEditarBloqueadoModal(true);
+            return;
+        }
+        setViewMode(false);
     };
 
     const handleSalvarAnotacoes = async () => {
@@ -863,13 +922,19 @@ function ReceitaFormInner({
 
     // Médicos e admins podem editar receitas em aberto; call center permanece somente leitura.
     const canEdit = isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isCallcenter;
+    /** Médico em receita finalizada: botão Editar permanece visível, mas abre modal de bloqueio. */
+    const showEditarReceitaButton =
+        isEditing &&
+        viewMode &&
+        !isCallcenter &&
+        receita.status !== 'cancelada' &&
+        (canEdit || (isMedico && receita.status === 'finalizada'));
     const canChangeMedico =
         receitaFormIsAdmin && isEditing && receita.status === 'aberta' && !bloqueadaParaEdicao && !isCallcenter;
     const canCancel =
         isEditing &&
         !isCallcenter &&
-        receita.status !== 'cancelada' &&
-        !(isMedico && receita.status === 'finalizada');
+        receita.status !== 'cancelada';
 
     const showMainSaveIndicator = !isReadOnly && (isAutoSaving || lastSavedText);
     const showAnnotationSaveIndicator =
@@ -988,10 +1053,10 @@ function ReceitaFormInner({
                         <div className="flex flex-col gap-2 w-full lg:w-auto lg:justify-end">
                             {/* Mobile: ações principais + "Mais ações" */}
                             <div className="flex flex-col gap-2 lg:hidden w-full">
-                                {isEditing && viewMode && canEdit && (
+                                {showEditarReceitaButton && (
                                     <button
                                         type="button"
-                                        onClick={() => setViewMode(false)}
+                                        onClick={handleClickEditarReceita}
                                         className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1134,10 +1199,11 @@ function ReceitaFormInner({
                                             {canCancel && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => setShowCancelarModal(true)}
-                                                    className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                                                    onClick={abrirCancelarReceita}
+                                                    disabled={checkingCancelar}
+                                                    className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-60"
                                                 >
-                                                    Cancelar Receita
+                                                    {checkingCancelar ? 'Verificando…' : 'Cancelar Receita'}
                                                 </button>
                                             )}
                                         </div>
@@ -1187,10 +1253,10 @@ function ReceitaFormInner({
                                     </button>
                                 )}
 
-                                {isEditing && viewMode && canEdit && (
+                                {showEditarReceitaButton && (
                                     <button
                                         type="button"
-                                        onClick={() => setViewMode(false)}
+                                        onClick={handleClickEditarReceita}
                                         className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-800 bg-white hover:bg-gray-50 transition-colors"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1295,13 +1361,14 @@ function ReceitaFormInner({
                                         {canCancel && (
                                             <button
                                                 type="button"
-                                                onClick={() => setShowCancelarModal(true)}
-                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                                onClick={abrirCancelarReceita}
+                                                disabled={checkingCancelar}
+                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-60"
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                 </svg>
-                                                Cancelar Receita
+                                                {checkingCancelar ? 'Verificando…' : 'Cancelar Receita'}
                                             </button>
                                         )}
                                     </>
@@ -2138,6 +2205,83 @@ function ReceitaFormInner({
                                         </svg>
                                         Cancelar Receita
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal: cancelamento bloqueado pelo oList */}
+                {showCancelarBloqueadoModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <div className="fixed inset-0 bg-black/50" onClick={() => setShowCancelarBloqueadoModal(false)} />
+                            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Cancelamento não permitido</h3>
+                                </div>
+                                <p className="text-gray-600 mb-6">
+                                    {cancelarBloqueioMotivo ||
+                                        'Esta receita não pode ser cancelada porque o pedido no oList já foi faturado ou entregue.'}
+                                </p>
+                                <div className="flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCancelarBloqueadoModal(false)}
+                                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                    >
+                                        Entendi
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal: edição bloqueada (receita finalizada) */}
+                {showEditarBloqueadoModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <div className="fixed inset-0 bg-black/50" onClick={() => setShowEditarBloqueadoModal(false)} />
+                            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Edição não disponível</h3>
+                                </div>
+                                <p className="text-gray-600 mb-6">
+                                    Esta receita não pode mais ser editada pelo ClinicaWeb. Para alterar, solicite
+                                    diretamente ao suporte do ClinicaWeb ou cancele o pedido atual e crie uma
+                                    duplicata.
+                                </p>
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEditarBloqueadoModal(false)}
+                                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                    >
+                                        Entendi
+                                    </button>
+                                    {canCancel && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowEditarBloqueadoModal(false);
+                                                abrirCancelarReceita();
+                                            }}
+                                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                        >
+                                            Cancelar pedido
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

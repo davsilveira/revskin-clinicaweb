@@ -94,6 +94,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/receitas/{receita}/edit', [ReceitaController::class, 'edit'])->name('receitas.edit');
         Route::put('/receitas/{receita}', [ReceitaController::class, 'update'])->name('receitas.update');
         Route::delete('/receitas/{receita}', [ReceitaController::class, 'destroy'])->name('receitas.destroy');
+        Route::get('/api/receitas/{receita}/pode-cancelar', [ReceitaController::class, 'podeCancelar'])->name('receitas.pode-cancelar');
         Route::post('/api/receitas/autosave', [ReceitaController::class, 'autosave'])->name('receitas.autosave');
         Route::patch('/api/receitas/{receita}/itens-anotacoes', [ReceitaController::class, 'patchItensAnotacoes'])->name('receitas.itens-anotacoes.patch');
 

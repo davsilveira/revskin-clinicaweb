@@ -56,16 +56,12 @@ class ProcessWebhookTinyJob implements ShouldQueue
             'receita_numero' => $receita->numero,
         ]);
 
-        $situacoesFinalizadasInt = [1, 5, 6, 7];
-        $situacoesFinalizadasStr = ['faturado', 'enviado', 'entregue', 'pronto_envio', 'atendido'];
         $situacoesSincronizaPrecosStr = ['aprovado', 'preparando_envio'];
         $situacoesCanceladasInt = [2, 3, 4];
         $situacoesCanceladasStr = ['cancelado', 'cancelada', 'devolvido', 'devolvida'];
 
         $situacaoNorm = is_numeric($this->situacao) ? (int) $this->situacao : strtolower(trim($this->situacao ?? ''));
-        $isFinalizada = is_int($situacaoNorm)
-            ? in_array($situacaoNorm, $situacoesFinalizadasInt)
-            : in_array($situacaoNorm, $situacoesFinalizadasStr);
+        $isFinalizada = TinyErpClient::isSituacaoPedidoFaturada($this->situacao);
         $isCancelada = is_int($situacaoNorm)
             ? in_array($situacaoNorm, $situacoesCanceladasInt)
             : in_array($situacaoNorm, $situacoesCanceladasStr);

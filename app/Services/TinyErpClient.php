@@ -695,6 +695,17 @@ class TinyErpClient
 
     public const SITUACAO_CANCELADA_V3 = 2;
 
+    /** Situações oList/Tiny em que o pedido já avançou demais para cancelar (faturado/enviado/entregue). */
+    public const SITUACOES_FATURADAS_V3 = [1, 5, 6, 7];
+
+    public const SITUACOES_FATURADAS_STR = [
+        'faturado',
+        'enviado',
+        'entregue',
+        'pronto_envio',
+        'atendido',
+    ];
+
     public function cancelarPedido(int $id): array
     {
         if ($this->isV2()) {
@@ -717,6 +728,63 @@ class TinyErpClient
         $norm = mb_strtolower(trim((string) $situacao));
 
         return in_array($norm, ['cancelado', 'cancelada', 'devolvido', 'devolvida'], true);
+    }
+
+    /**
+     * Pedido já faturado / em envio / entregue — não pode ser cancelado pelo ClinicaWeb.
+     */
+    public static function isSituacaoPedidoFaturada(mixed $situacao): bool
+    {
+        if ($situacao === null || $situacao === '') {
+            return false;
+        }
+
+        if (is_numeric($situacao)) {
+            return in_array((int) $situacao, self::SITUACOES_FATURADAS_V3, true);
+        }
+
+        $norm = mb_strtolower(trim((string) $situacao));
+        $norm = str_replace([' ', '-'], '_', $norm);
+
+        return in_array($norm, self::SITUACOES_FATURADAS_STR, true);
+    }
+
+    public static function labelSituacaoPedido(mixed $situacao): string
+    {
+        if ($situacao === null || $situacao === '') {
+            return 'desconhecida';
+        }
+
+        if (is_numeric($situacao)) {
+            return match ((int) $situacao) {
+                0 => 'Aberto',
+                1 => 'Faturado',
+                2 => 'Cancelado',
+                3 => 'Aprovado',
+                4 => 'Preparando envio',
+                5 => 'Enviado',
+                6 => 'Entregue',
+                7 => 'Pronto para envio',
+                default => 'Situação '.$situacao,
+            };
+        }
+
+        $norm = mb_strtolower(trim((string) $situacao));
+        $norm = str_replace([' ', '-'], '_', $norm);
+
+        return match ($norm) {
+            'aberto', 'aberta', 'em_aberto' => 'Aberto',
+            'faturado', 'faturada' => 'Faturado',
+            'cancelado', 'cancelada' => 'Cancelado',
+            'aprovado', 'aprovada' => 'Aprovado',
+            'preparando_envio' => 'Preparando envio',
+            'enviado', 'enviada' => 'Enviado',
+            'entregue' => 'Entregue',
+            'pronto_envio', 'pronto_para_envio' => 'Pronto para envio',
+            'atendido', 'atendida' => 'Atendido',
+            'devolvido', 'devolvida' => 'Devolvido',
+            default => (string) $situacao,
+        };
     }
 
     // ─── V2 Data Normalization / Payload Building ──────────────

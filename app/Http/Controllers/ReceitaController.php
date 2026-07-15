@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Support\ReceitaProdutoLegadoGuard;
 use App\Services\RdNegociacaoSync;
+use App\Services\ReceitaOlistCancelabilidade;
 use App\Services\TinyPedidoSync;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -561,6 +562,41 @@ class ReceitaController extends Controller
         }
     }
 
+    /**
+     * Verifica no oList se a receita ainda pode ser cancelada (pedido não faturado/entregue).
+     */
+    public function podeCancelar(Receita $receita): JsonResponse
+    {
+        if (request()->user()->isCallcenter()) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        $receita->load('paciente');
+        if (! request()->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->status === 'cancelada') {
+            return response()->json([
+                'allowed' => false,
+                'reason' => 'Esta receita já está cancelada.',
+                'situacao' => null,
+                'situacao_label' => null,
+                'checked_olist' => false,
+            ]);
+        }
+
+        $resultado = ReceitaOlistCancelabilidade::verificar($receita);
+
+        return response()->json([
+            'allowed' => $resultado['allowed'],
+            'reason' => $resultado['reason'],
+            'situacao' => $resultado['situacao'],
+            'situacao_label' => $resultado['situacao_label'],
+            'checked_olist' => $resultado['checked_olist'],
+        ]);
+    }
+
     public function destroy(Receita $receita)
     {
         if (request()->user()->isCallcenter()) {
@@ -570,6 +606,32 @@ class ReceitaController extends Controller
         $receita->load('paciente');
         if (! request()->user()->canAccessPaciente($receita->paciente)) {
             abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->status === 'cancelada') {
+            return redirect()->route('receitas.index')
+                ->with('error', 'Esta receita já está cancelada.');
+        }
+
+        $olist = ReceitaOlistCancelabilidade::verificar($receita);
+        if (! $olist['allowed']) {
+            $wantsJson = request()->expectsJson()
+                || request()->wantsJson()
+                || request()->ajax()
+                || str_contains((string) request()->header('Accept'), 'application/json');
+
+            if ($wantsJson) {
+                return response()->json([
+                    'allowed' => false,
+                    'message' => $olist['reason'],
+                    'reason' => $olist['reason'],
+                    'situacao' => $olist['situacao'],
+                    'situacao_label' => $olist['situacao_label'],
+                ], 422);
+            }
+
+            return redirect()->route('receitas.show', $receita)
+                ->with('error', $olist['reason'] ?? 'Esta receita não pode ser cancelada.');
         }
 
         TinyPedidoSync::agendarCancelamento($receita);
