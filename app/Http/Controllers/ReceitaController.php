@@ -692,9 +692,7 @@ class ReceitaController extends Controller
         RdNegociacaoSync::agendarMarcarPerdida($receita);
         $receita->update(['status' => 'cancelada', 'ativo' => false]);
 
-        $url = route('receitas.edit', $novaReceita).'?duplicada=1';
-
-        return Inertia::location($url);
+        return redirect()->to(route('receitas.edit', $novaReceita).'?duplicada=1');
     }
 
     /**

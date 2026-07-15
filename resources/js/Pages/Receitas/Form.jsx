@@ -364,6 +364,8 @@ function ReceitaFormInner({
     /** Deixa passar o próximo GET (ex.: após “Salvar e sair” / “Sair sem salvar”) sem reabrir a modal se o dirty voltar no mesmo tick. */
     const skipUnsavedGuardOnceRef = useRef(false);
     const skipWorkflowExitGuardOnceRef = useRef(false);
+    /** Saída intencional (cancelar / cancelar-e-duplicar): não bloquear Inertia nem beforeunload. */
+    const allowLeaveWithoutGuardsRef = useRef(false);
     const [workflowExitKind, setWorkflowExitKind] = useState(null);
 
     /** Fechar aba: alerta igual à lógica de saída (finalizar / renovação em só leitura). */
@@ -372,9 +374,22 @@ function ReceitaFormInner({
         data.status !== 'cancelada' &&
         (data.status === 'aberta' || (data.status === 'finalizada' && isMedico && viewMode));
 
+    const allowLeaveWithoutGuards = () => {
+        allowLeaveWithoutGuardsRef.current = true;
+        skipUnsavedGuardOnceRef.current = true;
+        skipWorkflowExitGuardOnceRef.current = true;
+        cancelAutoSave();
+        cancelAnnotationAutoSave();
+        clearDirtyState();
+        clearAnnotationDirtyState();
+    };
+
     // Intercept Inertia navigation: alterações não salvas e lembretes de fluxo (finalizar / nova receita)
     useEffect(() => {
         const removeListener = router.on('before', (event) => {
+            if (allowLeaveWithoutGuardsRef.current) {
+                return;
+            }
             if (skipUnsavedGuardOnceRef.current) {
                 skipUnsavedGuardOnceRef.current = false;
                 return;
@@ -459,6 +474,9 @@ function ReceitaFormInner({
         }
 
         const handler = (e) => {
+            if (allowLeaveWithoutGuardsRef.current) {
+                return;
+            }
             e.preventDefault();
             e.returnValue = '';
         };
@@ -839,8 +857,10 @@ function ReceitaFormInner({
     const handleCancelar = () => {
         const doCancel = () => {
             setShowCancelarModal(false);
+            allowLeaveWithoutGuards();
             router.delete(`/receitas/${receita.id}`, {
                 onError: (errors) => {
+                    allowLeaveWithoutGuardsRef.current = false;
                     const msg =
                         errors?.message ||
                         errors?.reason ||
@@ -925,11 +945,18 @@ function ReceitaFormInner({
                 return;
             }
             if (acao === 'cancelar_e_duplicar') {
-                router.post(`/receitas/${receita.id}/cancelar-e-duplicar`);
+                allowLeaveWithoutGuards();
+                router.post(`/receitas/${receita.id}/cancelar-e-duplicar`, {}, {
+                    onError: () => {
+                        allowLeaveWithoutGuardsRef.current = false;
+                    },
+                });
                 return;
             }
+            allowLeaveWithoutGuards();
             router.delete(`/receitas/${receita.id}`, {
                 onError: (errors) => {
+                    allowLeaveWithoutGuardsRef.current = false;
                     const msg =
                         errors?.message ||
                         errors?.reason ||
