@@ -644,6 +644,60 @@ class ReceitaController extends Controller
     }
 
     /**
+     * Duplica a receita e cancela a original (após checagem oList), abrindo a cópia em edição.
+     */
+    public function cancelarEDuplicar(Request $request, Receita $receita)
+    {
+        if ($request->user()->isCallcenter()) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        $receita->load('paciente');
+        if (! $request->user()->canAccessPaciente($receita->paciente)) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->status === 'cancelada') {
+            return redirect()->route('receitas.index')
+                ->with('error', 'Esta receita já está cancelada.');
+        }
+
+        $olist = ReceitaOlistCancelabilidade::verificar($receita);
+        if (! $olist['allowed']) {
+            return redirect()->route('receitas.show', $receita)
+                ->with('error', $olist['reason'] ?? 'Esta receita não pode ser cancelada.');
+        }
+
+        if ($receita->receita_origem_id && $receita->status === 'aberta') {
+            throw ValidationException::withMessages([
+                'copiar' => 'Esta receita foi criada por duplicação. Finalize-a antes de criar outra cópia a partir dela.',
+            ]);
+        }
+
+        $medicoIdNovo = $request->user()->medico_id ?? $receita->medico_id;
+
+        $novaReceita = Receita::create([
+            'numero' => Receita::gerarNumero($receita->paciente_id),
+            'paciente_id' => $receita->paciente_id,
+            'medico_id' => $medicoIdNovo,
+            'receita_origem_id' => $receita->id,
+            'data_receita' => now(),
+            'anotacoes' => $receita->anotacoes,
+            'status' => 'aberta',
+        ]);
+
+        $novaReceita->copiarItensDeReceita($receita);
+
+        TinyPedidoSync::agendarCancelamento($receita);
+        RdNegociacaoSync::agendarMarcarPerdida($receita);
+        $receita->update(['status' => 'cancelada', 'ativo' => false]);
+
+        $url = route('receitas.edit', $novaReceita).'?duplicada=1';
+
+        return Inertia::location($url);
+    }
+
+    /**
      * Autosave - Store or update without redirect (for AJAX autosave).
      */
     public function autosave(Request $request)

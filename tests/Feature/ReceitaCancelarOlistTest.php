@@ -159,4 +159,44 @@ class ReceitaCancelarOlistTest extends TestCase
         $receita->refresh();
         $this->assertSame('cancelada', $receita->status);
     }
+
+    public function test_cancelar_e_duplicar_cria_copia_e_cancela_origem(): void
+    {
+        Bus::fake();
+        Setting::set('tiny_enabled', true);
+        [$user, $medico] = $this->makeMedicoUser();
+        $receita = $this->makeReceita($medico);
+
+        $this->actingAs($user)
+            ->post(route('receitas.cancelar-e-duplicar', $receita))
+            ->assertRedirect();
+
+        $receita->refresh();
+        $this->assertSame('cancelada', $receita->status);
+        $this->assertFalse((bool) $receita->ativo);
+
+        $nova = Receita::query()->where('receita_origem_id', $receita->id)->first();
+        $this->assertNotNull($nova);
+        $this->assertSame('aberta', $nova->status);
+        $this->assertTrue((bool) $nova->ativo);
+    }
+
+    public function test_cancelar_e_duplicar_bloqueia_quando_olist_faturado(): void
+    {
+        Bus::fake();
+        Setting::set('tiny_enabled', true);
+        [$user, $medico] = $this->makeMedicoUser();
+        $receita = $this->makeReceita($medico, ['tiny_pedido_id' => '777']);
+        $this->bindTinyClientReturning('faturado');
+
+        $this->actingAs($user)
+            ->from(route('receitas.show', $receita))
+            ->post(route('receitas.cancelar-e-duplicar', $receita))
+            ->assertRedirect(route('receitas.show', $receita))
+            ->assertSessionHas('error');
+
+        $receita->refresh();
+        $this->assertSame('finalizada', $receita->status);
+        $this->assertNull(Receita::query()->where('receita_origem_id', $receita->id)->first());
+    }
 }

@@ -858,33 +858,87 @@ function ReceitaFormInner({
         }
     };
 
+    const verificarPodeCancelarOlist = async () => {
+        const response = await fetch(`/api/receitas/${receita.id}/pode-cancelar`, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            return {
+                allowed: false,
+                reason:
+                    payload.reason ||
+                    payload.message ||
+                    'Não foi possível verificar se a receita pode ser cancelada.',
+            };
+        }
+        if (payload.allowed === false) {
+            return {
+                allowed: false,
+                reason:
+                    payload.reason ||
+                    'Esta receita não pode ser cancelada porque o pedido no oList já foi faturado ou entregue.',
+            };
+        }
+        return { allowed: true, reason: null };
+    };
+
     const abrirCancelarReceita = async () => {
         if (!receita?.id || checkingCancelar) {
             return;
         }
         setCheckingCancelar(true);
         try {
-            const response = await fetch(`/api/receitas/${receita.id}/pode-cancelar`, {
-                headers: { Accept: 'application/json' },
-                credentials: 'same-origin',
-            });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                setCancelarBloqueioMotivo(
-                    payload.reason || payload.message || 'Não foi possível verificar se a receita pode ser cancelada.'
-                );
-                setShowCancelarBloqueadoModal(true);
-                return;
-            }
-            if (payload.allowed === false) {
-                setCancelarBloqueioMotivo(
-                    payload.reason ||
-                        'Esta receita não pode ser cancelada porque o pedido no oList já foi faturado ou entregue.'
-                );
+            const check = await verificarPodeCancelarOlist();
+            if (!check.allowed) {
+                setCancelarBloqueioMotivo(check.reason);
                 setShowCancelarBloqueadoModal(true);
                 return;
             }
             setShowCancelarModal(true);
+        } catch {
+            setCancelarBloqueioMotivo(
+                'Não foi possível verificar o status do pedido no oList. Tente novamente em instantes.'
+            );
+            setShowCancelarBloqueadoModal(true);
+        } finally {
+            setCheckingCancelar(false);
+        }
+    };
+
+    /**
+     * Ações a partir da modal de edição bloqueada: não abre a confirmação de cancelar de novo
+     * (evita “modal em cima de modal”); só checa oList e executa.
+     */
+    const executarAcaoDesdeEditarBloqueado = async (acao) => {
+        if (!receita?.id || checkingCancelar) {
+            return;
+        }
+        setShowEditarBloqueadoModal(false);
+        setCheckingCancelar(true);
+        try {
+            const check = await verificarPodeCancelarOlist();
+            if (!check.allowed) {
+                setCancelarBloqueioMotivo(check.reason);
+                setShowCancelarBloqueadoModal(true);
+                return;
+            }
+            if (acao === 'cancelar_e_duplicar') {
+                router.post(`/receitas/${receita.id}/cancelar-e-duplicar`);
+                return;
+            }
+            router.delete(`/receitas/${receita.id}`, {
+                onError: (errors) => {
+                    const msg =
+                        errors?.message ||
+                        errors?.reason ||
+                        (typeof errors === 'string' ? errors : null) ||
+                        'Não foi possível cancelar esta receita.';
+                    setCancelarBloqueioMotivo(msg);
+                    setShowCancelarBloqueadoModal(true);
+                },
+            });
         } catch {
             setCancelarBloqueioMotivo(
                 'Não foi possível verificar o status do pedido no oList. Tente novamente em instantes.'
@@ -2262,25 +2316,34 @@ function ReceitaFormInner({
                                     diretamente ao suporte do ClinicaWeb ou cancele o pedido atual e crie uma
                                     duplicata.
                                 </p>
-                                <div className="flex justify-end gap-3">
+                                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setShowEditarBloqueadoModal(false)}
-                                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                        disabled={checkingCancelar}
+                                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-60"
                                     >
                                         Entendi
                                     </button>
                                     {canCancel && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowEditarBloqueadoModal(false);
-                                                abrirCancelarReceita();
-                                            }}
-                                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                                        >
-                                            Cancelar pedido
-                                        </button>
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => executarAcaoDesdeEditarBloqueado('cancelar')}
+                                                disabled={checkingCancelar}
+                                                className="px-4 py-2 border border-red-600 text-red-700 bg-white rounded-lg hover:bg-red-50 disabled:opacity-60"
+                                            >
+                                                {checkingCancelar ? 'Verificando…' : 'Cancelar'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => executarAcaoDesdeEditarBloqueado('cancelar_e_duplicar')}
+                                                disabled={checkingCancelar}
+                                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60"
+                                            >
+                                                {checkingCancelar ? 'Verificando…' : 'Cancelar e Duplicar'}
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
