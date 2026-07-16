@@ -116,7 +116,7 @@
     </div>
 
     <div class="footer">
-        Gerado em {{ now()->format('d/m/Y H:i') }} | ClincaWeb - Catálogo de Produtos
+        Gerado em {{ now()->format('d/m/Y H:i') }} | ClinicaWeb - Catálogo de Produtos
     </div>
 </body>
 </html>

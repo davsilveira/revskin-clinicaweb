@@ -373,7 +373,7 @@ class ManualContent
                     'title' => 'Campos editáveis no ClinicaWeb',
                     'paragraphs' => [
                         'No painel de edição, código, unidade e preço de venda aparecem como dados vindos do Tiny (somente leitura). A seção Dados ClinicaWeb (editáveis) concentra o que você pode alterar: Nome, Descrição / Fórmula, Modo de uso, Anotações dos especialistas, Anotações internas e o Status (Ativo/Inativo) do produto.',
-                        'Quando você sincroniza de novo, o sistema atualiza do Tiny itens como preço, custo, unidade e o vínculo com o produto no ERP; o nome só é preenchido automaticamente pelo Tiny se ainda estiver vazio no ClincaWeb. Já descrição/fórmula, modo de uso, anotações, anotações internas e o texto do nome que você já salvou não são sobrescritos por novas sincronizações.',
+                        'Quando você sincroniza de novo, o sistema atualiza do Tiny itens como preço, custo, unidade e o vínculo com o produto no ERP; o nome só é preenchido automaticamente pelo Tiny se ainda estiver vazio no ClinicaWeb. Já descrição/fórmula, modo de uso, anotações, anotações internas e o texto do nome que você já salvou não são sobrescritos por novas sincronizações.',
                     ],
                     'bullets' => [
                         'Observação: o indicativo de ativo/inativo também pode ser alinhado ao Tiny em cada sincronização; ajustes locais podem ser refletidos de novo na próxima carga.',
@@ -670,7 +670,7 @@ class ManualContent
                     'title' => 'Integração RD Station CRM',
                     'paragraphs' => [
                         'A aba RD Station concentra credenciais da API (Client ID e Client Secret), o interruptor de integração e os identificadores que o CRM exige para criar negócios automaticamente.',
-                        'Depois de salvar Client ID e Secret, use Autorizar aplicativo para concluir o OAuth: o RD Station redireciona de volta ao ClincaWeb e os tokens ficam armazenados. O botão Testar conexão confirma se a API responde com o token atual.',
+                        'Depois de salvar Client ID e Secret, use Autorizar aplicativo para concluir o OAuth: o RD Station redireciona de volta ao ClinicaWeb e os tokens ficam armazenados. O botão Testar conexão confirma se a API responde com o token atual.',
                         'Com a integração ativada, ao Finalizar uma receita que ainda não tinha atendimento vinculado, o sistema enfileira a criação no CRM: organização e contato a partir do paciente (reaproveitando IDs já salvos quando existirem), depois uma negociação (deal) na etapa configurada, com campos customizados para médico e receita e linha de produto padrão.',
                         'Na mesma aba você informa o Owner (obrigatório para o job rodar), o Stage da negociação, os IDs dos campos customizados de médico e receita e o produto padrão da linha do negócio — todos devem existir no seu pipeline RD Station.',
                     ],

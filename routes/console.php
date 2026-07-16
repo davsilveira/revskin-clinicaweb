@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::job(new SyncProdutosTinyJob)->dailyAt('12:00')->name('tiny-sync-produtos-12h');
 Schedule::job(new SyncProdutosTinyJob)->dailyAt('00:00')->name('tiny-sync-produtos-00h');
 
-// Tiny → ClincaWeb: contatos alterados no ERP (API V2), incremental a cada 10 min
+// Tiny → ClinicaWeb: contatos alterados no ERP (API V2), incremental a cada 10 min
 Schedule::job(new PullPacientesTinyJob)
     ->everyTenMinutes()
     ->withoutOverlapping()

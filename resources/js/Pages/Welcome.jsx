@@ -39,7 +39,7 @@ export default function Welcome() {
                             <div className="inline-flex items-center justify-center mb-4">
                                 <img
                                     src={publicAsset('/images/logo.jpeg', assetVersion)}
-                                    alt="ClincaWeb"
+                                    alt="ClinicaWeb"
                                     className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-zinc-200/90"
                                 />
                             </div>

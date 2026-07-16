@@ -19,7 +19,7 @@ elif [ -d "/usr/local/opt/php@8.4/bin" ]; then
     export PATH="/usr/local/opt/php@8.4/bin:$PATH"
 fi
 
-echo -e "${BLUE}🚀 Iniciando Laravel Boilerplate...${NC}"
+echo -e "${BLUE}🚀 Iniciando ClinicaWeb...${NC}"
 echo ""
 echo -e "${GREEN}✅ PHP $(php -r 'echo PHP_VERSION;')${NC}"
 echo ""

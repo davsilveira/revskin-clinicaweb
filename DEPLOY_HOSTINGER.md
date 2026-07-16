@@ -361,7 +361,7 @@ nano .env
 Template mínimo de produção:
 
 ```env
-APP_NAME="ClincaWeb"
+APP_NAME="ClinicaWeb"
 APP_ENV=production
 APP_KEY=base64:...
 APP_DEBUG=false

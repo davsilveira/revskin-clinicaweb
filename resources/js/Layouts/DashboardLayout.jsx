@@ -158,12 +158,12 @@ export default function DashboardLayout({ children }) {
                     <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
                         <img
                             src={publicAsset('/images/logo.jpeg', assetVersion)}
-                            alt="ClincaWeb"
+                            alt="ClinicaWeb"
                             className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
                         />
                         {showLabels && (
                             <span className="text-xl font-semibold text-zinc-600 truncate tracking-tight">
-                                ClincaWeb
+                                ClinicaWeb
                             </span>
                         )}
                     </Link>
