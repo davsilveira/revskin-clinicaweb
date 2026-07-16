@@ -37,6 +37,7 @@ class NormalizarCodigosKarnaugh extends Command
      */
     private array $mapaManual = [
         'AQUELANE-8-30G' => 'AQUELANE 8',
+        'REVELUMIE-G15' => 'REVELUMIE 15G',
     ];
 
     public function handle(): int
@@ -80,8 +81,9 @@ class NormalizarCodigosKarnaugh extends Command
                 continue;
             }
 
-            // Template TONALITE (placeholder): resolvido em runtime, não tocar.
-            if (str_contains($codigo, '__')) {
+            // Template TONALITE (placeholder de tom): resolvido em runtime, não tocar.
+            // O curinga vem como "__"/"___" (hífen) ou "***" (espaço), conforme a tabela.
+            if (preg_match('/\*{2,}|_{2,}/', $codigo)) {
                 $stats['template']++;
                 continue;
             }

@@ -224,17 +224,27 @@ class RegrasCondicionaisEngine
     }
 
     /**
-     * Resolver TONALITE-__- pelo fototipo selecionado.
-     * Ex: TONALITE-__-G30 com fototipo 2.5 vira TONALITE-2,5-G30.
+     * Resolver o placeholder de tom do TONALITE pelo fototipo selecionado.
+     *
+     * O tom é gravado como um curinga que varia conforme a versão da tabela:
+     * "TONALITE-__-30G"/"TONALITE-__-G30" (hífen) nas antigas e
+     * "TONALITE *** 30G" (espaço) nas V18. Substituímos o curinga (sequência de
+     * "_" ou "*") pelo fototipo. Ex.: fototipo 2.5 => "TONALITE 2,5 30G".
+     * O separador (hífen ou espaço) é tolerado depois em buscarProdutoPorCodigo().
      */
     private function resolverCodigoTonalite(string $codigo, ?string $fototipo): string
     {
-        if (!str_contains($codigo, 'TONALITE-__-') || $fototipo === null || $fototipo === '') {
+        if (stripos($codigo, 'TONALITE') === false || $fototipo === null || $fototipo === '') {
+            return $codigo;
+        }
+
+        // Curinga do tom: "__", "___" (hífen) ou "***" (espaço).
+        if (!preg_match('/\*{2,}|_{2,}/', $codigo)) {
             return $codigo;
         }
 
         $fototipoFormatado = str_replace('.', ',', $fototipo);
-        return str_replace('TONALITE-__-', 'TONALITE-' . $fototipoFormatado . '-', $codigo);
+        return preg_replace('/\*{2,}|_{2,}/', $fototipoFormatado, $codigo, 1);
     }
 
     /**
