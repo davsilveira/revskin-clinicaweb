@@ -19,6 +19,13 @@ class RegrasCondicionaisEngine
     private array $regrasAplicadas = [];
 
     /**
+     * Índice memoizado de produtos ativos por código normalizado.
+     *
+     * @var array<string, list<Produto>>|null
+     */
+    private ?array $indiceProdutosNorm = null;
+
+    /**
      * Processar regras condicionais com base na avaliação clínica.
      *
      * @param array $avaliacaoClinica Dados da avaliação clínica
@@ -231,11 +238,22 @@ class RegrasCondicionaisEngine
     }
 
     /**
-     * Buscar produto pelo código ou nome.
+     * Buscar produto pelo código ou nome, tolerante à formatação do separador.
+     *
+     * Os códigos gravados nas tabelas Karnaugh usam hífen (ex.: DEMERANE-30G, ou
+     * TONALITE-2,5-30G após a resolução do fototipo), enquanto o catálogo (oList)
+     * usa espaço (ex.: DEMERANE 30G). Casamos primeiro pelo código/nome exato e,
+     * como fallback seguro, por comparação normalizada (hífen ↔ espaço) — mas
+     * somente quando o resultado for ÚNICO, para nunca anexar um produto errado.
      */
     private function buscarProdutoPorCodigo(string $codigo): ?Produto
     {
-        // Primeiro, tentar buscar pelo código exato
+        $codigo = trim($codigo);
+        if ($codigo === '') {
+            return null;
+        }
+
+        // 1. Código exato
         $produto = Produto::where('codigo', $codigo)
             ->where('ativo', true)
             ->first();
@@ -244,7 +262,7 @@ class RegrasCondicionaisEngine
             return $produto;
         }
 
-        // Tentar buscar pelo nome exato
+        // 2. Nome exato
         $produto = Produto::where('nome', $codigo)
             ->where('ativo', true)
             ->first();
@@ -253,15 +271,47 @@ class RegrasCondicionaisEngine
             return $produto;
         }
 
-        // Tentar buscar parcial no nome ou código
-        $produto = Produto::where('ativo', true)
-            ->where(function ($q) use ($codigo) {
-                $q->where('codigo', 'like', "%{$codigo}%")
-                    ->orWhere('nome', 'like', "%{$codigo}%");
-            })
-            ->first();
+        // 3. Match normalizado (hífen ↔ espaço) — só aceita se for inequívoco.
+        $normalizado = self::normalizarCodigo($codigo);
+        $indice = $this->indiceProdutosNorm();
+        if (isset($indice[$normalizado]) && count($indice[$normalizado]) === 1) {
+            return $indice[$normalizado][0];
+        }
 
-        return $produto;
+        // Sem correspondência única: não "chutar" produto errado.
+        return null;
+    }
+
+    /**
+     * Normaliza um código para comparação: maiúsculas e sequências de espaço/hífen
+     * viram um único espaço. Ex.: "DEMERANE-30G" e "DEMERANE 30G" => "DEMERANE 30G".
+     */
+    private static function normalizarCodigo(string $valor): string
+    {
+        return trim(preg_replace('/[\s\-]+/', ' ', mb_strtoupper(trim($valor))));
+    }
+
+    /**
+     * Índice memoizado de produtos ativos por código normalizado.
+     *
+     * @return array<string, list<Produto>>
+     */
+    private function indiceProdutosNorm(): array
+    {
+        if ($this->indiceProdutosNorm !== null) {
+            return $this->indiceProdutosNorm;
+        }
+
+        $indice = [];
+        Produto::where('ativo', true)
+            ->whereNotNull('codigo')
+            ->where('codigo', '!=', '')
+            ->get()
+            ->each(function (Produto $p) use (&$indice) {
+                $indice[self::normalizarCodigo($p->codigo)][] = $p;
+            });
+
+        return $this->indiceProdutosNorm = $indice;
     }
 
     /**

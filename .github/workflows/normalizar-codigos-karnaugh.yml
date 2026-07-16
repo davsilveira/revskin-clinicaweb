@@ -1,0 +1,55 @@
+name: Normalizar códigos de produto do Karnaugh
+
+# Executa `karnaugh:normalizar-codigos-produto` em PRODUÇÃO via SSH.
+# Reconcilia tabela_karnaugh_produtos.produto_codigo com os códigos atuais do
+# catálogo (corrige separador hífen x espaço e o caso manual AQUELANE-8-30G).
+# Roda em dry-run por padrão; marque "force" para aplicar de fato.
+# Requer que o código já esteja deployado (o comando precisa existir no servidor).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tabela:
+        description: "ID da tabela Karnaugh (vazio = todas). Padrão de produção: 13 (V16)."
+        required: false
+        default: "13"
+      force:
+        description: "Aplicar de fato (desmarcado = apenas simula / dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  normalizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar comando via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: IN_TABELA,IN_FORCE,APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -euo pipefail
+
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))"
+
+            ARGS="karnaugh:normalizar-codigos-produto"
+            if [ -n "$IN_TABELA" ]; then ARGS="$ARGS --tabela=$IN_TABELA"; fi
+            if [ "$IN_FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
+
+            echo "==> php artisan $ARGS"
+            "$PHP" artisan $ARGS
+        env:
+          IN_TABELA: ${{ inputs.tabela }}
+          IN_FORCE: ${{ inputs.force }}
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
