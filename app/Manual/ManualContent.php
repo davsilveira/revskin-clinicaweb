@@ -268,6 +268,7 @@ class ManualContent
                     'paragraphs' => [
                         'A geração de PDF e o download {{icon:download}} só são habilitados após você finalizar a receita: use o botão Finalizar no formulário. Enquanto a receita estiver em edição (rascunho), essas opções permanecem indisponíveis para evitar documentos incompletos.',
                         'Depois de finalizada, o layout do PDF reúne os dados do médico (incluindo assinatura em imagem, quando houver). Se a clínica vinculada ao médico tiver logo cadastrada no sistema (envio feito na gestão de clínicas, por um administrador), essa logo aparece no topo do documento. Sem logo na clínica, o cabeçalho mostra apenas as informações do profissional, sem recuo lateral reservado para imagem.',
+                        'Se o pedido já retornou do oList com produtos comercializados (linhas em verde na receita), o PDF inclui somente esses itens efetivamente vendidos — não a lista completa prescrita. Enquanto não houver retorno de comercialização, o PDF segue listando os produtos marcados para impressão.',
                     ],
                     'bullets' => [],
                 ],

@@ -939,6 +939,10 @@ class ReceitaController extends Controller
 
     /**
      * Generate PDF.
+     *
+     * When the receita already has commercialized items (returned from oList,
+     * marked vendido / green in the UI), the PDF lists only those items.
+     * Otherwise it lists every item marked for print (imprimir).
      */
     public function pdf(Receita $receita)
     {
@@ -952,8 +956,8 @@ class ReceitaController extends Controller
             'medico.users:id,name',
             'medico.clinica',
             'medico.clinicas' => fn ($q) => $q->orderBy('clinicas.nome'),
-            'itens' => fn ($q) => $q->where('imprimir', true)->with('produto'),
         ]);
+        $receita->carregarItensParaPdf();
 
         $clinica = $receita->medico?->clinicaParaReceita();
         $clinicaLogoFullPath = null;

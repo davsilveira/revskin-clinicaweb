@@ -114,6 +114,30 @@ class Receita extends Model
     }
 
     /**
+     * Load items for the printable PDF.
+     *
+     * When any item was commercialized via oList (vendido), only those items
+     * are included. Otherwise, every item marked for print (imprimir) is used.
+     */
+    public function carregarItensParaPdf(): self
+    {
+        $temComercializados = $this->itens()->where('vendido', true)->exists();
+
+        $this->load([
+            'itens' => function ($q) use ($temComercializados) {
+                if ($temComercializados) {
+                    $q->where('vendido', true);
+                } else {
+                    $q->where('imprimir', true);
+                }
+                $q->with('produto');
+            },
+        ]);
+
+        return $this;
+    }
+
+    /**
      * Calculate totals from items.
      */
     public function calcularTotais(): void
