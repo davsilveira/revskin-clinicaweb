@@ -1,4 +1,4 @@
-import { Link, usePage, router } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import { publicAsset } from '@/utils/publicAsset';
 import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer } from 'react-toastify';
@@ -22,7 +22,7 @@ import {
 
 const LG_MEDIA = '(min-width: 1024px)';
 
-export default function DashboardLayout({ children }) {
+export default function DashboardLayout({ children, title }) {
     const page = usePage();
     const { auth, assetVersion } = page.props;
     const { url } = page;
@@ -127,6 +127,7 @@ export default function DashboardLayout({ children }) {
 
     return (
         <div className="min-h-screen flex bg-gray-50">
+            {title && <Head title={title} />}
             {/* Mobile drawer backdrop */}
             {!isLg && mobileNavOpen && (
                 <button

@@ -96,7 +96,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
     };
 
     return (
-        <DashboardLayout>
+        <DashboardLayout title="Receitas por Médico">
             {toast && (
                 <Toast
                     message={toast.message}

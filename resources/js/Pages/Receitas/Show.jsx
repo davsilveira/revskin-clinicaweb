@@ -87,7 +87,7 @@ const formatDate = (dateString) => {
     };
 
     return (
-        <DashboardLayout>
+        <DashboardLayout title={tituloReceitaComSequencia('Receita', receita.numero)}>
             <div className="p-6">
                 <div className="mb-6">
                     <ReceitasIndexBackLink className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 text-sm">

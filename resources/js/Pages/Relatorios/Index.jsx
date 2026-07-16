@@ -27,7 +27,7 @@ export default function RelatoriosIndex({ relatorios }) {
     };
 
     return (
-        <DashboardLayout>
+        <DashboardLayout title="Relatórios">
             <div className="py-4 lg:py-6 px-0">
                 <PageHeader title="Relatórios" description="Gere relatórios e exporte dados do sistema" />
 

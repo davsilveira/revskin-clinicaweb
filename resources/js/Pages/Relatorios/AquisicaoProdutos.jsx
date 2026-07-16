@@ -313,7 +313,7 @@ export default function AquisicaoProdutos({ medicos, pacientes, produtos, dados,
     };
 
     return (
-        <DashboardLayout>
+        <DashboardLayout title="Aquisição de Produtos">
             {toast && (
                 <Toast
                     message={toast.message}
