@@ -39,6 +39,14 @@ const INITIAL_PACIENTE_FORM = {
     telefones: [],
 };
 
+/** Chrome often ignores autocomplete="off"; non-standard tokens reduce address-profile autofill. */
+const NO_AUTOFILL = {
+    autoComplete: 'one-time-code',
+    'data-lpignore': 'true',
+    'data-1p-ignore': 'true',
+    'data-form-type': 'other',
+};
+
 function normalizePatientData(d) {
     return {
         ...d,
@@ -93,6 +101,9 @@ export default function PatientDrawer({
     const [currentPacienteId, setCurrentPacienteId] = useState(paciente?.id || null);
     const isFirstRender = useRef(true);
     const [fieldErrors, setFieldErrors] = useState({});
+    const [autofillNotice, setAutofillNotice] = useState(false);
+    const guardBrowserAutofillRef = useRef(false);
+    const autofillGuardTimerRef = useRef(null);
 
     const { data, setData, post, put, processing, errors, reset } = useForm({ ...INITIAL_PACIENTE_FORM });
 
@@ -125,6 +136,8 @@ export default function PatientDrawer({
     useEffect(() => {
         if (isOpen) {
             if (paciente) {
+                guardBrowserAutofillRef.current = false;
+                setAutofillNotice(false);
                 setCurrentPacienteId(paciente.id);
                 currentPacienteIdRef.current = paciente.id;
                 setSelectedMedico(paciente.medico || null);
@@ -163,6 +176,16 @@ export default function PatientDrawer({
                 setSelectedMedico(null);
                 setAuditNames({ created: null, updated: null });
                 setFormBaseline(cloneDeep(normalizePatientData(INITIAL_PACIENTE_FORM)));
+                // Browser may dump a saved address (e.g. US) right after open; watch briefly and restore Brasil.
+                guardBrowserAutofillRef.current = true;
+                setAutofillNotice(false);
+                if (autofillGuardTimerRef.current) {
+                    clearTimeout(autofillGuardTimerRef.current);
+                }
+                autofillGuardTimerRef.current = setTimeout(() => {
+                    guardBrowserAutofillRef.current = false;
+                    autofillGuardTimerRef.current = null;
+                }, 2000);
             }
             setShowDeleteConfirm(false);
             setCpfError(null);
@@ -171,8 +194,40 @@ export default function PatientDrawer({
             isFirstRender.current = true;
         } else {
             setFormBaseline(null);
+            guardBrowserAutofillRef.current = false;
+            setAutofillNotice(false);
+            if (autofillGuardTimerRef.current) {
+                clearTimeout(autofillGuardTimerRef.current);
+                autofillGuardTimerRef.current = null;
+            }
         }
     }, [isOpen, paciente]);
+
+    // New patient only: if Chrome autofills a non-BR address profile, snap back to Brasil defaults.
+    useEffect(() => {
+        if (!isOpen || paciente || !guardBrowserAutofillRef.current) {
+            return;
+        }
+        if (!data.pais || data.pais === 'Brasil') {
+            return;
+        }
+        guardBrowserAutofillRef.current = false;
+        if (autofillGuardTimerRef.current) {
+            clearTimeout(autofillGuardTimerRef.current);
+            autofillGuardTimerRef.current = null;
+        }
+        setData({
+            pais: 'Brasil',
+            cep: '',
+            endereco: '',
+            numero: '',
+            complemento: '',
+            bairro: '',
+            cidade: '',
+            uf: '',
+        });
+        setAutofillNotice(true);
+    }, [isOpen, paciente, data.pais, setData]);
 
     // Debounced search for medicos
     const searchMedicosApi = useCallback(
@@ -615,6 +670,19 @@ export default function PatientDrawer({
                             {fieldErrors._form}
                         </div>
                     )}
+                    {autofillNotice && (
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status">
+                            O navegador tentou preencher um endereço salvo (ex.: EUA). Mantivemos <strong>Brasil</strong> como padrão.
+                            Você pode alterar o país manualmente se precisar.
+                            <button
+                                type="button"
+                                className="ml-2 underline hover:no-underline"
+                                onClick={() => setAutofillNotice(false)}
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <Input
@@ -626,7 +694,7 @@ export default function PatientDrawer({
                                 }}
                                 error={fieldErrors.nome || errors.nome}
                                 required
-                                autoComplete="off"
+                                {...NO_AUTOFILL}
                                 name="revskin_paciente_nome"
                             />
                         </div>
@@ -642,7 +710,7 @@ export default function PatientDrawer({
                             error={cpfError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
                             required
-                            autoComplete="off"
+                            {...NO_AUTOFILL}
                             name="revskin_paciente_cpf"
                         />
                         <DatePickerField
@@ -665,13 +733,13 @@ export default function PatientDrawer({
                                 { value: 'M', label: 'Masculino' },
                                 { value: 'F', label: 'Feminino' },
                             ]}
-                            autoComplete="off"
+                            {...NO_AUTOFILL}
                             name="revskin_paciente_sexo"
                         />
                         <div className="col-span-2 sm:col-span-1">
                             <Input
                                 label="E-mail"
-                                type="email"
+                                type="text"
                                 value={data.email1}
                                 onChange={(e) => {
                                     setData('email1', e.target.value);
@@ -679,7 +747,7 @@ export default function PatientDrawer({
                                 }}
                                 error={fieldErrors.email1 || errors.email1}
                                 required
-                                autoComplete="off"
+                                {...NO_AUTOFILL}
                                 inputMode="email"
                                 name="revskin_paciente_email"
                             />
@@ -688,9 +756,19 @@ export default function PatientDrawer({
                             <Select
                                 label="País"
                                 value={data.pais}
-                                onChange={(e) => setData('pais', e.target.value)}
+                                onChange={(e) => {
+                                    // Manual country change — stop treating as browser autofill.
+                                    guardBrowserAutofillRef.current = false;
+                                    setData('pais', e.target.value);
+                                }}
+                                onFocus={() => {
+                                    guardBrowserAutofillRef.current = false;
+                                }}
+                                onPointerDown={() => {
+                                    guardBrowserAutofillRef.current = false;
+                                }}
                                 options={countries}
-                                autoComplete="off"
+                                {...NO_AUTOFILL}
                                 name="revskin_paciente_pais"
                             />
                         </div>
@@ -706,7 +784,7 @@ export default function PatientDrawer({
                                 placeholder="(00) 00000-0000"
                                 error={fieldErrors.celular || errors.celular}
                                 required
-                                autoComplete="off"
+                                {...NO_AUTOFILL}
                                 name="revskin_paciente_celular"
                             />
                         ) : (
@@ -720,7 +798,7 @@ export default function PatientDrawer({
                                 placeholder="Número com código do país"
                                 error={fieldErrors.celular || errors.celular}
                                 required
-                                autoComplete="off"
+                                {...NO_AUTOFILL}
                                 name="revskin_paciente_celular"
                             />
                         )}
@@ -818,7 +896,7 @@ export default function PatientDrawer({
                                     onChange={(e) => setData('cep', e.target.value)}
                                     onBlur={buscarCep}
                                     placeholder="00000-000"
-                                    autoComplete="off"
+                                    {...NO_AUTOFILL}
                                     name="revskin_paciente_cep"
                                 />
                                 {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
@@ -828,7 +906,7 @@ export default function PatientDrawer({
                                     label="Endereço"
                                     value={data.endereco}
                                     onChange={(e) => setData('endereco', e.target.value)}
-                                    autoComplete="off"
+                                    {...NO_AUTOFILL}
                                     name="revskin_paciente_logradouro"
                                 />
                             </div>
@@ -837,7 +915,7 @@ export default function PatientDrawer({
                                     label="Número"
                                     value={data.numero}
                                     onChange={(e) => setData('numero', e.target.value)}
-                                    autoComplete="off"
+                                    {...NO_AUTOFILL}
                                     name="revskin_paciente_numero"
                                 />
                             </div>
@@ -846,7 +924,7 @@ export default function PatientDrawer({
                                     label="Complemento"
                                     value={data.complemento}
                                     onChange={(e) => setData('complemento', e.target.value)}
-                                    autoComplete="off"
+                                    {...NO_AUTOFILL}
                                     name="revskin_paciente_complemento"
                                 />
                             </div>
@@ -855,7 +933,7 @@ export default function PatientDrawer({
                                     label="Bairro"
                                     value={data.bairro}
                                     onChange={(e) => setData('bairro', e.target.value)}
-                                    autoComplete="off"
+                                    {...NO_AUTOFILL}
                                     name="revskin_paciente_bairro"
                                 />
                             </div>
@@ -864,7 +942,7 @@ export default function PatientDrawer({
                                     label="Cidade"
                                     value={data.cidade}
                                     onChange={(e) => setData('cidade', e.target.value)}
-                                    autoComplete="off"
+                                    {...NO_AUTOFILL}
                                     name="revskin_paciente_cidade"
                                 />
                             </div>
@@ -878,7 +956,7 @@ export default function PatientDrawer({
                                             { value: '', label: 'UF' },
                                             ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))
                                         ]}
-                                        autoComplete="off"
+                                        {...NO_AUTOFILL}
                                         name="revskin_paciente_uf"
                                     />
                                 ) : (
@@ -886,7 +964,7 @@ export default function PatientDrawer({
                                         label="Estado/Província"
                                         value={data.uf}
                                         onChange={(e) => setData('uf', e.target.value)}
-                                        autoComplete="off"
+                                        {...NO_AUTOFILL}
                                         name="revskin_paciente_uf"
                                     />
                                 )}
