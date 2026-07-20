@@ -457,6 +457,9 @@ export default function PatientDrawer({
                 if (!data.email1 || !data.email1.trim()) {
                     newErrors.email1 = 'E-mail é obrigatório.';
                     hasErrors = true;
+                } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email1.trim())) {
+                    newErrors.email1 = 'Informe um e-mail válido.';
+                    hasErrors = true;
                 }
                 if (medicoRequired && showMedico && !data.medico_id) {
                     newErrors.medico_id = 'Selecione o médico responsável.';

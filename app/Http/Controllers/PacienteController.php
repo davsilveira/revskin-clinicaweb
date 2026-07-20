@@ -247,6 +247,7 @@ class PacienteController extends Controller
             'data_nascimento.required' => 'A data de nascimento é obrigatória.',
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
+            'email1.email' => 'Informe um e-mail válido.',
             'medico_id.required' => 'Selecione o médico responsável.',
             'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
@@ -383,6 +384,7 @@ class PacienteController extends Controller
             'data_nascimento.required' => 'A data de nascimento é obrigatória.',
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
+            'email1.email' => 'Informe um e-mail válido.',
             'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
@@ -544,6 +546,7 @@ class PacienteController extends Controller
             'telefones.*.tipo' => 'required|string|max:50',
         ], [
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
+            'email1.email' => 'Informe um e-mail válido.',
             'medico_id.required' => 'Selecione o médico responsável.',
             'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
@@ -650,6 +653,7 @@ class PacienteController extends Controller
             'data_nascimento.required' => 'A data de nascimento é obrigatória.',
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
+            'email1.email' => 'Informe um e-mail válido.',
         ]);
 
         // Validate CPF digits
