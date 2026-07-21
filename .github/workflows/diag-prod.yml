@@ -40,8 +40,8 @@ jobs:
             echo ""; echo "===== ORFAOS ATUAIS (role=medico, medico_id NULL) id|name|email ====="
             "$PHP" artisan tinker --execute="foreach (App\Models\User::where('role','medico')->whereNull('medico_id')->orderBy('id')->get() as \$u) { echo 'ORF|'.\$u->id.'|'.\$u->name.'|'.\$u->email.PHP_EOL; }" 2>&1 | grep -a '^ORF|' || true
 
-            echo ""; echo "===== #149 (Dr. Luiz Fernando) confirmação do relink ====="
-            "$PHP" artisan tinker --execute="\$u=App\Models\User::find(149); echo 'U149|'.\$u->name.'|'.\$u->email.'|medico_id='.var_export(\$u->medico_id,true).PHP_EOL;" 2>&1 | grep -a '^U149|' || true
+            echo ""; echo "===== checagem #149 e #280 ====="
+            "$PHP" artisan tinker --execute="foreach ([149,280] as \$id) { \$u=App\Models\User::find(\$id); echo 'CHK|'.\$id.'|'.(\$u?\$u->name.'|'.\$u->email.'|role='.\$u->role.'|medico_id='.var_export(\$u->medico_id,true):'INEXISTENTE').PHP_EOL; }" 2>&1 | grep -a '^CHK|' || true
 
             echo ""; echo "==> Diagnóstico concluído."
         env:
