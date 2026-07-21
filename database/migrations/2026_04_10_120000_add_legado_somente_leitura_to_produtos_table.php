@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('produtos', 'legado_somente_leitura')) {
+            return;
+        }
         Schema::table('produtos', function (Blueprint $table) {
             $table->boolean('legado_somente_leitura')->default(false)->after('ativo');
         });

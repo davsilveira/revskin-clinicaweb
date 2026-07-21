@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('integration_job_failure_states')) {
+            return;
+        }
         Schema::create('integration_job_failure_states', function (Blueprint $table) {
             $table->id();
             $table->string('fingerprint', 128)->unique();

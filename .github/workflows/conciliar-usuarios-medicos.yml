@@ -1,11 +1,12 @@
 name: Conciliar usuários/médicos duplicados (reparo)
 
-# Executa em PRODUÇÃO, via SSH, as duas conciliações de usuários-médico:
+# Executa em PRODUÇÃO, via SSH, o rollout de dados da Opção 2:
+#   0) pacientes:backfill-vinculos          — popula o pivot medico_paciente a partir de pacientes.medico_id (idempotente)
 #   1) usuarios:auditar-duplicados-legado  — funde par shell+@legado (mantém e-mail limpo + dados)
 #   2) migration:audit-medico-links        — backfill/heurística de users.medico_id (liga médicos órfãos)
 #
 # DRY-RUN por padrão (não grava nada). Marque "force" para APLICAR de fato.
-# Requer que o código já esteja deployado (os comandos precisam existir no servidor).
+# Requer que o código já esteja deployado E a migration medico_paciente aplicada.
 
 on:
   workflow_dispatch:
@@ -40,6 +41,16 @@ jobs:
             cd "$APP_DIR"
             echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))"
             echo "==> FORCE=$IN_FORCE"
+
+            echo ""
+            echo "############################################################"
+            echo "# 0/2 — pacientes:backfill-vinculos (popular pivot)"
+            echo "############################################################"
+            if [ "$IN_FORCE" = "true" ]; then
+              "$PHP" artisan pacientes:backfill-vinculos --force
+            else
+              "$PHP" artisan pacientes:backfill-vinculos
+            fi
 
             echo ""
             echo "############################################################"
