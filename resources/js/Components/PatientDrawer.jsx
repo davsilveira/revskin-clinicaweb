@@ -664,7 +664,7 @@ export default function PatientDrawer({
             setLookupNotice(
                 json.ja_vinculado
                     ? 'Este paciente já está cadastrado para este médico. Verifique antes de salvar novamente.'
-                    : 'Paciente já cadastrado no sistema — os dados principais foram carregados. Preencha abaixo os dados exclusivos deste médico.'
+                    : 'Dados do paciente encontrado.'
             );
         } catch (_) {
             // silencioso: lookup é conveniência, não bloqueia o cadastro
