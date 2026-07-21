@@ -117,28 +117,23 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
 
     const pacientesList = pacientes?.data || pacientes || [];
 
+    // Nome/linha → view da receita; editar só pelo ícone lápis.
     const rowClick = (paciente) => {
-        if (isCallcenter) {
-            const ultimaId = paciente.ultima_receita_id;
-            if (ultimaId) {
-                persistPacientesIndexQueryFromLocation();
-                router.visit(`/receitas/${ultimaId}`);
-                return;
-            }
-            router.visit(`/pacientes/${paciente.id}`);
-            return;
-        }
         if (isSecretaria) {
             openEditDrawer(paciente);
             return;
         }
+        persistPacientesIndexQueryFromLocation();
         const ultimaId = paciente.ultima_receita_id;
         if (ultimaId) {
-            persistPacientesIndexQueryFromLocation();
             router.visit(`/receitas/${ultimaId}`);
             return;
         }
-        openEditDrawer(paciente);
+        if (isCallcenter) {
+            router.visit(`/pacientes/${paciente.id}`);
+            return;
+        }
+        router.visit(`/receitas?paciente_id=${paciente.id}`);
     };
 
     return (
