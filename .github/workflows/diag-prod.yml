@@ -31,6 +31,9 @@ jobs:
             echo ""; echo "===== migrate:status (últimas 30) ====="
             "$PHP" artisan migrate:status 2>&1 | tail -30 || true
 
+            echo ""; echo "===== probe runtime: eager-load do pivot medico_paciente ====="
+            "$PHP" artisan tinker --execute="try { \$p = App\Models\Paciente::with('medicos')->paginate(1); echo 'OK: paginate+medicos funcionou; total='.\$p->total().'; pivot_rows='.App\Models\MedicoPaciente::count().PHP_EOL; } catch (\Throwable \$e) { echo 'ERRO: '.get_class(\$e).': '.\$e->getMessage().PHP_EOL; }" 2>&1 | tail -5 || true
+
             echo ""; echo "===== tail -120 storage/logs/laravel.log ====="
             tail -120 storage/logs/laravel.log 2>&1 || echo "(sem laravel.log)"
 
