@@ -180,6 +180,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Named route for the user's post-login home screen.
+     * Call Center → Receitas; médicos, secretárias e admins → Pacientes.
+     */
+    public function homeRouteName(): string
+    {
+        return $this->isCallcenter() ? 'receitas.index' : 'pacientes.index';
+    }
+
+    /**
      * Check if user can access medico data.
      */
     public function canAccessMedico(Medico $medico): bool

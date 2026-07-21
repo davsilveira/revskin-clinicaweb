@@ -2,23 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    /**
+     * Legacy /dashboard URL — redirect to the role-based home (no 404).
+     */
+    public function index(Request $request): RedirectResponse
     {
-        $user = $request->user();
-
-        return Inertia::render('Dashboard/Index', [
-            // Add your dashboard stats here
-            // Example:
-            // 'stats' => [
-            //     'total' => Model::count(),
-            //     'pending' => Model::where('status', 'pending')->count(),
-            // ],
-        ]);
+        return redirect()->route($request->user()->homeRouteName());
     }
 }
-

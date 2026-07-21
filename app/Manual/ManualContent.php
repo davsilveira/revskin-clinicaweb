@@ -76,7 +76,6 @@ class ManualContent
     private static function allModules(): array
     {
         return [
-            self::moduleDashboard(),
             self::modulePacientes(),
             self::modulePerfil(),
             self::moduleReceitas(),
@@ -93,31 +92,6 @@ class ManualContent
         ];
     }
 
-    private static function moduleDashboard(): array
-    {
-        return [
-            'id' => 'dashboard',
-            'title' => 'Tela inicial',
-            'iconKey' => 'home',
-            'roles' => [User::ROLE_ADMIN, User::ROLE_MEDICO, User::ROLE_SECRETARIA],
-            'sections' => [
-                [
-                    'slug' => 'visao-geral',
-                    'level' => 2,
-                    'title' => 'Visão geral',
-                    'paragraphs' => [
-                        'A tela inicial é o ponto de entrada após o login. Pelo menu lateral você navega entre as áreas do sistema — as seções deste manual são as mesmas que o seu perfil enxerga no menu.',
-                        'No topo da página, o cabeçalho mostra uma saudação com o seu nome e, à direita, o menu da sua conta {{icon:chevronDown}} (perfil e saída).',
-                    ],
-                    'bullets' => [
-                        'Em telas menores, use {{icon:menu}} (três linhas) no canto superior para abrir ou fechar a barra lateral.',
-                        'No desktop, use {{icon:sidebarCollapse}} na parte inferior do menu para recolher ou expandir a sidebar.',
-                    ],
-                ],
-            ],
-        ];
-    }
-
     private static function modulePacientes(): array
     {
         return [
@@ -131,11 +105,14 @@ class ManualContent
                     'level' => 2,
                     'title' => 'Lista e busca',
                     'paragraphs' => [
+                        'Após o login, médicos, secretárias e administradores entram em Pacientes — o ponto de partida do sistema. Pelo menu lateral você navega entre as áreas disponíveis ao seu perfil.',
                         'Em Pacientes você vê a listagem cadastrada no sistema. Use o campo {{icon:search}} e o filtro de status {{icon:filter}} para localizar alguém rapidamente; em seguida use o botão Buscar.',
                     ],
                     'bullets' => [
                         'Clique em um paciente para abrir a ficha completa (painel lateral ou página de detalhes, conforme a tela).',
                         'Para incluir um novo cadastro, use {{icon:plus}} Novo Paciente no topo da página.',
+                        'Em telas menores, use {{icon:menu}} (três linhas) no canto superior para abrir ou fechar a barra lateral.',
+                        'No desktop, use {{icon:sidebarCollapse}} na parte inferior do menu para recolher ou expandir a sidebar.',
                     ],
                 ],
                 [

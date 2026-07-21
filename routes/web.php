@@ -30,7 +30,7 @@ use Inertia\Inertia;
 // Public routes
 Route::get('/', function () {
     if (Auth::check()) {
-        return redirect()->route('dashboard');
+        return redirect()->route(Auth::user()->homeRouteName());
     }
 
     return Inertia::render('Welcome');

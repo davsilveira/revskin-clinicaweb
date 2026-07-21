@@ -8,7 +8,6 @@ import {
     NavIconCallcenter,
     NavIconClinicas,
     NavIconExport,
-    NavIconHome,
     NavIconKarnaugh,
     NavIconManual,
     NavIconPacientes,
@@ -103,6 +102,7 @@ export default function DashboardLayout({ children, title }) {
     const isAdmin = auth.user.role === 'admin';
     const isMedico = auth.user.role === 'medico';
     const isCallcenter = auth.user.role === 'callcenter';
+    const homeHref = isCallcenter ? '/receitas' : '/pacientes';
     const pendingCallCenterCount = auth.pendingCallCenterCount || 0;
     const tinyEnabled = auth.tinyEnabled || false;
 
@@ -156,7 +156,7 @@ export default function DashboardLayout({ children, title }) {
                         showLabels ? 'px-6' : 'px-3 justify-center'
                     }`}
                 >
-                    <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
+                    <Link href={homeHref} className="flex items-center gap-3 min-w-0">
                         <img
                             src={publicAsset('/images/logo.jpeg', assetVersion)}
                             alt="ClinicaWeb"
@@ -176,20 +176,6 @@ export default function DashboardLayout({ children, title }) {
                     className={`flex-1 ${showLabels ? 'px-4' : 'px-2'} py-6 overflow-y-auto`}
                 >
                     <div className="space-y-1">
-                        {/* Tela Inicial */}
-                        <Link
-                            href="/dashboard"
-                            className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
-                                isActive('/dashboard') && !isActive('/dashboard/')
-                                    ? 'bg-emerald-50 text-emerald-700'
-                                    : 'text-gray-700 hover:bg-gray-100'
-                            }`}
-                            title={!showLabels ? 'Tela Inicial' : undefined}
-                        >
-                            <NavIconHome />
-                            {showLabels && <span className="font-medium">Tela Inicial</span>}
-                        </Link>
-
                         {/* Pacientes */}
                         <Link
                             href="/pacientes"

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 
 const MESSAGES = {
@@ -21,6 +21,8 @@ const MESSAGES = {
 };
 
 export default function Error({ status = 500 }) {
+    const { auth } = usePage().props;
+    const homeHref = auth?.user?.role === 'callcenter' ? '/receitas' : '/pacientes';
     const info = MESSAGES[status] ?? {
         title: 'Erro',
         description: 'Não foi possível carregar esta página.',
@@ -35,7 +37,7 @@ export default function Error({ status = 500 }) {
                 <h1 className="mt-4 text-2xl font-bold text-gray-900">{info.title}</h1>
                 <p className="mt-2 max-w-md text-gray-600">{info.description}</p>
                 <Link
-                    href="/dashboard"
+                    href={homeHref}
                     className="mt-8 inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                 >
                     Voltar ao início

@@ -19,7 +19,7 @@ class AuthController extends Controller
     public function showLogin()
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect()->route(Auth::user()->homeRouteName());
         }
 
         return Inertia::render('Auth/Login');
@@ -52,7 +52,7 @@ class AuthController extends Controller
                 ]);
             }
 
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended(route(Auth::user()->homeRouteName()));
         }
 
         return back()->withErrors([
