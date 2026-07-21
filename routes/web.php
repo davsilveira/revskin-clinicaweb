@@ -77,6 +77,7 @@ Route::middleware(['auth'])->group(function () {
     // Pacientes (all authenticated users, filtered by role in controller)
     Route::resource('pacientes', PacienteController::class);
     Route::get('/api/pacientes/search', [PacienteController::class, 'search'])->name('pacientes.search');
+    Route::get('/api/pacientes/lookup', [PacienteController::class, 'lookup'])->name('pacientes.lookup');
     Route::post('/api/pacientes/autosave', [PacienteController::class, 'autosave'])->name('pacientes.autosave');
     Route::post('/api/pacientes/quick-create', [PacienteController::class, 'quickCreate'])->name('pacientes.quickCreate');
 

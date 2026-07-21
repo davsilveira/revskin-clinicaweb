@@ -205,11 +205,23 @@ class User extends Authenticatable
         }
 
         if ($this->isMedico()) {
-            return $paciente->medico_id === $this->medico_id;
+            if (! $this->medico_id) {
+                return false;
+            }
+
+            // Opção 2: vínculo no pivot OU (compat Fase A) FK legado do paciente.
+            return $paciente->medico_id === $this->medico_id
+                || $paciente->medicos()->wherePivot('medico_id', $this->medico_id)->exists();
         }
 
-        if ($this->isSecretaria() && $this->clinica_id && $paciente->medico_id) {
-            return in_array($paciente->medico_id, $this->getMedicoIdsDaClinica(), true);
+        if ($this->isSecretaria() && $this->clinica_id) {
+            $ids = $this->getMedicoIdsDaClinica();
+            if (empty($ids)) {
+                return false;
+            }
+
+            return ($paciente->medico_id && in_array($paciente->medico_id, $ids, true))
+                || $paciente->medicos()->whereIn('medicos.id', $ids)->exists();
         }
 
         return false;

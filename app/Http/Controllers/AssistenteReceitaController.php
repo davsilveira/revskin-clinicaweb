@@ -227,8 +227,15 @@ class AssistenteReceitaController extends Controller
         }
 
         // Se o paciente não tinha médico vinculado, salvar o vínculo para futuro
-        if ($paciente && !$paciente->medico_id) {
-            $paciente->update(['medico_id' => $medicoId]);
+        if ($paciente && $medicoId) {
+            // Legado: mantém o FK de origem quando ainda nulo.
+            if (!$paciente->medico_id) {
+                $paciente->update(['medico_id' => $medicoId]);
+            }
+            // Opção 2: garante o vínculo no pivot (origem: assistente).
+            app(\App\Services\PacienteVinculoService::class)->garantir(
+                $paciente, (int) $medicoId, [], auth()->id(), 'assistente'
+            );
         }
 
         // Criar receita diretamente com todos os produtos (recomendados e opcionais)
@@ -459,8 +466,15 @@ class AssistenteReceitaController extends Controller
             ], 422);
         }
 
-        if ($paciente && !$paciente->medico_id) {
-            $paciente->update(['medico_id' => $medicoId]);
+        if ($paciente && $medicoId) {
+            // Legado: mantém o FK de origem quando ainda nulo.
+            if (!$paciente->medico_id) {
+                $paciente->update(['medico_id' => $medicoId]);
+            }
+            // Opção 2: garante o vínculo no pivot (origem: assistente).
+            app(\App\Services\PacienteVinculoService::class)->garantir(
+                $paciente, (int) $medicoId, [], auth()->id(), 'assistente'
+            );
         }
 
         $receita = Receita::create([

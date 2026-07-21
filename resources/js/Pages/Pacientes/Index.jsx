@@ -29,6 +29,15 @@ function normalizarAtivoFiltro(filtersObj) {
 export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters }) {
     const { auth } = usePage().props;
     const isCallcenter = auth?.user?.role === 'callcenter';
+
+    // Opção 2: nomes dos médicos vinculados (pivot). Fallback ao médico de origem.
+    const medicosLabel = (paciente) => {
+        const nomes = (paciente.medicos || [])
+            .map((m) => m?.nome || m?.linkedUser?.name)
+            .filter(Boolean);
+        if (nomes.length > 0) return nomes.join(', ');
+        return paciente.medico?.nome || paciente.medico?.linkedUser?.name || '—';
+    };
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingPaciente, setEditingPaciente] = useState(null);
     const [toast, setToast] = useState(null);
@@ -186,6 +195,9 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                                            {canSelectMedico && (
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Médico(s)</th>
+                                            )}
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Registro</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
@@ -205,6 +217,11 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="text-sm font-medium text-gray-900">{paciente.nome}</div>
                                                     </td>
+                                                    {canSelectMedico && (
+                                                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={medicosLabel(paciente)}>
+                                                            {medicosLabel(paciente)}
+                                                        </td>
+                                                    )}
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 tabular-nums">
                                                         {paciente.codigo != null && String(paciente.codigo).trim() !== ''
                                                             ? String(paciente.codigo).trim()
@@ -258,7 +275,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                                                <td colSpan={canSelectMedico ? 8 : 7} className="px-6 py-12 text-center text-gray-500">
                                                     Nenhum paciente encontrado
                                                 </td>
                                             </tr>
@@ -293,6 +310,11 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             <p className="text-sm text-gray-500 mt-0.5">
                                                                 {paciente.cidade ? `${paciente.cidade}/${paciente.uf}` : '—'}
                                                             </p>
+                                                            {canSelectMedico && (
+                                                                <p className="text-sm text-gray-500 mt-0.5">
+                                                                    Médico(s): {medicosLabel(paciente)}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                         <span className={`flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ${paciente.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                             {paciente.ativo ? 'Ativo' : 'Inativo'}

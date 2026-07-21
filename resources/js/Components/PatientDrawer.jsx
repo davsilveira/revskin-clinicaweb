@@ -102,6 +102,7 @@ export default function PatientDrawer({
     const isFirstRender = useRef(true);
     const [fieldErrors, setFieldErrors] = useState({});
     const [autofillNotice, setAutofillNotice] = useState(false);
+    const [lookupNotice, setLookupNotice] = useState(null);
     const guardBrowserAutofillRef = useRef(false);
     const autofillGuardTimerRef = useRef(null);
 
@@ -624,6 +625,52 @@ export default function PatientDrawer({
         await persistPatient();
     };
 
+    /**
+     * Opção 2: ao informar um CPF já cadastrado (por qualquer médico), pré-preenche os
+     * DADOS COMPARTILHADOS do paciente. Os campos exclusivos deste médico ficam em
+     * branco (a serem preenchidos). Só roda em cadastro novo (sem paciente carregado).
+     */
+    const doCpfLookup = useCallback(async () => {
+        if (paciente || currentPacienteIdRef.current) return; // só em cadastro novo
+        const digits = String(data.cpf || '').replace(/\D/g, '');
+        if (digits.length !== 11) return;
+
+        try {
+            const params = new URLSearchParams({ cpf: digits });
+            if (data.medico_id) params.set('medico_id', String(data.medico_id));
+            const resp = await fetch(`/api/pacientes/lookup?${params.toString()}`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!resp.ok) return;
+            const json = await resp.json();
+            if (!json.found || !json.paciente) {
+                setLookupNotice(null);
+                return;
+            }
+
+            const p = json.paciente;
+            const shared = {
+                nome: p.nome || '', rg: p.rg || '', data_nascimento: p.data_nascimento || '',
+                sexo: p.sexo || '', fototipo: p.fototipo || '',
+                email1: p.email1 || '', email2: p.email2 || '',
+                telefone1: p.telefone1 || '', celular: p.celular || '', telefone3: p.telefone3 || '',
+                tipo_endereco: p.tipo_endereco || '', endereco: p.endereco || '', numero: p.numero || '',
+                complemento: p.complemento || '', bairro: p.bairro || '', cidade: p.cidade || '',
+                uf: p.uf || '', pais: p.pais || '', cep: p.cep || '',
+            };
+            setData((prev) => ({ ...prev, ...shared }));
+
+            setLookupNotice(
+                json.ja_vinculado
+                    ? 'Este paciente já está cadastrado para este médico. Verifique antes de salvar novamente.'
+                    : 'Paciente já cadastrado no sistema — os dados principais foram carregados. Preencha abaixo os dados exclusivos deste médico.'
+            );
+        } catch (_) {
+            // silencioso: lookup é conveniência, não bloqueia o cadastro
+        }
+    }, [paciente, data.cpf, data.medico_id, setData]);
+
     const handleDelete = () => {
         if (paciente) {
             router.delete(`/pacientes/${paciente.id}`, {
@@ -673,6 +720,18 @@ export default function PatientDrawer({
                             {fieldErrors._form}
                         </div>
                     )}
+                    {lookupNotice && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">
+                            {lookupNotice}
+                            <button
+                                type="button"
+                                className="ml-2 underline hover:no-underline"
+                                onClick={() => setLookupNotice(null)}
+                            >
+                                Ok
+                            </button>
+                        </div>
+                    )}
                     {autofillNotice && (
                         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status">
                             O navegador tentou preencher um endereço salvo (ex.: EUA). Mantivemos <strong>Brasil</strong> como padrão.
@@ -709,7 +768,9 @@ export default function PatientDrawer({
                                 setData('cpf', e.target.value);
                                 setCpfError(null);
                                 setFieldErrors((prev) => ({ ...prev, cpf: null }));
+                                if (lookupNotice) setLookupNotice(null);
                             }}
+                            onBlur={doCpfLookup}
                             error={cpfError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
                             required
@@ -1096,21 +1157,22 @@ export default function PatientDrawer({
                         </div>
                     )}
 
-                    {/* Notes */}
+                    {/* Dados exclusivos deste médico (privados por vínculo — Opção 2) */}
                     <div className="border-t pt-6">
-                        <Input
-                            label="Observações"
-                            value={data.anotacoes}
-                            onChange={(e) => setData('anotacoes', e.target.value)}
-                            multiline
-                            rows={3}
-                            autoComplete="off"
-                            name="revskin_paciente_anotacoes"
-                        />
-                    </div>
-
-                    <div className="border-t pt-6">
+                        <h3 className="text-sm font-medium text-gray-900 mb-1">Dados exclusivos deste médico</h3>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Visíveis apenas para você. Outros médicos que atendem este paciente não enxergam estes campos —
+                            e, ao cadastrar um paciente que já existe em outra clínica, eles vêm em branco.
+                        </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Input
+                                label="Indicado por"
+                                value={data.indicado_por}
+                                onChange={(e) => setData('indicado_por', e.target.value)}
+                                placeholder="Opcional"
+                                autoComplete="off"
+                                name="revskin_paciente_indicado_por"
+                            />
                             <Input
                                 label="Nº Registro"
                                 value={data.codigo}
@@ -1123,13 +1185,16 @@ export default function PatientDrawer({
                                 autoComplete="off"
                                 name="revskin_paciente_codigo"
                             />
+                        </div>
+                        <div className="mt-4">
                             <Input
-                                label="Indicado por"
-                                value={data.indicado_por}
-                                onChange={(e) => setData('indicado_por', e.target.value)}
-                                placeholder="Opcional"
+                                label="Observações"
+                                value={data.anotacoes}
+                                onChange={(e) => setData('anotacoes', e.target.value)}
+                                multiline
+                                rows={3}
                                 autoComplete="off"
-                                name="revskin_paciente_indicado_por"
+                                name="revskin_paciente_anotacoes"
                             />
                         </div>
                     </div>

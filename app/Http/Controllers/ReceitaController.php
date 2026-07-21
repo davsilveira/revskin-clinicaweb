@@ -210,6 +210,15 @@ class ReceitaController extends Controller
             'status' => $validated['status'] ?? 'aberta',
         ]);
 
+        // Opção 2: emitir receita garante o vínculo médico↔paciente (origem: receita).
+        app(\App\Services\PacienteVinculoService::class)->garantir(
+            Paciente::find($validated['paciente_id']),
+            (int) $validated['medico_id'],
+            [],
+            $request->user()->id,
+            'receita',
+        );
+
         foreach ($validated['itens'] as $index => $item) {
             $receita->itens()->create([
                 'produto_id' => $item['produto_id'],
@@ -798,6 +807,17 @@ class ReceitaController extends Controller
                 'valor_frete' => $validated['valor_frete'] ?? 0,
                 'status' => 'aberta',
             ]);
+
+            // Opção 2: emitir receita garante o vínculo médico↔paciente (origem: receita).
+            if (! empty($validated['medico_id'])) {
+                app(\App\Services\PacienteVinculoService::class)->garantir(
+                    Paciente::find($validated['paciente_id']),
+                    (int) $validated['medico_id'],
+                    [],
+                    $user->id,
+                    'receita',
+                );
+            }
         }
 
         // Sync items if provided

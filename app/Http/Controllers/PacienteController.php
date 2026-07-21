@@ -26,6 +26,60 @@ class PacienteController extends Controller
     }
 
     /**
+     * Opção 2: remove os campos privados por médico do payload do paciente e devolve-os
+     * para gravar no pivot (não são mais colunas compartilhadas de `pacientes`).
+     *
+     * @return array<string,mixed>
+     */
+    private function extractPrivados(array &$validated): array
+    {
+        $privados = [];
+        foreach (['anotacoes', 'codigo', 'indicado_por'] as $campo) {
+            if (array_key_exists($campo, $validated)) {
+                $privados[$campo] = $validated[$campo];
+                unset($validated[$campo]);
+            }
+        }
+
+        return $privados;
+    }
+
+    /**
+     * Opção 2: sobrepõe nos atributos do paciente os campos privados do vínculo do médico
+     * de contexto (médico logado, ou o médico de origem do registro), para exibição.
+     */
+    private function injectPrivadosDoMedico(Paciente $paciente, $user): void
+    {
+        $medicoId = ($user->isMedico() && $user->medico_id) ? $user->medico_id : $paciente->medico_id;
+        if (! $medicoId) {
+            return;
+        }
+
+        $pivot = $paciente->vinculoDoMedico((int) $medicoId);
+        if ($pivot) {
+            $paciente->setAttribute('anotacoes', $pivot->anotacoes);
+            $paciente->setAttribute('codigo', $pivot->codigo);
+            $paciente->setAttribute('indicado_por', $pivot->indicado_por);
+        }
+    }
+
+    /**
+     * Nº Registro (codigo) é único POR médico (no pivot). Retorna true se já usado por
+     * outro vínculo do mesmo médico.
+     */
+    private function codigoDuplicadoNoMedico(?int $medicoId, ?string $codigo, ?int $ignorePacienteId = null): bool
+    {
+        if (! $medicoId || $codigo === null || trim((string) $codigo) === '') {
+            return false;
+        }
+
+        return \App\Models\MedicoPaciente::where('medico_id', $medicoId)
+            ->where('codigo', $codigo)
+            ->when($ignorePacienteId, fn ($q) => $q->where('paciente_id', '!=', $ignorePacienteId))
+            ->exists();
+    }
+
+    /**
      * Validate CPF digits.
      */
     private function validateCpfDigits(?string $cpf): bool
@@ -114,13 +168,13 @@ class PacienteController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Paciente::with(['medico:id', 'medico.linkedUser:id,name,medico_id', 'telefones', 'createdBy:id,name', 'updatedBy:id,name'])
+        $query = Paciente::with(['medico:id', 'medico.linkedUser:id,name,medico_id', 'medicos:id,apelido,crm,uf_crm,nome_legado', 'medicos.linkedUser:id,name,medico_id', 'telefones', 'createdBy:id,name', 'updatedBy:id,name'])
             ->when($request->search, function ($q, $search) {
                 $q->where(function (Builder $sub) use ($search) {
                     $this->applyPacienteTextSearch($sub, $search);
                 });
             })
-            ->when($request->medico_id, fn ($q, $medicoId) => $q->where('medico_id', $medicoId));
+            ->when($request->medico_id, fn ($q, $medicoId) => $q->whereHas('medicos', fn ($mq) => $mq->where('medicos.id', $medicoId)));
 
         // Filter by ativo status - defaults to true (active) if not specified
         if ($request->has('ativo') && $request->ativo !== '' && $request->ativo !== null) {
@@ -131,14 +185,27 @@ class PacienteController extends Controller
         }
         // When ativo='' (empty string), show all patients (no filter applied)
 
-        // Filter by user access
+        // Filter by user access — Opção 2: pertencimento ao pivot medico_paciente.
+        // Para médico/secretária, "arquivar" é por vínculo, então o padrão só mostra
+        // vínculos ativos (a menos que ativo='' peça todos).
         $user = $request->user();
+        $mostrarSoVinculoAtivo = ! ($request->has('ativo') && $request->ativo === '');
         if ($user->isMedico() && $user->medico_id) {
-            $query->where('medico_id', $user->medico_id);
+            $query->whereHas('medicos', function ($mq) use ($user, $mostrarSoVinculoAtivo) {
+                $mq->where('medicos.id', $user->medico_id);
+                if ($mostrarSoVinculoAtivo) {
+                    $mq->where('medico_paciente.ativo', true);
+                }
+            });
         }
         if ($user->isSecretaria() && $user->clinica_id) {
             $medicoIds = $user->getMedicoIdsDaClinica();
-            $query->whereIn('medico_id', $medicoIds);
+            $query->whereHas('medicos', function ($mq) use ($medicoIds, $mostrarSoVinculoAtivo) {
+                $mq->whereIn('medicos.id', $medicoIds);
+                if ($mostrarSoVinculoAtivo) {
+                    $mq->where('medico_paciente.ativo', true);
+                }
+            });
         } elseif ($user->isSecretaria()) {
             $query->whereRaw('1 = 0'); // sem clínica = lista vazia
         }
@@ -157,6 +224,22 @@ class PacienteController extends Controller
             ->orderBy('nome')
             ->paginate(15)
             ->withQueryString();
+
+        // Opção 2: para o médico, exibe o Nº Registro/Indicado/Observações do SEU vínculo.
+        if ($user->isMedico() && $user->medico_id) {
+            $ids = $pacientes->getCollection()->pluck('id')->all();
+            if (! empty($ids)) {
+                $pivots = \App\Models\MedicoPaciente::where('medico_id', $user->medico_id)
+                    ->whereIn('paciente_id', $ids)->get()->keyBy('paciente_id');
+                $pacientes->getCollection()->each(function ($p) use ($pivots) {
+                    if ($pv = $pivots->get($p->id)) {
+                        $p->setAttribute('anotacoes', $pv->anotacoes);
+                        $p->setAttribute('codigo', $pv->codigo);
+                        $p->setAttribute('indicado_por', $pv->indicado_por);
+                    }
+                });
+            }
+        }
 
         $medicos = $this->getMedicosForPacienteForm($request->user());
 
@@ -217,7 +300,7 @@ class PacienteController extends Controller
             'data_nascimento' => 'required|date',
             'sexo' => 'nullable|string|max:20',
             'fototipo' => 'nullable|string|max:50',
-            'cpf' => 'required|string|max:14|unique:pacientes,cpf',
+            'cpf' => 'required|string|max:14',
             'rg' => 'nullable|string|max:20',
             'telefone1' => 'nullable|string|max:20',
             'celular' => 'required|string|max:20',
@@ -233,7 +316,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
-            'codigo' => 'nullable|string|max:255|unique:pacientes,codigo',
+            'codigo' => 'nullable|string|max:255',
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => $medicoRules,
@@ -249,7 +332,6 @@ class PacienteController extends Controller
             'email1.required' => 'O e-mail é obrigatório.',
             'email1.email' => 'Informe um e-mail válido.',
             'medico_id.required' => 'Selecione o médico responsável.',
-            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
         $this->normalizePacienteCodigo($validated);
@@ -270,14 +352,50 @@ class PacienteController extends Controller
             }
         }
 
+        // Opção 2: os campos privados vão para o pivot medico_paciente, não para `pacientes`.
+        $privados = $this->extractPrivados($validated);
+        $medicoContexto = ! empty($validated['medico_id']) ? (int) $validated['medico_id'] : null;
+        if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null)) {
+            return $this->jsonOrBackForFieldError($request, 'codigo', 'Já existe um paciente com este Nº Registro para este médico.');
+        }
+
         $telefones = $validated['telefones'] ?? [];
         unset($validated['telefones']);
 
-        $paciente = Paciente::create($validated);
-        $paciente->forceFill([
-            'created_by_user_id' => $user->id,
-            'updated_by_user_id' => $user->id,
-        ])->save();
+        // Opção 2 (upsert por CPF): se já existe um paciente com este CPF, é o MESMO
+        // paciente — atualiza os dados principais compartilhados e cria/garante o
+        // vínculo com este médico (não bloqueia mais o 2º médico).
+        $cpfLimpo = preg_replace('/\D/', '', (string) ($validated['cpf'] ?? ''));
+        $existente = $cpfLimpo !== ''
+            ? Paciente::whereRaw("REPLACE(REPLACE(REPLACE(COALESCE(cpf,''),'.',''),'-',''),' ','') = ?", [$cpfLimpo])->first()
+            : null;
+
+        if ($existente) {
+            // Se este médico já tem vínculo com o paciente, é duplicidade real.
+            if ($medicoContexto && $existente->vinculoDoMedico($medicoContexto)) {
+                return $this->jsonOrBackForFieldError($request, 'cpf', 'Este paciente já está cadastrado para este médico.');
+            }
+            $paciente = $existente;
+            $paciente->fill($validated);
+            $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
+        } else {
+            $paciente = Paciente::create($validated);
+            $paciente->forceFill([
+                'created_by_user_id' => $user->id,
+                'updated_by_user_id' => $user->id,
+            ])->save();
+        }
+
+        // Opção 2: cria o vínculo médico↔paciente com os campos privados.
+        if ($medicoContexto) {
+            app(\App\Services\PacienteVinculoService::class)->garantir(
+                $paciente,
+                $medicoContexto,
+                $privados + ['ativo' => true],
+                $user->id,
+                'form',
+            );
+        }
 
         // Save telefones
         foreach ($telefones as $index => $telefone) {
@@ -315,6 +433,8 @@ class PacienteController extends Controller
             $q->with('medico:id', 'medico.linkedUser:id,name,medico_id')->orderByDesc('data_receita')->limit(10);
         }]);
 
+        $this->injectPrivadosDoMedico($paciente, $user);
+
         return Inertia::render('Pacientes/Show', [
             'paciente' => $paciente,
         ]);
@@ -335,6 +455,8 @@ class PacienteController extends Controller
         $medicos = $this->getMedicosForPacienteForm($user);
 
         $paciente->loadMissing(['createdBy:id,name', 'updatedBy:id,name']);
+
+        $this->injectPrivadosDoMedico($paciente, $user);
 
         return Inertia::render('Pacientes/Form', [
             'paciente' => $paciente,
@@ -370,7 +492,7 @@ class PacienteController extends Controller
             'uf' => 'nullable|string|max:2',
             'pais' => 'nullable|string|max:100',
             'cep' => 'nullable|string|max:10',
-            'codigo' => ['nullable', 'string', 'max:255', Rule::unique('pacientes', 'codigo')->ignore($paciente->id)],
+            'codigo' => ['nullable', 'string', 'max:255'],
             'indicado_por' => 'nullable|string|max:255',
             'anotacoes' => 'nullable|string',
             'medico_id' => 'nullable|exists:medicos,id',
@@ -385,7 +507,6 @@ class PacienteController extends Controller
             'celular.required' => 'O celular é obrigatório.',
             'email1.required' => 'O e-mail é obrigatório.',
             'email1.email' => 'Informe um e-mail válido.',
-            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
         $this->normalizePacienteCodigo($validated);
@@ -413,9 +534,26 @@ class PacienteController extends Controller
             $validated['medico_id'] = $user->medico_id;
         }
 
-        // Médico responsável não pode ser trocado após já vinculado (inclusive ADM); só permite definir se ainda for null
+        // Opção 2: define o médico de contexto (de quem é o vínculo sendo editado) ANTES
+        // de mexer no medico_id legado.
+        $medicoContexto = null;
+        if ($user->isMedico() && $user->medico_id) {
+            $medicoContexto = $user->medico_id;
+        } elseif (! empty($validated['medico_id'])) {
+            $medicoContexto = (int) $validated['medico_id'];
+        } else {
+            $medicoContexto = $paciente->medico_id;
+        }
+
+        // Médico responsável (FK legado) não é trocado após já vinculado; só define se null.
         if ($paciente->medico_id !== null) {
             unset($validated['medico_id']);
+        }
+
+        // Opção 2: campos privados vão para o pivot do médico de contexto.
+        $privados = $this->extractPrivados($validated);
+        if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null, $paciente->id)) {
+            return $this->jsonOrBackForFieldError($request, 'codigo', 'Já existe um paciente com este Nº Registro para este médico.');
         }
 
         $telefones = $validated['telefones'] ?? [];
@@ -423,6 +561,16 @@ class PacienteController extends Controller
 
         $paciente->update($validated);
         $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
+
+        if ($medicoContexto) {
+            app(\App\Services\PacienteVinculoService::class)->garantir(
+                $paciente,
+                $medicoContexto,
+                $privados,
+                $user->id,
+                'form',
+            );
+        }
 
         // Sync telefones
         $paciente->telefones()->delete();
@@ -456,8 +604,19 @@ class PacienteController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        // Soft delete by setting ativo to false
-        $paciente->update(['ativo' => false]);
+        // Opção 2: "arquivar" é por vínculo para médico/secretária (some só na visão dele,
+        // sem afetar outros médicos). Admin/callcenter desativam o registro global.
+        if ($user->isAdmin() || $user->isCallcenter()) {
+            $paciente->update(['ativo' => false]);
+        } else {
+            $medicoId = ($user->isMedico() && $user->medico_id) ? $user->medico_id : $paciente->medico_id;
+            $pivot = $medicoId ? $paciente->vinculoDoMedico((int) $medicoId) : null;
+            if ($pivot) {
+                $pivot->update(['ativo' => false, 'updated_by_user_id' => $user->id]);
+            } else {
+                $paciente->update(['ativo' => false]);
+            }
+        }
 
         return redirect()->route('pacientes.index')
             ->with('success', 'Paciente desativado com sucesso!');
@@ -475,10 +634,10 @@ class PacienteController extends Controller
                 $this->applyPacienteTextSearch($q, $search);
             });
 
-        // Filter by user access
+        // Filter by user access — Opção 2: via pivot medico_paciente (vínculo ativo)
         $user = $request->user();
         if ($user->isMedico() && $user->medico_id) {
-            $query->where('medico_id', $user->medico_id);
+            $query->whereHas('medicos', fn ($mq) => $mq->where('medicos.id', $user->medico_id)->where('medico_paciente.ativo', true));
         }
 
         $pacientes = $query->orderBy('nome')
@@ -486,6 +645,60 @@ class PacienteController extends Controller
             ->get(['id', 'nome', 'cpf', 'celular']);
 
         return response()->json($pacientes);
+    }
+
+    /**
+     * Opção 2 — Lookup por CPF para o fluxo "Novo Paciente": localiza um paciente já
+     * cadastrado (por qualquer médico) e devolve os dados principais para pré-preencher.
+     * Retorna ja_vinculado=true se o médico logado já tem vínculo (evita duplicidade).
+     */
+    public function lookup(Request $request)
+    {
+        $cpf = preg_replace('/\D/', '', (string) $request->get('cpf', ''));
+        if (strlen($cpf) !== 11) {
+            return response()->json(['found' => false], 200);
+        }
+
+        $paciente = Paciente::whereRaw("REPLACE(REPLACE(REPLACE(COALESCE(cpf,''),'.',''),'-',''),' ','') = ?", [$cpf])
+            ->with('telefones')
+            ->first();
+
+        if (! $paciente) {
+            return response()->json(['found' => false], 200);
+        }
+
+        $user = $request->user();
+        $medicoId = ($user->isMedico() && $user->medico_id) ? $user->medico_id : (int) $request->get('medico_id', 0);
+        $jaVinculado = $medicoId ? (bool) $paciente->vinculoDoMedico((int) $medicoId) : false;
+
+        // Só dados principais compartilhados — nunca os campos privados de outro médico.
+        return response()->json([
+            'found' => true,
+            'ja_vinculado' => $jaVinculado,
+            'paciente' => [
+                'id' => $paciente->id,
+                'nome' => $paciente->nome,
+                'cpf' => $paciente->cpf,
+                'rg' => $paciente->rg,
+                'data_nascimento' => optional($paciente->data_nascimento)->format('Y-m-d'),
+                'sexo' => $paciente->sexo,
+                'fototipo' => $paciente->fototipo,
+                'email1' => $paciente->email1,
+                'email2' => $paciente->email2,
+                'telefone1' => $paciente->telefone1,
+                'celular' => $paciente->celular,
+                'telefone3' => $paciente->telefone3,
+                'tipo_endereco' => $paciente->tipo_endereco,
+                'endereco' => $paciente->endereco,
+                'numero' => $paciente->numero,
+                'complemento' => $paciente->complemento,
+                'bairro' => $paciente->bairro,
+                'cidade' => $paciente->cidade,
+                'uf' => $paciente->uf,
+                'pais' => $paciente->pais,
+                'cep' => $paciente->cep,
+            ],
+        ]);
     }
 
     /**
@@ -505,14 +718,8 @@ class PacienteController extends Controller
             }
         }
 
+        // Opção 2: Nº Registro é único por médico (checado no pivot depois), não global.
         $codigoRule = ['nullable', 'string', 'max:255'];
-        if ($request->filled('codigo')) {
-            if ($request->filled('id')) {
-                $codigoRule[] = Rule::unique('pacientes', 'codigo')->ignore($request->input('id'));
-            } else {
-                $codigoRule[] = 'unique:pacientes,codigo';
-            }
-        }
 
         $validated = $request->validate([
             'id' => 'nullable|exists:pacientes,id',
@@ -548,7 +755,6 @@ class PacienteController extends Controller
             'cpf.unique' => 'Já existe um paciente cadastrado com este CPF.',
             'email1.email' => 'Informe um e-mail válido.',
             'medico_id.required' => 'Selecione o médico responsável.',
-            'codigo.unique' => 'Já existe um paciente com este Nº Registro.',
         ]);
 
         $this->normalizePacienteCodigo($validated);
@@ -581,6 +787,9 @@ class PacienteController extends Controller
         $telefones = $validated['telefones'] ?? [];
         unset($validated['id'], $validated['telefones']);
 
+        // Opção 2: campos privados por médico vão para o pivot.
+        $privados = $this->extractPrivados($validated);
+
         if ($id) {
             $paciente = Paciente::findOrFail($id);
 
@@ -589,18 +798,42 @@ class PacienteController extends Controller
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
             }
 
+            $medicoContexto = ($user->isMedico() && $user->medico_id)
+                ? $user->medico_id
+                : (! empty($validated['medico_id']) ? (int) $validated['medico_id'] : $paciente->medico_id);
+
             if ($paciente->medico_id !== null) {
                 unset($validated['medico_id']);
+            }
+
+            if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null, $paciente->id)) {
+                return response()->json(['message' => 'Nº Registro já usado para este médico.', 'errors' => ['codigo' => ['Já existe um paciente com este Nº Registro para este médico.']]], 422);
             }
 
             $paciente->update($validated);
             $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
         } else {
+            $medicoContexto = ! empty($validated['medico_id']) ? (int) $validated['medico_id'] : null;
+            if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null)) {
+                return response()->json(['message' => 'Nº Registro já usado para este médico.', 'errors' => ['codigo' => ['Já existe um paciente com este Nº Registro para este médico.']]], 422);
+            }
+
             $paciente = Paciente::create($validated);
             $paciente->forceFill([
                 'created_by_user_id' => $user->id,
                 'updated_by_user_id' => $user->id,
             ])->save();
+        }
+
+        // Opção 2: cria/atualiza o vínculo com os campos privados.
+        if (! empty($medicoContexto)) {
+            app(\App\Services\PacienteVinculoService::class)->garantir(
+                $paciente,
+                (int) $medicoContexto,
+                $privados,
+                $user->id,
+                'form',
+            );
         }
 
         // Sync telefones
@@ -678,6 +911,17 @@ class PacienteController extends Controller
             'created_by_user_id' => $user->id,
             'updated_by_user_id' => $user->id,
         ])->save();
+
+        // Opção 2: cria o vínculo com o médico determinado acima.
+        if (! empty($validated['medico_id'])) {
+            app(\App\Services\PacienteVinculoService::class)->garantir(
+                $paciente,
+                (int) $validated['medico_id'],
+                ['ativo' => true],
+                $user->id,
+                'form',
+            );
+        }
 
         return response()->json([
             'success' => true,

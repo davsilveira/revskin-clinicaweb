@@ -88,9 +88,20 @@ class Medico extends Model
     }
 
     /**
-     * Get the pacientes for this medico.
+     * Pacientes deste médico (Opção 2 — N:N via pivot medico_paciente).
      */
-    public function pacientes(): HasMany
+    public function pacientes(): BelongsToMany
+    {
+        return $this->belongsToMany(Paciente::class, 'medico_paciente')
+            ->using(MedicoPaciente::class)
+            ->withPivot(['id', 'anotacoes', 'codigo', 'indicado_por', 'ativo', 'origem', 'created_by_user_id', 'updated_by_user_id'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Pacientes cujo FK legado `medico_id` aponta para este médico (transição/relatórios).
+     */
+    public function pacientesLegado(): HasMany
     {
         return $this->hasMany(Paciente::class);
     }
