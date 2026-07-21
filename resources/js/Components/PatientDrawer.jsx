@@ -1157,13 +1157,8 @@ export default function PatientDrawer({
                         </div>
                     )}
 
-                    {/* Dados exclusivos deste médico (privados por vínculo — Opção 2) */}
+                    {/* Campos privados do vínculo médico–paciente */}
                     <div className="border-t pt-6">
-                        <h3 className="text-sm font-medium text-gray-900 mb-1">Dados exclusivos deste médico</h3>
-                        <p className="text-xs text-gray-500 mb-4">
-                            Visíveis apenas para você. Outros médicos que atendem este paciente não enxergam estes campos —
-                            e, ao cadastrar um paciente que já existe em outra clínica, eles vêm em branco.
-                        </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Input
                                 label="Indicado por"
