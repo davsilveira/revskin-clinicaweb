@@ -661,10 +661,11 @@ export default function PatientDrawer({
             };
             setData((prev) => ({ ...prev, ...shared }));
 
+            // Só avisa se já há vínculo com este médico; caso contrário só preenche os campos.
             setLookupNotice(
                 json.ja_vinculado
                     ? 'Este paciente já está cadastrado para este médico. Verifique antes de salvar novamente.'
-                    : 'Dados do paciente encontrado.'
+                    : null
             );
         } catch (_) {
             // silencioso: lookup é conveniência, não bloqueia o cadastro
