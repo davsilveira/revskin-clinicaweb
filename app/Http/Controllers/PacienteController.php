@@ -197,6 +197,8 @@ class PacienteController extends Controller
                     $mq->where('medico_paciente.ativo', true);
                 }
             });
+        } elseif ($user->isMedico()) {
+            $query->whereRaw('1 = 0'); // médico sem vínculo (medico_id nulo) = lista vazia (fail-closed)
         }
         if ($user->isSecretaria() && $user->clinica_id) {
             $medicoIds = $user->getMedicoIdsDaClinica();
@@ -638,6 +640,8 @@ class PacienteController extends Controller
         $user = $request->user();
         if ($user->isMedico() && $user->medico_id) {
             $query->whereHas('medicos', fn ($mq) => $mq->where('medicos.id', $user->medico_id)->where('medico_paciente.ativo', true));
+        } elseif ($user->isMedico()) {
+            $query->whereRaw('1 = 0'); // médico sem vínculo (medico_id nulo) = sem resultados (fail-closed)
         }
 
         $pacientes = $query->orderBy('nome')
