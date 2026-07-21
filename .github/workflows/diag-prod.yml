@@ -1,0 +1,44 @@
+name: Diagnóstico prod (somente leitura)
+
+# Lê estado do prod via SSH: últimas linhas do laravel.log, migrate:status, php about.
+# NÃO altera nada. Disparo manual.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Coletar diagnóstico via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))"
+
+            echo ""; echo "===== migrate:status (últimas 30) ====="
+            "$PHP" artisan migrate:status 2>&1 | tail -30 || true
+
+            echo ""; echo "===== tail -120 storage/logs/laravel.log ====="
+            tail -120 storage/logs/laravel.log 2>&1 || echo "(sem laravel.log)"
+
+            echo ""; echo "===== logs diários recentes (se houver) ====="
+            ls -t storage/logs/ 2>/dev/null | head -5 || true
+            LATEST=$(ls -t storage/logs/laravel-*.log 2>/dev/null | head -1 || true)
+            if [ -n "${LATEST:-}" ]; then echo "--- tail -120 $LATEST ---"; tail -120 "$LATEST" 2>&1; fi
+
+            echo ""; echo "==> Diagnóstico concluído."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
