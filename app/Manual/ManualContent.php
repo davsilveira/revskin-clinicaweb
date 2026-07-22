@@ -32,6 +32,7 @@ class ManualContent
                     'paragraphs_after_numbered' => $section['paragraphs_after_numbered'] ?? [],
                     'bullets' => $section['bullets'] ?? [],
                     'numbered_bullets' => $section['numbered_bullets'] ?? [],
+                    'images' => $section['images'] ?? [],
                 ];
             }
             $out[] = [
@@ -115,6 +116,9 @@ class ManualContent
                         'Em telas menores, use {{icon:menu}} (três linhas) no canto superior para abrir ou fechar a barra lateral.',
                         'No desktop, use {{icon:sidebarCollapse}} na parte inferior do menu para recolher ou expandir a sidebar.',
                     ],
+                    'images' => [
+                        ['src' => '/img/manual/pacientes-lista.png', 'alt' => 'Tela de listagem de pacientes', 'caption' => 'Listagem de pacientes com busca, filtro de status e o botão Novo Paciente.'],
+                    ],
                 ],
                 [
                     'slug' => 'cadastro-paciente',
@@ -127,6 +131,9 @@ class ManualContent
                     ],
                     'bullets' => [
                         'No painel de cadastro, o autosave grava várias alterações automaticamente enquanto você edita, sem precisar clicar em salvar a cada campo.',
+                    ],
+                    'images' => [
+                        ['src' => '/img/manual/paciente-cadastro.png', 'alt' => 'Painel de cadastro de paciente', 'caption' => 'Painel Novo Paciente: o CPF fica no topo e comanda o preenchimento automático dos dados.'],
                     ],
                 ],
                 [
@@ -171,6 +178,9 @@ class ManualContent
                         'Quando há dois ou mais vínculos, o campo Médico responsável é ocultado e aparece a seção Médicos do paciente, que lista cada profissional com as suas notas privadas (Indicado por, Nº Registro e Observações) em modo somente leitura. Salvar o cadastro não apaga essas notas de cada médico.',
                     ],
                     'bullets' => [],
+                    'images' => [
+                        ['src' => '/img/manual/medicos-do-paciente.png', 'alt' => 'Seção Médicos do paciente', 'caption' => 'Com 2+ médicos, o admin vê a seção Médicos do paciente com as notas privadas de cada um (somente leitura).'],
+                    ],
                     'roles' => [User::ROLE_ADMIN],
                 ],
             ],
@@ -195,6 +205,9 @@ class ManualContent
                     'bullets' => [
                         '{{icon:perfil}} Meu Perfil: abre o painel para atualizar dados da conta, e-mail e senha.',
                         '{{icon:logout}} Sair: encerra a sessão com segurança.',
+                    ],
+                    'images' => [
+                        ['src' => '/img/manual/perfil.png', 'alt' => 'Tela Meu Perfil', 'caption' => 'Meu Perfil: dados da conta, perfil e status. Use Editar perfil para alterar dados e senha.'],
                     ],
                 ],
                 [
@@ -230,6 +243,9 @@ class ManualContent
                     'bullets' => [
                         'Abra uma receita para ver o detalhamento. O PDF {{icon:download}} só fica disponível depois que a receita foi finalizada (veja a seção PDF e impressão).',
                     ],
+                    'images' => [
+                        ['src' => '/img/manual/receitas-lista.png', 'alt' => 'Listagem de receitas', 'caption' => 'No topo, os botões Assistente de Receita e Receita sem Assistente.'],
+                    ],
                 ],
                 [
                     'slug' => 'nova-receita',
@@ -243,6 +259,9 @@ class ManualContent
                     'bullets' => [
                         'Com paciente e médico já definidos no formulário, o rascunho é salvo automaticamente enquanto você edita.',
                         'Na edição de uma receita existente, use Duplicar receita para criar uma nova com os mesmos produtos.',
+                    ],
+                    'images' => [
+                        ['src' => '/img/manual/receita-nova.png', 'alt' => 'Formulário de nova receita', 'caption' => 'Formulário de receita: escolha o paciente e monte a lista de produtos com Adicionar Produto.'],
                     ],
                 ],
                 [
@@ -288,6 +307,9 @@ class ManualContent
                     'bullets' => [
                         'Inicie um novo fluxo, responda às etapas e revise o resultado antes de gerar ou vincular à {{icon:receitas}} receita.',
                     ],
+                    'images' => [
+                        ['src' => '/img/manual/assistente.png', 'alt' => 'Assistente de receita', 'caption' => 'Primeira etapa do assistente: selecionar o paciente para seguir à avaliação clínica.'],
+                    ],
                 ],
                 [
                     'slug' => 'assistente-admin-medico',
@@ -319,6 +341,9 @@ class ManualContent
                         'Na página {{icon:relatorios}} Relatórios cada card abre o relatório com filtros {{icon:filter}}, tabela ou resumo na tela e botões para exportar {{icon:export}} (Excel e/ou PDF, conforme o relatório).',
                     ],
                     'bullets' => [],
+                    'images' => [
+                        ['src' => '/img/manual/relatorios.png', 'alt' => 'Índice de relatórios', 'caption' => 'Cada card abre um relatório. O administrador vê cards adicionais, como Receitas por médico.'],
+                    ],
                 ],
                 [
                     'slug' => 'aquisicao-produtos',
@@ -361,6 +386,9 @@ class ManualContent
                         'Use {{icon:search}} na listagem para localizar itens por código ou nome após a sincronização.',
                     ],
                     'bullets' => [],
+                    'images' => [
+                        ['src' => '/img/manual/produtos-lista.png', 'alt' => 'Listagem de produtos (admin)', 'caption' => 'Catálogo administrativo: Sincronizar Produtos, + Ações, busca e o selo Pendente nos itens sem descrição/modo de uso.'],
+                    ],
                 ],
                 [
                     'slug' => 'edicao-clinicaweb',
@@ -420,6 +448,9 @@ class ManualContent
                         'Use {{icon:search}} e {{icon:filter}} para localizar itens durante o atendimento ou elaboração de receitas.',
                         'Os botões PDF e Excel no topo disparam exportação assíncrona do catálogo {{icon:download}}; você recebe e-mail com o link quando o arquivo estiver pronto.',
                     ],
+                    'images' => [
+                        ['src' => '/img/manual/catalogo.png', 'alt' => 'Catálogo de produtos (médico)', 'caption' => 'Catálogo somente leitura do médico, com fórmula, modo de uso e exportação PDF/Excel.'],
+                    ],
                 ],
             ],
         ];
@@ -444,6 +475,9 @@ class ManualContent
                     ],
                     'bullets' => [
                         'Secretárias vinculadas a uma clínica enxergam apenas pacientes dos médicos daquela clínica.',
+                    ],
+                    'images' => [
+                        ['src' => '/img/manual/clinicas.png', 'alt' => 'Gestão de clínicas', 'caption' => 'Listagem de clínicas com busca e o botão Nova Clínica.'],
                     ],
                 ],
             ],
@@ -492,6 +526,9 @@ class ManualContent
                     'bullets' => [
                         'Encerrar acesso sem perder histórico: altere Status para Inativo em vez de excluir o registro.',
                     ],
+                    'images' => [
+                        ['src' => '/img/manual/usuarios-form.png', 'alt' => 'Formulário de novo usuário', 'caption' => 'Painel Novo Usuário: ao escolher o perfil Médico, abre o bloco Dados profissionais (CRM, UF, contatos).'],
+                    ],
                 ],
             ],
         ];
@@ -521,6 +558,9 @@ class ManualContent
                         '{{icon:download}} na coluna Arquivo original: baixa a planilha que foi enviada na importação (o mesmo ícone aparece no detalhe da tabela).',
                         '{{icon:star}} Definir como padrão: só aparece para tabelas ativas que ainda não são a padrão; a linha que já é padrão não exibe a estrela.',
                         '{{icon:trash}} Excluir: só para tabelas que não são a padrão; o sistema pede confirmação (Sim/Não) antes de remover o cadastro.',
+                    ],
+                    'images' => [
+                        ['src' => '/img/manual/karnaugh.png', 'alt' => 'Listagem de tabelas Karnaugh', 'caption' => 'Versões de tabela Karnaugh com o selo Padrão, contagem de casos, status e ações (visualizar, baixar, definir padrão).'],
                     ],
                 ],
                 [
@@ -597,6 +637,9 @@ class ManualContent
                         'As abas no topo filtram a lista (todas as regras, só Seleção de tabela ou regras ligadas a uma tabela Karnaugh específica).',
                         'O número à esquerda de cada card (1, 2, 3…) indica a ordem em que as regras são avaliadas; regras novas entram ao final da lista até serem reordenadas.',
                         'Cada linha tem ícones para editar, desativar sem apagar e excluir (com confirmação).',
+                    ],
+                    'images' => [
+                        ['src' => '/img/manual/regras.png', 'alt' => 'Tela de regras condicionais', 'caption' => 'Regras condicionais do assistente: abas de filtro, ordem de avaliação e ações por regra.'],
                     ],
                 ],
             ],

@@ -42,6 +42,11 @@ function sectionMatches(section, q) {
             return true;
         }
     }
+    for (const img of section.images || []) {
+        if (normalizeText(img.caption || img.alt || '').includes(q)) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -316,6 +321,36 @@ export default function ManualIndex({ modules = [] }) {
                                                                     </li>
                                                                 ))}
                                                             </ul>
+                                                        )}
+                                                        {(sec.images || []).length > 0 && (
+                                                            <div className="mt-5 space-y-5">
+                                                                {sec.images.map((img, i) => (
+                                                                    <figure
+                                                                        key={i}
+                                                                        className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm"
+                                                                    >
+                                                                        <a
+                                                                            href={img.src}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="block"
+                                                                            title="Abrir imagem em tamanho real"
+                                                                        >
+                                                                            <img
+                                                                                src={img.src}
+                                                                                alt={img.alt || img.caption || 'Ilustração do manual'}
+                                                                                loading="lazy"
+                                                                                className="w-full h-auto block bg-white"
+                                                                            />
+                                                                        </a>
+                                                                        {img.caption && (
+                                                                            <figcaption className="px-4 py-2.5 text-sm text-gray-600 border-t border-gray-200 bg-gray-50">
+                                                                                {img.caption}
+                                                                            </figcaption>
+                                                                        )}
+                                                                    </figure>
+                                                                ))}
+                                                            </div>
                                                         )}
                                                     </section>
                                                 );
