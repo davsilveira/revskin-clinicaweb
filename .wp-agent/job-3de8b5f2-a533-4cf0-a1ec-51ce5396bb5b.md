@@ -19,7 +19,7 @@ Campos exclusivos por médico (Indicado por, Nº Registro, Observações) ficava
 - `tests/Feature/Opcao2PacienteMultiMedicoTest.php`
 
 ## Git
-- Commit: (ver hash após commit nesta sessão)
+- Commit: `cffe130` — `feat(pacientes): admin vê notas privadas agrupadas por médico`
 - **Sem deploy** (pedido explícito)
 
 ## Validate (local)
