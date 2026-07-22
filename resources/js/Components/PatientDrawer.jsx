@@ -117,6 +117,15 @@ export default function PatientDrawer({
     const [auditNames, setAuditNames] = useState({ created: null, updated: null });
     const [formBaseline, setFormBaseline] = useState(null);
 
+    // Opção 2: com 2+ vínculos, o "Médico responsável" travado só confunde — a lista por médico basta.
+    const vinculosMedicoCount = useMemo(() => {
+        const fromPrivados = Array.isArray(paciente?.privados_por_medico) ? paciente.privados_por_medico.length : 0;
+        const fromMedicos = Array.isArray(paciente?.medicos) ? paciente.medicos.length : 0;
+        return Math.max(fromPrivados, fromMedicos);
+    }, [paciente?.privados_por_medico, paciente?.medicos]);
+    const hideMedicoResponsavel = Boolean(paciente && vinculosMedicoCount > 1);
+    const showMedicoResponsavelSection = showMedico && !hideMedicoResponsavel;
+
     const currentPacienteIdRef = useRef(paciente?.id ?? null);
     const persistQueueRef = useRef(Promise.resolve());
     const isManualPersistRef = useRef(false);
@@ -1041,8 +1050,8 @@ export default function PatientDrawer({
                         </div>
                     </div>
 
-                    {/* Medico Responsável (admin e secretária; oculto para médico) */}
-                    {showMedico && (
+                    {/* Medico Responsável (admin e secretária; oculto para médico; oculto se 2+ vínculos) */}
+                    {showMedicoResponsavelSection && (
                         <div className="border-t pt-6">
                             <h3 className="text-sm font-medium text-gray-900 mb-4">Médico Responsável {medicoRequired && <span className="text-red-500">*</span>}</h3>
                             {medicos?.length > 0 ? (
@@ -1167,7 +1176,7 @@ export default function PatientDrawer({
                         {isAdmin && paciente ? (
                             <div className="space-y-5">
                                 <div>
-                                    <h3 className="text-sm font-semibold text-gray-900">Notas por médico</h3>
+                                    <h3 className="text-sm font-semibold text-gray-900">Médicos do paciente</h3>
                                     <p className="mt-1 text-xs text-gray-500">
                                         Indicado por, Nº Registro e Observações são privados de cada médico. Em modo admin, a visualização é somente leitura.
                                     </p>
@@ -1202,7 +1211,7 @@ export default function PatientDrawer({
                                         </div>
                                     ))
                                 ) : (
-                                    <p className="text-sm text-gray-500">Nenhum vínculo médico com notas para este paciente.</p>
+                                    <p className="text-sm text-gray-500">Nenhum médico vinculado a este paciente.</p>
                                 )}
                             </div>
                         ) : (

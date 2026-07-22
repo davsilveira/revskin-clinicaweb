@@ -11,6 +11,7 @@ export default function PacienteShow({ paciente, isAdmin = false }) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const privadosPorMedico = paciente.privados_por_medico || [];
     const showPrivadosPorMedico = (isAdmin || isCallcenter) && privadosPorMedico.length > 0;
+    const multiMedicos = privadosPorMedico.length > 1;
 
     const handleDelete = () => {
         router.delete(`/pacientes/${paciente.id}`, {
@@ -129,12 +130,14 @@ export default function PacienteShow({ paciente, isAdmin = false }) {
                                 <dt className="text-gray-500">RG</dt>
                                 <dd className="text-gray-900 font-medium">{paciente.rg || '-'}</dd>
                             </div>
+                            {!multiMedicos && (
                             <div className="flex justify-between">
                                 <dt className="text-gray-500">Médico</dt>
                                 <dd className="text-gray-900 font-medium">
                                     {nomeExibicaoSemTitulo(paciente.medico?.nome) || '-'}
                                 </dd>
                             </div>
+                            )}
                         </dl>
                     </div>
 
@@ -193,7 +196,7 @@ export default function PacienteShow({ paciente, isAdmin = false }) {
                 {/* Notas privadas por médico (admin) */}
                 {showPrivadosPorMedico && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Notas por médico</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Médicos do paciente</h2>
                         <div className="space-y-5">
                             {privadosPorMedico.map((vinculo) => (
                                 <div key={vinculo.medico_id} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
