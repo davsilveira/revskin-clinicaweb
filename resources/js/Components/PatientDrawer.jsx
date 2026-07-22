@@ -549,6 +549,10 @@ export default function PatientDrawer({
                             Object.keys(body.errors).forEach((key) => {
                                 backendErrors[key] = body.errors[key][0];
                             });
+                            // Médico não vê o campo médico no formulário — sobe o erro para o alerta geral.
+                            if (backendErrors.medico_id && !showMedico) {
+                                backendErrors._form = backendErrors.medico_id;
+                            }
                             setFieldErrors((prev) => ({ ...prev, ...backendErrors }));
                             if (backendErrors.cpf) {
                                 setCpfError(backendErrors.cpf);

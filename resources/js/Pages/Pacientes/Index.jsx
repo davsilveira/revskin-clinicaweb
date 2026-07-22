@@ -29,7 +29,7 @@ function normalizarAtivoFiltro(filtersObj) {
 export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone = {}, isAdmin = false, isSecretaria = false, canSelectMedico = false, filters }) {
     const { auth } = usePage().props;
     const isCallcenter = auth?.user?.role === 'callcenter';
-
+    const medicoSemVinculo = auth?.user?.role === 'medico' && !auth?.user?.medico_id;
     // Opção 2: nomes dos médicos vinculados (pivot). Fallback ao médico de origem.
     const medicosLabel = (paciente) => {
         const nomes = (paciente.medicos || [])
@@ -89,6 +89,9 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     useEffect(() => () => runPacientesQuery.cancel(), [runPacientesQuery]);
 
     const openCreateDrawer = () => {
+        if (medicoSemVinculo) {
+            return;
+        }
         setEditingPaciente(null);
         setDrawerOpen(true);
     };
@@ -149,7 +152,13 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                         <button
                             type="button"
                             onClick={openCreateDrawer}
-                            className="w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                            disabled={medicoSemVinculo}
+                            title={medicoSemVinculo ? 'Conta sem vínculo com cadastro de médico' : undefined}
+                            className={`w-full sm:w-auto justify-center min-h-[44px] px-4 py-2 font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                                medicoSemVinculo
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -159,6 +168,12 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                         )
                     }
                 />
+
+                {medicoSemVinculo && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+                        Sua conta de médico não está vinculada a um cadastro de médico. Sem esse vínculo, a lista fica vazia e novos pacientes não são associados a você. Peça ao administrador para vincular seu usuário.
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">

@@ -347,7 +347,14 @@ class PacienteController extends Controller
         }
 
         // Auto-assign medico if user is medico
-        if ($user->isMedico() && $user->medico_id) {
+        if ($user->isMedico()) {
+            if (! $user->medico_id) {
+                return $this->jsonOrBackForFieldError(
+                    $request,
+                    'medico_id',
+                    'Sua conta de médico não está vinculada a um cadastro de médico. Peça ao administrador para vincular seu usuário.'
+                );
+            }
             $validated['medico_id'] = $user->medico_id;
         }
         // Secretária: medico deve pertencer à clínica (validado como required acima)
@@ -360,6 +367,9 @@ class PacienteController extends Controller
         // Opção 2: os campos privados vão para o pivot medico_paciente, não para `pacientes`.
         $privados = $this->extractPrivados($validated);
         $medicoContexto = ! empty($validated['medico_id']) ? (int) $validated['medico_id'] : null;
+        if (! $medicoContexto) {
+            return $this->jsonOrBackForFieldError($request, 'medico_id', 'Selecione o médico responsável.');
+        }
         if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null)) {
             return $this->jsonOrBackForFieldError($request, 'codigo', 'Já existe um paciente com este Nº Registro para este médico.');
         }
@@ -381,6 +391,10 @@ class PacienteController extends Controller
                 return $this->jsonOrBackForFieldError($request, 'cpf', 'Este paciente já está cadastrado para este médico.');
             }
             $paciente = $existente;
+            // FK legado `medico_id` é só origem/primeiro vínculo — não trocar no 2º médico.
+            if ($paciente->medico_id !== null) {
+                unset($validated['medico_id']);
+            }
             $paciente->fill($validated);
             $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
         } else {
@@ -540,7 +554,14 @@ class PacienteController extends Controller
         }
 
         // Prevent medico from changing medico_id
-        if ($user->isMedico() && $user->medico_id) {
+        if ($user->isMedico()) {
+            if (! $user->medico_id) {
+                return $this->jsonOrBackForFieldError(
+                    $request,
+                    'medico_id',
+                    'Sua conta de médico não está vinculada a um cadastro de médico. Peça ao administrador para vincular seu usuário.'
+                );
+            }
             $validated['medico_id'] = $user->medico_id;
         }
 
@@ -785,7 +806,13 @@ class PacienteController extends Controller
             ], 422);
         }
 
-        if ($user->isMedico() && $user->medico_id) {
+        if ($user->isMedico()) {
+            if (! $user->medico_id) {
+                return response()->json([
+                    'message' => 'Sua conta de médico não está vinculada a um cadastro de médico. Peça ao administrador para vincular seu usuário.',
+                    'errors' => ['medico_id' => ['Sua conta de médico não está vinculada a um cadastro de médico. Peça ao administrador para vincular seu usuário.']],
+                ], 422);
+            }
             $validated['medico_id'] = $user->medico_id;
         }
         if ($user->isSecretaria() && ! empty($validated['medico_id'])) {
@@ -823,6 +850,13 @@ class PacienteController extends Controller
                 ? $user->medico_id
                 : (! empty($validated['medico_id']) ? (int) $validated['medico_id'] : $paciente->medico_id);
 
+            if (! $medicoContexto) {
+                return response()->json([
+                    'message' => 'Selecione o médico responsável.',
+                    'errors' => ['medico_id' => ['Selecione o médico responsável.']],
+                ], 422);
+            }
+
             if ($paciente->medico_id !== null) {
                 unset($validated['medico_id']);
             }
@@ -835,6 +869,12 @@ class PacienteController extends Controller
             $paciente->forceFill(['updated_by_user_id' => $user->id])->save();
         } else {
             $medicoContexto = ! empty($validated['medico_id']) ? (int) $validated['medico_id'] : null;
+            if (! $medicoContexto) {
+                return response()->json([
+                    'message' => 'Selecione o médico responsável.',
+                    'errors' => ['medico_id' => ['Selecione o médico responsável.']],
+                ], 422);
+            }
             if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null)) {
                 return response()->json(['message' => 'Nº Registro já usado para este médico.', 'errors' => ['codigo' => ['Já existe um paciente com este Nº Registro para este médico.']]], 422);
             }

@@ -223,4 +223,48 @@ class Opcao2PacienteMultiMedicoTest extends TestCase
         $this->assertSame('Manter indicação', $pivot->indicado_por);
         $this->assertSame('Manter obs', $pivot->anotacoes);
     }
+
+    public function test_medico_sem_medico_id_nao_cadastra_paciente_em_silencio(): void
+    {
+        $userOrfao = User::create([
+            'name' => 'Médico órfão',
+            'email' => 'orfao@revskin.com.br',
+            'password' => Hash::make('password'),
+            'role' => 'medico',
+            'medico_id' => null,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($userOrfao)->postJson(route('pacientes.store'), $this->payloadPaciente([
+            'codigo' => 'X',
+            'anotacoes' => 'não deveria salvar',
+        ]))->assertStatus(422)->assertJsonValidationErrors('medico_id');
+
+        $this->assertDatabaseCount('pacientes', 0);
+        $this->assertDatabaseCount('medico_paciente', 0);
+    }
+
+    public function test_segundo_medico_nao_troca_medico_id_legado_ao_vincular(): void
+    {
+        [$userA, $medicoA] = $this->medicoComUser('a8@revskin.com.br');
+        [$userB, $medicoB] = $this->medicoComUser('b8@revskin.com.br');
+
+        $this->actingAs($userA)->postJson(route('pacientes.store'), $this->payloadPaciente([
+            'codigo' => 'A-LEG',
+        ]))->assertOk();
+
+        $paciente = Paciente::first();
+        $this->assertSame($medicoA->id, (int) $paciente->medico_id);
+
+        $this->actingAs($userB)->postJson(route('pacientes.store'), $this->payloadPaciente([
+            'codigo' => 'B-LEG',
+            'indicado_por' => 'Do B',
+            'anotacoes' => 'Obs B',
+        ]))->assertOk();
+
+        $paciente->refresh();
+        $this->assertSame($medicoA->id, (int) $paciente->medico_id, 'FK legado permanece do primeiro médico');
+        $this->assertNotNull($paciente->vinculoDoMedico($medicoB->id));
+        $this->assertSame('Obs B', $paciente->vinculoDoMedico($medicoB->id)->anotacoes);
+    }
 }
