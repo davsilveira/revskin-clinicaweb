@@ -1,10 +1,15 @@
 name: Diagnóstico prod (somente leitura)
 
-# Lê estado do prod via SSH: últimas linhas do laravel.log, migrate:status, php about.
-# NÃO altera nada. Disparo manual.
+# Lê estado do prod via SSH: laravel.log, failed_jobs, settings Tiny e probes
+# read-only na API V2 do Tiny/oList. Ações mutáveis só com input explícito.
 
 on:
   workflow_dispatch:
+    inputs:
+      acao:
+        description: "Ação opcional: none | retry-sync-cliente | limpar-no-records"
+        required: false
+        default: "none"
 
 jobs:
   diag:
@@ -17,7 +22,7 @@ jobs:
           username: ${{ secrets.HOSTINGER_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
-          envs: APP_DIR
+          envs: APP_DIR,ACAO
           command_timeout: "10m"
           script: |
             set -uo pipefail
@@ -26,23 +31,45 @@ jobs:
             elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
             else PHP=php; fi
             cd "$APP_DIR"
-            echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))"
+            echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))  ACAO=$ACAO"
 
-            echo ""; echo "===== migrate:status (últimas 30) ====="
-            "$PHP" artisan migrate:status 2>&1 | tail -30 || true
+            echo ""; echo "===== Settings Tiny ====="
+            "$PHP" artisan tinker --execute="foreach (['tiny_api_version','tiny_enabled','tiny_pull_import_new','tiny_pull_somente_tipo_cliente','tiny_contatos_pull_since','tiny_contatos_pull_checkpoint','tiny_contatos_pull_api_budget'] as \$k) { echo 'SET|'.\$k.'|'.var_export(App\Models\Setting::get(\$k), true).PHP_EOL; }" 2>&1 | grep -a '^SET|' || true
 
-            echo ""; echo "===== probe runtime: eager-load do pivot medico_paciente ====="
-            "$PHP" artisan tinker --execute="try { \$p = App\Models\Paciente::with('medicos')->paginate(1); echo 'OK: paginate+medicos funcionou; total='.\$p->total().'; pivot_rows='.App\Models\MedicoPaciente::count().PHP_EOL; } catch (\Throwable \$e) { echo 'ERRO: '.get_class(\$e).': '.\$e->getMessage().PHP_EOL; }" 2>&1 | tail -5 || true
+            echo ""; echo "===== failed_jobs (últimos 100): id|queue|failed_at|exception(1a linha) ====="
+            "$PHP" artisan tinker --execute="foreach (DB::table('failed_jobs')->orderByDesc('id')->limit(100)->get(['id','uuid','queue','failed_at','exception','payload']) as \$r) { \$cls = json_decode(\$r->payload, true)['displayName'] ?? '?'; echo 'FJ|'.\$r->id.'|'.\$r->queue.'|'.\$r->failed_at.'|'.\$cls.'|'.substr(strtok(\$r->exception, chr(10)), 0, 140).PHP_EOL; }" 2>&1 | grep -a '^FJ|' || true
 
-            echo ""; echo "===== CONSOLIDADOS (13 sobreviventes) id|name|email|medico_id ====="
-            "$PHP" artisan tinker --execute="foreach ([281,282,283,284,285,286,288,289,290,291,292,293,296] as \$id) { \$u = App\Models\User::find(\$id); echo 'CONS|'.\$id.'|'.(\$u?\$u->name:'MISSING').'|'.(\$u?\$u->email:'-').'|medico_id='.(\$u?var_export(\$u->medico_id,true):'-').PHP_EOL; }" 2>&1 | grep -a '^CONS|' || true
+            echo ""; echo "===== failed job Sync cliente (detalhe) ====="
+            "$PHP" artisan tinker --execute="\$r = DB::table('failed_jobs')->where('exception','like','%Erro na API V2%')->orderByDesc('id')->first(); if (\$r) { echo 'SC|id='.\$r->id.'|uuid='.\$r->uuid.'|failed_at='.\$r->failed_at.PHP_EOL; \$p = json_decode(\$r->payload, true); echo 'SC|display='.(\$p['displayName'] ?? '?').PHP_EOL; \$cmd = \$p['data']['command'] ?? ''; if (preg_match('/Paciente.{0,40}?i:(\d+)/s', \$cmd, \$m)) { echo 'SC|paciente_id='.\$m[1].PHP_EOL; } } else { echo 'SC|NAO_ENCONTRADO'.PHP_EOL; }" 2>&1 | grep -a '^SC|' || true
 
-            echo ""; echo "===== ORFAOS ATUAIS (role=medico, medico_id NULL) id|name|email ====="
-            "$PHP" artisan tinker --execute="foreach (App\Models\User::where('role','medico')->whereNull('medico_id')->orderBy('id')->get() as \$u) { echo 'ORF|'.\$u->id.'|'.\$u->name.'|'.\$u->email.PHP_EOL; }" 2>&1 | grep -a '^ORF|' || true
+            echo ""; echo "===== Paciente Teste ====="
+            "$PHP" artisan tinker --execute="\$p = App\Models\Paciente::where('nome','like','%Paciente Teste%')->orderByDesc('id')->first(); if (! \$p) { echo 'PT|NAO_ENCONTRADO'.PHP_EOL; } else { echo 'PT|id='.\$p->id.'|nome='.\$p->nome.'|cpf='.var_export(\$p->cpf,true).'|tiny_id='.var_export(\$p->tiny_id,true).'|upd='.\$p->updated_at.'|tiny_sync='.var_export((string)\$p->tiny_sync_at,true).PHP_EOL; \$d = preg_replace('/\D/','',(string)\$p->cpf); \$ok=false; if (strlen(\$d)===11 && !preg_match('/^(\d)\1{10}$/', \$d)) { \$s=0; for(\$i=0;\$i<9;\$i++) { \$s+=\$d[\$i]*(10-\$i); } \$r=\$s%11; \$dv1=\$r<2?0:11-\$r; \$s=0; for(\$i=0;\$i<10;\$i++) { \$s+=\$d[\$i]*(11-\$i); } \$r=\$s%11; \$dv2=\$r<2?0:11-\$r; \$ok=((int)\$d[9]===\$dv1 && (int)\$d[10]===\$dv2); } echo 'PT|cpf_digits='.\$d.'|cpf_valido='.(\$ok?'SIM':'NAO').PHP_EOL; }" 2>&1 | grep -a '^PT|' || true
 
-            echo ""; echo "===== checagem #149 e #280 ====="
-            "$PHP" artisan tinker --execute="foreach ([149,280] as \$id) { \$u=App\Models\User::find(\$id); echo 'CHK|'.\$id.'|'.(\$u?\$u->name.'|'.\$u->email.'|role='.\$u->role.'|medico_id='.var_export(\$u->medico_id,true):'INEXISTENTE').PHP_EOL; }" 2>&1 | grep -a '^CHK|' || true
+            echo ""; echo "===== Probe API V2 (read-only): pesquisa por dataMinimaAtualizacao=ontem ====="
+            "$PHP" artisan tinker --execute="\$c = new App\Services\TinyErpClient; \$r = \$c->listarContatos(['dataMinimaAtualizacao' => now()->subDay()->format('d/m/Y H:i:s'), 'situacao' => 'Ativo']); echo 'PROBE_LIST|status='.\$r['status'].'|no_records='.var_export(\$r['no_records'] ?? null,true).'|code='.var_export(\$r['status_code'] ?? null,true).'|msg='.(\$r['message'] ?? '-').'|itens='.(is_array(\$r['data']['itens'] ?? null) ? count(\$r['data']['itens']) : '-').PHP_EOL;" 2>&1 | grep -a '^PROBE_LIST|' || true
+
+            echo ""; echo "===== Probe API V2 (read-only): contato com CPF do Paciente Teste ====="
+            "$PHP" artisan tinker --execute="\$p = App\Models\Paciente::where('nome','like','%Paciente Teste%')->orderByDesc('id')->first(); if (! \$p) { echo 'PROBE_CPF|SEM_PACIENTE'.PHP_EOL; } else { \$d = preg_replace('/\D/','',(string)\$p->cpf); \$c = new App\Services\TinyErpClient; \$r = \$c->listarContatos(['cpf_cnpj' => \$d]); \$itens = \$r['data']['itens'] ?? []; echo 'PROBE_CPF|status='.\$r['status'].'|no_records='.var_export(\$r['no_records'] ?? null,true).'|msg='.(\$r['message'] ?? '-').'|encontrados='.count(\$itens).PHP_EOL; foreach (\$itens as \$i) { echo 'PROBE_CPF|tiny_id='.(\$i['id'] ?? '?').'|nome='.(\$i['nome'] ?? '?').'|situacao='.(\$i['situacao'] ?? '?').PHP_EOL; } }" 2>&1 | grep -a '^PROBE_CPF|' || true
+
+            echo ""; echo "===== laravel.log: Tiny ERP V2 (últimas 30 ocorrências) ====="
+            grep -a "Tiny ERP V2" storage/logs/laravel.log | tail -30 || true
+
+            if [ "$ACAO" = "retry-sync-cliente" ]; then
+              echo ""; echo "===== ACAO: retry do failed job 'Erro na API V2' ====="
+              "$PHP" artisan tinker --execute="\$r = DB::table('failed_jobs')->where('exception','like','%Erro na API V2%')->orderByDesc('id')->first(); if (\$r) { Artisan::call('queue:retry', ['id' => [\$r->uuid]]); echo 'RETRY|uuid='.\$r->uuid.PHP_EOL; } else { echo 'RETRY|NADA'.PHP_EOL; }" 2>&1 | grep -a '^RETRY|' || true
+              "$PHP" artisan queue:work database --queue=tiny-sync --stop-when-empty --max-time=60 2>&1 | tail -10 || true
+              echo "--- failed_jobs após retry ---"
+              "$PHP" artisan tinker --execute="foreach (DB::table('failed_jobs')->where('queue','tiny-sync')->orderByDesc('id')->limit(5)->get(['id','failed_at','exception']) as \$r) { echo 'FJ2|'.\$r->id.'|'.\$r->failed_at.'|'.substr(strtok(\$r->exception, chr(10)), 0, 200).PHP_EOL; }" 2>&1 | grep -a '^FJ2|' || true
+              echo "--- log recente ---"
+              grep -a "Tiny ERP V2" storage/logs/laravel.log | tail -10 || true
+            fi
+
+            if [ "$ACAO" = "limpar-no-records" ]; then
+              echo ""; echo "===== ACAO: descartar failed jobs 'A consulta não retornou registros' ====="
+              "$PHP" artisan tinker --execute="\$rows = DB::table('failed_jobs')->where('exception','like','%consulta não retornou registros%')->get(['id','uuid']); echo 'LIMPAR|total='.\$rows->count().PHP_EOL; foreach (\$rows as \$r) { Artisan::call('queue:forget', ['id' => \$r->uuid]); } echo 'LIMPAR|OK'.PHP_EOL;" 2>&1 | grep -a '^LIMPAR|' || true
+            fi
 
             echo ""; echo "==> Diagnóstico concluído."
         env:
           APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
+          ACAO: ${{ github.event.inputs.acao }}

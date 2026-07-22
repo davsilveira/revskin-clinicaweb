@@ -144,6 +144,77 @@ class PullPacientesTinyJobTest extends TestCase
     }
 
     #[Test]
+    public function pesquisa_sem_registros_finaliza_sem_erro_e_avanca_watermark(): void
+    {
+        Http::fake([
+            'api.tiny.com.br/api2/contatos.pesquisa.php' => Http::response([
+                'retorno' => [
+                    'status' => 'Erro',
+                    'codigo_erro' => 20,
+                    'erros' => [['erro' => 'A consulta não retornou registros']],
+                ],
+            ]),
+        ]);
+
+        $sinceBefore = Setting::get('tiny_contatos_pull_since');
+
+        (new PullPacientesTinyJob)->handle();
+
+        Http::assertSentCount(1);
+        $this->assertNotSame($sinceBefore, Setting::get('tiny_contatos_pull_since'));
+        $this->assertEmpty(Setting::get('tiny_contatos_pull_checkpoint'));
+    }
+
+    #[Test]
+    public function is_no_records_error_detects_codigo_and_message(): void
+    {
+        $this->assertTrue(TinyErpClient::isNoRecordsError([
+            'status' => 'error',
+            'status_code' => 20,
+            'message' => 'A consulta não retornou registros',
+        ]));
+        $this->assertTrue(TinyErpClient::isNoRecordsError([
+            'status' => 'error',
+            'message' => 'A consulta nao retornou registros',
+        ]));
+        $this->assertFalse(TinyErpClient::isNoRecordsError([
+            'status' => 'error',
+            'status_code' => 32,
+            'message' => 'Registro não localizado',
+        ]));
+        $this->assertFalse(TinyErpClient::isNoRecordsError([
+            'status' => 'success',
+        ]));
+    }
+
+    #[Test]
+    public function erro_por_registro_em_contato_incluir_gera_mensagem_real(): void
+    {
+        Http::fake([
+            'api.tiny.com.br/api2/contato.incluir.php' => Http::response([
+                'retorno' => [
+                    'status' => 'Erro',
+                    'codigo_erro' => 30,
+                    'registros' => [
+                        [
+                            'registro' => [
+                                'sequencia' => 1,
+                                'status' => 'Erro',
+                                'erros' => [['erro' => 'CPF/CNPJ inválido']],
+                            ],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = (new TinyErpClient)->criarContato(['nome' => 'Teste', 'cpfCnpj' => '00000000000']);
+
+        $this->assertSame('error', $result['status']);
+        $this->assertSame('CPF/CNPJ inválido', $result['message']);
+    }
+
+    #[Test]
     public function is_rate_limit_error_detects_codigo_and_message(): void
     {
         $this->assertTrue(TinyErpClient::isRateLimitError([

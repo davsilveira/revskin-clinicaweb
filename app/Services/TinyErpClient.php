@@ -72,6 +72,26 @@ class TinyErpClient
         return ($result['status_code'] ?? null) === 'budget_exhausted';
     }
 
+    /**
+     * A API V2 sinaliza pesquisa sem resultados como erro (código 20,
+     * "A consulta não retornou registros") — não é uma falha real.
+     */
+    public static function isNoRecordsError(array $result): bool
+    {
+        if (($result['status'] ?? null) !== 'error') {
+            return false;
+        }
+
+        if (in_array($result['status_code'] ?? null, [20, '20'], true)) {
+            return true;
+        }
+
+        $msg = mb_strtolower((string) ($result['message'] ?? ''));
+
+        return str_contains($msg, 'consulta não retornou registros')
+            || str_contains($msg, 'consulta nao retornou registros');
+    }
+
     public function isV2(): bool
     {
         return $this->apiVersion === 'v2';
@@ -161,14 +181,29 @@ class TinyErpClient
             $retorno = $data['retorno'] ?? $data;
 
             if (($retorno['status'] ?? '') === 'Erro') {
-                $erros = collect($retorno['erros'] ?? [])->pluck('erro')->join('; ');
-                Log::error('Tiny ERP V2 API Error', ['url' => $url, 'erros' => $erros]);
+                $codigo = $retorno['codigo_erro'] ?? null;
+                $erros = $this->extractV2Errors($retorno);
 
-                return [
+                $result = [
                     'status' => 'error',
-                    'message' => $erros ?: 'Erro na API V2',
-                    'status_code' => $retorno['codigo_erro'] ?? null,
+                    'message' => $erros !== ''
+                        ? $erros
+                        : 'Erro na API V2'.($codigo !== null ? " (código {$codigo})" : ''),
+                    'status_code' => $codigo,
                 ];
+
+                if (self::isNoRecordsError($result)) {
+                    Log::info('Tiny ERP V2: consulta sem registros', ['url' => $url]);
+                } else {
+                    Log::error('Tiny ERP V2 API Error', [
+                        'url' => $url,
+                        'erros' => $erros,
+                        'codigo_erro' => $codigo,
+                        'body' => $erros === '' ? mb_substr((string) $response->body(), 0, 1000) : null,
+                    ]);
+                }
+
+                return $result;
             }
 
             return [
@@ -180,6 +215,43 @@ class TinyErpClient
 
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Extrai mensagens de erro da resposta V2: além de retorno.erros (topo),
+     * endpoints de gravação (contato.incluir/alterar, pedido.incluir) devolvem
+     * os erros por registro em retorno.registros[].registro.erros. Aceita itens
+     * como string ou como objeto {"erro": "..."}.
+     */
+    protected function extractV2Errors(array $retorno): string
+    {
+        $messages = [];
+
+        $collect = function ($erros) use (&$messages): void {
+            foreach ((array) $erros as $erro) {
+                if (is_array($erro)) {
+                    $erro = $erro['erro'] ?? null;
+                }
+                if (is_string($erro) && trim($erro) !== '') {
+                    $messages[] = trim($erro);
+                }
+            }
+        };
+
+        $collect($retorno['erros'] ?? []);
+
+        $registros = $retorno['registros'] ?? [];
+        if (isset($registros['registro'])) {
+            $registros = [$registros];
+        }
+        foreach ((array) $registros as $reg) {
+            $registro = is_array($reg) ? ($reg['registro'] ?? $reg) : null;
+            if (is_array($registro)) {
+                $collect($registro['erros'] ?? []);
+            }
+        }
+
+        return implode('; ', array_values(array_unique($messages)));
     }
 
     // ─── V3 OAuth Methods (unchanged) ──────────────────────────
@@ -431,6 +503,10 @@ class TinyErpClient
         $params = ['pesquisa' => $pesquisa];
         $result = $this->makeV2Request('tag.pesquisa.php', $params);
 
+        if (self::isNoRecordsError($result)) {
+            return ['status' => 'success', 'data' => ['tags' => []], 'no_records' => true];
+        }
+
         if ($result['status'] === 'success') {
             $retorno = $result['data'];
             $registros = $retorno['registros'] ?? [];
@@ -455,6 +531,14 @@ class TinyErpClient
             }
 
             $result = $this->makeV2Request('produtos.pesquisa.php', $params);
+
+            if (self::isNoRecordsError($result)) {
+                return [
+                    'status' => 'success',
+                    'data' => ['itens' => [], 'paginacao' => ['pagina' => 1, 'numero_paginas' => 1]],
+                    'no_records' => true,
+                ];
+            }
 
             if ($result['status'] === 'success') {
                 $retorno = $result['data'];
@@ -518,6 +602,14 @@ class TinyErpClient
             }
 
             $result = $this->makeV2Request('contatos.pesquisa.php', $params);
+
+            if (self::isNoRecordsError($result)) {
+                return [
+                    'status' => 'success',
+                    'data' => ['itens' => [], 'paginacao' => ['pagina' => 1, 'numero_paginas' => 1]],
+                    'no_records' => true,
+                ];
+            }
 
             if ($result['status'] === 'success') {
                 $retorno = $result['data'];
@@ -658,6 +750,9 @@ class TinyErpClient
                 $params['pagina'] = $filters['pagina'];
             }
             $result = $this->makeV2Request('pedidos.pesquisa.php', $params);
+            if (self::isNoRecordsError($result)) {
+                return ['status' => 'success', 'data' => ['itens' => []], 'no_records' => true];
+            }
             if ($result['status'] === 'success') {
                 $pedidos = $result['data']['pedidos'] ?? [];
                 $result['data'] = ['itens' => array_map(fn ($p) => $p['pedido'] ?? $p, $pedidos)];
