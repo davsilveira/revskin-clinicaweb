@@ -109,7 +109,8 @@ class ManualContent
                         'Em Pacientes você vê a listagem cadastrada no sistema. Use o campo {{icon:search}} e o filtro de status {{icon:filter}} para localizar alguém rapidamente; em seguida use o botão Buscar.',
                     ],
                     'bullets' => [
-                        'Clique em um paciente para abrir a ficha completa (painel lateral ou página de detalhes, conforme a tela).',
+                        'Clique no nome (ou na linha) de um paciente para abrir a última receita dele; se ainda não houver nenhuma, o sistema leva à lista de receitas desse paciente. Com perfil Secretária, o clique abre o cadastro para edição.',
+                        'Para editar os dados, use o atalho Editar (ícone de lápis) na linha; o atalho Ver receitas leva à lista de receitas daquele paciente.',
                         'Para incluir um novo cadastro, use {{icon:plus}} Novo Paciente no topo da página.',
                         'Em telas menores, use {{icon:menu}} (três linhas) no canto superior para abrir ou fechar a barra lateral.',
                         'No desktop, use {{icon:sidebarCollapse}} na parte inferior do menu para recolher ou expandir a sidebar.',
@@ -120,11 +121,25 @@ class ManualContent
                     'level' => 2,
                     'title' => 'Cadastro e edição',
                     'paragraphs' => [
-                        'O formulário reúne dados pessoais, contato e vínculo com o médico responsável. Campos obrigatórios são validados antes de salvar.',
+                        'O formulário reúne dados pessoais, contato e vínculo com o médico. Campos obrigatórios são validados antes de salvar.',
+                        'Comece pelo CPF: ao informar um CPF já cadastrado no sistema (por você ou por outro médico), os dados compartilhados do paciente — nome, contato e endereço — são preenchidos automaticamente. Assim você evita cadastros duplicados e só confirma para criar o seu vínculo com esse paciente. Veja {{link:#pacientes-paciente-multi-medico|Um paciente, vários médicos}}.',
                         'Ao informar o CEP e sair do campo, o sistema consulta a base e preenche logradouro, bairro, cidade e UF quando o retorno for válido.',
                     ],
                     'bullets' => [
                         'No painel de cadastro, o autosave grava várias alterações automaticamente enquanto você edita, sem precisar clicar em salvar a cada campo.',
+                    ],
+                ],
+                [
+                    'slug' => 'paciente-multi-medico',
+                    'level' => 2,
+                    'title' => 'Um paciente, vários médicos',
+                    'paragraphs' => [
+                        'Cada paciente é único no sistema e é identificado pelo CPF. Um mesmo paciente pode estar vinculado a mais de um médico: se outro profissional já o cadastrou, você não cria um registro duplicado — ao informar o CPF, o sistema reaproveita o cadastro existente e cria apenas o seu vínculo com ele.',
+                        'Alguns dados são compartilhados por todos os médicos (nome, contato, endereço); outros são privados de cada vínculo. Indicado por, Nº Registro e Observações pertencem só ao médico que os preencheu e não ficam visíveis para os demais.',
+                    ],
+                    'bullets' => [
+                        'O Nº Registro é único por médico: dois médicos podem usar o mesmo número para pacientes diferentes, sem conflito.',
+                        'Se o paciente já estiver vinculado a você, o formulário avisa antes de salvar de novo, para não duplicar o vínculo.',
                     ],
                 ],
                 [
@@ -152,7 +167,8 @@ class ManualContent
                     'level' => 2,
                     'title' => 'Administrador',
                     'paragraphs' => [
-                        'Você tem visão global de pacientes e pode atuar em qualquer registro; no cadastro, use o bloco Médico responsável para definir ou trocar o profissional vinculado ao paciente.',
+                        'Você tem visão global de pacientes e pode atuar em qualquer registro. Quando o paciente tem um único médico, use o bloco Médico responsável para definir ou trocar o profissional vinculado.',
+                        'Quando há dois ou mais vínculos, o campo Médico responsável é ocultado e aparece a seção Médicos do paciente, que lista cada profissional com as suas notas privadas (Indicado por, Nº Registro e Observações) em modo somente leitura. Salvar o cadastro não apaga essas notas de cada médico.',
                     ],
                     'bullets' => [],
                     'roles' => [User::ROLE_ADMIN],
@@ -209,6 +225,7 @@ class ManualContent
                     'title' => 'Listagem',
                     'paragraphs' => [
                         'A lista de receitas mostra os registros aos quais você tem acesso. Use filtros e ordenação para encontrar uma receita específica.',
+                        'No topo da tela há dois caminhos para criar: {{icon:assistente}} Assistente de Receita, que guia a prescrição por perguntas, e Receita sem Assistente, que abre um formulário em branco. Use a segunda opção quando quiser receitar um ou poucos produtos rapidamente, montando a lista com Adicionar Produto — sem passar pelo assistente.',
                     ],
                     'bullets' => [
                         'Abra uma receita para ver o detalhamento. O PDF {{icon:download}} só fica disponível depois que a receita foi finalizada (veja a seção PDF e impressão).',
@@ -493,7 +510,7 @@ class ManualContent
                     'level' => 2,
                     'title' => 'Listagem e importação',
                     'paragraphs' => [
-                        'As tabelas Karnaugh alimentam a lógica do {{link:#assistente-receita|Assistente de receita}}: cada caso clínico da planilha é cruzado com as categorias de produto para montar as sugestões no atendimento.',
+                        'As tabelas Karnaugh alimentam a lógica do {{link:#mod-assistente-receita|Assistente de receita}}: cada caso clínico da planilha é cruzado com as categorias de produto para montar as sugestões no atendimento.',
                         'Use o botão Importar no topo para abrir o painel: envie um arquivo CSV ou XLSX, informe o nome da tabela (obrigatório), opcionalmente uma descrição e marque a opção para definir aquela versão como tabela padrão quando for a base principal do assistente.',
                         'Na importação o sistema valida o arquivo; se houver erros de estrutura ou conteúdo, as mensagens aparecem no formulário. Corrija a planilha e tente de novo antes de usar a tabela em produção.',
                         'A tabela na tela mostra as colunas Nome (com a etiqueta Padrão na linha que está marcada como padrão), Casos (quantidade de casos clínicos distintos), Status (Ativa ou Inativa), Arquivo original e Ações.',
@@ -537,7 +554,7 @@ class ManualContent
                     'level' => 2,
                     'title' => 'Como as regras entram no Assistente de receita',
                     'paragraphs' => [
-                        'As regras condicionais orientam o {{link:#assistente-receita|Assistente de receita}} depois que o profissional responde à avaliação clínica. Elas não substituem a {{link:#tabelas-karnaugh|tabela Karnaugh}}: primeiro o sistema decide qual tabela usar (ou usa a tabela padrão), depois lê aquela planilha para o caso e, em seguida, aplica ajustes vindos das regras de modificação.',
+                        'As regras condicionais orientam o {{link:#mod-assistente-receita|Assistente de receita}} depois que o profissional responde à avaliação clínica. Elas não substituem a {{link:#mod-tabelas-karnaugh|tabela Karnaugh}}: primeiro o sistema decide qual tabela usar (ou usa a tabela padrão), depois lê aquela planilha para o caso e, em seguida, aplica ajustes vindos das regras de modificação.',
                         'O fluxo é sempre o mesmo, nesta ordem:',
                     ],
                     'paragraphs_after_numbered' => [
