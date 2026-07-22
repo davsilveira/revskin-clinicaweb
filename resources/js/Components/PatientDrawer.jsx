@@ -1160,39 +1160,84 @@ export default function PatientDrawer({
 
                     {/* Campos privados do vínculo médico–paciente */}
                     <div className="border-t pt-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Input
-                                label="Indicado por"
-                                value={data.indicado_por}
-                                onChange={(e) => setData('indicado_por', e.target.value)}
-                                placeholder="Opcional"
-                                autoComplete="off"
-                                name="revskin_paciente_indicado_por"
-                            />
-                            <Input
-                                label="Nº Registro"
-                                value={data.codigo}
-                                onChange={(e) => {
-                                    setData('codigo', e.target.value);
-                                    setFieldErrors((prev) => ({ ...prev, codigo: null }));
-                                }}
-                                error={fieldErrors.codigo || errors.codigo}
-                                placeholder="Opcional"
-                                autoComplete="off"
-                                name="revskin_paciente_codigo"
-                            />
-                        </div>
-                        <div className="mt-4">
-                            <Input
-                                label="Observações"
-                                value={data.anotacoes}
-                                onChange={(e) => setData('anotacoes', e.target.value)}
-                                multiline
-                                rows={3}
-                                autoComplete="off"
-                                name="revskin_paciente_anotacoes"
-                            />
-                        </div>
+                        {isAdmin && paciente ? (
+                            <div className="space-y-5">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-900">Notas por médico</h3>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Indicado por, Nº Registro e Observações são privados de cada médico. Em modo admin, a visualização é somente leitura.
+                                    </p>
+                                </div>
+                                {(paciente.privados_por_medico || []).length > 0 ? (
+                                    (paciente.privados_por_medico || []).map((vinculo) => (
+                                        <div key={vinculo.medico_id} className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 space-y-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <h4 className="text-sm font-semibold text-gray-900">
+                                                    {nomeExibicaoSemTitulo(vinculo.medico_nome) || `Médico #${vinculo.medico_id}`}
+                                                </h4>
+                                                {vinculo.ativo === false && (
+                                                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded">
+                                                        Vínculo inativo
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <dl className="space-y-2 text-sm">
+                                                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-3">
+                                                    <dt className="text-gray-500">Indicado por</dt>
+                                                    <dd className="text-gray-900">{vinculo.indicado_por?.trim() ? vinculo.indicado_por : '—'}</dd>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-3">
+                                                    <dt className="text-gray-500">Nº Registro</dt>
+                                                    <dd className="text-gray-900 tabular-nums">{vinculo.codigo?.trim() ? vinculo.codigo : '—'}</dd>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-3">
+                                                    <dt className="text-gray-500">Observações</dt>
+                                                    <dd className="text-gray-900 whitespace-pre-wrap">{vinculo.anotacoes?.trim() ? vinculo.anotacoes : '—'}</dd>
+                                                </div>
+                                            </dl>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-gray-500">Nenhum vínculo médico com notas para este paciente.</p>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <Input
+                                        label="Indicado por"
+                                        value={data.indicado_por}
+                                        onChange={(e) => setData('indicado_por', e.target.value)}
+                                        placeholder="Opcional"
+                                        autoComplete="off"
+                                        name="revskin_paciente_indicado_por"
+                                    />
+                                    <Input
+                                        label="Nº Registro"
+                                        value={data.codigo}
+                                        onChange={(e) => {
+                                            setData('codigo', e.target.value);
+                                            setFieldErrors((prev) => ({ ...prev, codigo: null }));
+                                        }}
+                                        error={fieldErrors.codigo || errors.codigo}
+                                        placeholder="Opcional"
+                                        autoComplete="off"
+                                        name="revskin_paciente_codigo"
+                                    />
+                                </div>
+                                <div className="mt-4">
+                                    <Input
+                                        label="Observações"
+                                        value={data.anotacoes}
+                                        onChange={(e) => setData('anotacoes', e.target.value)}
+                                        multiline
+                                        rows={3}
+                                        autoComplete="off"
+                                        name="revskin_paciente_anotacoes"
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Status (edit only) */}

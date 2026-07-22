@@ -59,6 +59,8 @@ class CallCenterController extends Controller
         $atendimento->load([
             'paciente.telefones',
             'paciente.medico.linkedUser:id,name,medico_id',
+            'paciente.medicos:id,apelido,crm,uf_crm,nome_legado',
+            'paciente.medicos.linkedUser:id,name,medico_id',
             'medico.linkedUser:id,name,medico_id',
             'receita.itens.produto',
             'receita.itens.aquisicoes',
@@ -67,6 +69,9 @@ class CallCenterController extends Controller
             'acompanhamentos.usuario',
         ]);
 
+        if ($atendimento->paciente) {
+            $atendimento->paciente->attachPrivadosPorMedico();
+        }
         // Datas de aquisição por linha (só deste receita_item + receita_itens.data_aquisicao)
         if ($atendimento->receita && $atendimento->receita->itens) {
             $atendimento->receita->itens->each(function ($item) {

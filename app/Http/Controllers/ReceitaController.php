@@ -68,12 +68,17 @@ class ReceitaController extends Controller
             $pacienteCandidato = Paciente::with([
                 'medico:id',
                 'medico.linkedUser:id,name,medico_id',
+                'medicos:id,apelido,crm,uf_crm,nome_legado',
+                'medicos.linkedUser:id,name,medico_id',
                 'telefones',
             ])->find((int) $request->paciente_id);
 
             if ($pacienteCandidato) {
                 if (! $user->canAccessPaciente($pacienteCandidato)) {
                     abort(403, 'Acesso não autorizado.');
+                }
+                if ($user->isAdmin() || $user->isCallcenter()) {
+                    $pacienteCandidato->attachPrivadosPorMedico();
                 }
                 $pacienteFiltrado = $pacienteCandidato;
 
@@ -106,11 +111,19 @@ class ReceitaController extends Controller
         $paciente = null;
 
         if ($request->paciente_id) {
-            $paciente = Paciente::with(['telefones', 'medico.linkedUser:id,name,medico_id'])->find($request->paciente_id);
+            $paciente = Paciente::with([
+                'telefones',
+                'medico.linkedUser:id,name,medico_id',
+                'medicos:id,apelido,crm,uf_crm,nome_legado',
+                'medicos.linkedUser:id,name,medico_id',
+            ])->find($request->paciente_id);
 
             // Check if user can access this paciente
             if ($paciente && ! $user->canAccessPaciente($paciente)) {
                 abort(403, 'Acesso não autorizado.');
+            }
+            if ($paciente && ($user->isAdmin() || $user->isCallcenter())) {
+                $paciente->attachPrivadosPorMedico();
             }
         }
 
@@ -270,6 +283,8 @@ class ReceitaController extends Controller
         $receita->load([
             'paciente.telefones',
             'paciente.medico.linkedUser:id,name,medico_id',
+            'paciente.medicos:id,apelido,crm,uf_crm,nome_legado',
+            'paciente.medicos.linkedUser:id,name,medico_id',
             'medico.linkedUser:id,name,medico_id',
             'receitaOrigem:id,numero',
             'itens.produto',
@@ -277,6 +292,9 @@ class ReceitaController extends Controller
             'atendimentoCallcenter',
         ]);
 
+        if ($receita->paciente && ($request->user()->isAdmin() || $request->user()->isCallcenter())) {
+            $receita->paciente->attachPrivadosPorMedico();
+        }
         $this->loadAcquisitionDates($receita);
 
         $user = $request->user();

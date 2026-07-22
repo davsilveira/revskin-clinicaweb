@@ -150,4 +150,77 @@ class Opcao2PacienteMultiMedicoTest extends TestCase
             ->assertJson(['found' => true, 'ja_vinculado' => false])
             ->assertJsonPath('paciente.nome', 'Carlos');
     }
+
+    public function test_admin_ve_privados_por_medico_no_index(): void
+    {
+        [$userA, $medicoA] = $this->medicoComUser('a6@revskin.com.br');
+        [$userB, $medicoB] = $this->medicoComUser('b6@revskin.com.br');
+
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin6@revskin.com.br',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($userA)->postJson(route('pacientes.store'), $this->payloadPaciente([
+            'codigo' => 'A-100',
+            'indicado_por' => 'Indicação A',
+            'anotacoes' => 'Obs A',
+        ]))->assertOk();
+
+        $paciente = Paciente::first();
+
+        $this->actingAs($userB)->postJson(route('pacientes.store'), $this->payloadPaciente([
+            'codigo' => 'B-200',
+            'indicado_por' => 'Indicação B',
+            'anotacoes' => 'Obs B',
+        ]))->assertOk();
+
+        $resp = $this->actingAs($admin)->get(route('pacientes.index'));
+        $resp->assertOk();
+
+        $lista = collect($resp->original->getData()['page']['props']['pacientes']['data'] ?? []);
+        $row = $lista->firstWhere('id', $paciente->id);
+        $this->assertNotNull($row);
+        $this->assertArrayHasKey('privados_por_medico', $row);
+        $privados = collect($row['privados_por_medico']);
+        $this->assertCount(2, $privados);
+        $this->assertTrue($privados->contains(fn ($v) => ($v['codigo'] ?? null) === 'A-100' && ($v['anotacoes'] ?? null) === 'Obs A'));
+        $this->assertTrue($privados->contains(fn ($v) => ($v['codigo'] ?? null) === 'B-200' && ($v['indicado_por'] ?? null) === 'Indicação B'));
+    }
+
+    public function test_admin_update_nao_zera_privados_do_medico(): void
+    {
+        [$userA, $medicoA] = $this->medicoComUser('a7@revskin.com.br');
+
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin7@revskin.com.br',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($userA)->postJson(route('pacientes.store'), $this->payloadPaciente([
+            'codigo' => 'KEEP-1',
+            'indicado_por' => 'Manter indicação',
+            'anotacoes' => 'Manter obs',
+        ]))->assertOk();
+
+        $paciente = Paciente::first();
+
+        $this->actingAs($admin)->putJson(route('pacientes.update', $paciente), $this->payloadPaciente([
+            'codigo' => '',
+            'indicado_por' => '',
+            'anotacoes' => '',
+            'medico_id' => $medicoA->id,
+        ]))->assertOk();
+
+        $pivot = $paciente->vinculoDoMedico($medicoA->id);
+        $this->assertSame('KEEP-1', $pivot->codigo);
+        $this->assertSame('Manter indicação', $pivot->indicado_por);
+        $this->assertSame('Manter obs', $pivot->anotacoes);
+    }
 }

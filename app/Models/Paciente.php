@@ -86,6 +86,44 @@ class Paciente extends Model
         return $medico?->pivot instanceof MedicoPaciente ? $medico->pivot : null;
     }
 
+    /**
+     * Campos privados (Indicado por / Nº Registro / Observações) agrupados por médico.
+     * Usado na visualização do admin (somente leitura).
+     *
+     * @return list<array{medico_id:int,medico_nome:?string,indicado_por:?string,codigo:?string,anotacoes:?string,ativo:bool}>
+     */
+    public function privadosPorMedico(): array
+    {
+        $this->loadMissing(['medicos:id,apelido,crm,uf_crm,nome_legado', 'medicos.linkedUser:id,name,medico_id']);
+
+        return $this->medicos
+            ->sortBy(fn (Medico $m) => mb_strtolower((string) ($m->nome ?? $m->apelido ?? '')))
+            ->values()
+            ->map(function (Medico $m) {
+                $pivot = $m->pivot;
+
+                return [
+                    'medico_id' => (int) $m->id,
+                    'medico_nome' => $m->nome,
+                    'indicado_por' => $pivot->indicado_por ?? null,
+                    'codigo' => $pivot->codigo ?? null,
+                    'anotacoes' => $pivot->anotacoes ?? null,
+                    'ativo' => (bool) ($pivot->ativo ?? true),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * Anexa o atributo `privados_por_medico` para Inertia/JSON.
+     */
+    public function attachPrivadosPorMedico(): static
+    {
+        $this->setAttribute('privados_por_medico', $this->privadosPorMedico());
+
+        return $this;
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');

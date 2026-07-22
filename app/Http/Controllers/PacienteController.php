@@ -228,6 +228,7 @@ class PacienteController extends Controller
             ->withQueryString();
 
         // Opção 2: para o médico, exibe o Nº Registro/Indicado/Observações do SEU vínculo.
+        // Para admin (e demais não-médicos), anexa a lista por médico (somente leitura no drawer).
         if ($user->isMedico() && $user->medico_id) {
             $ids = $pacientes->getCollection()->pluck('id')->all();
             if (! empty($ids)) {
@@ -241,6 +242,8 @@ class PacienteController extends Controller
                     }
                 });
             }
+        } elseif ($user->isAdmin() || $user->isCallcenter()) {
+            $pacientes->getCollection()->each(fn (Paciente $p) => $p->attachPrivadosPorMedico());
         }
 
         $medicos = $this->getMedicosForPacienteForm($request->user());
@@ -435,10 +438,15 @@ class PacienteController extends Controller
             $q->with('medico:id', 'medico.linkedUser:id,name,medico_id')->orderByDesc('data_receita')->limit(10);
         }]);
 
-        $this->injectPrivadosDoMedico($paciente, $user);
+        if ($user->isAdmin() || $user->isCallcenter()) {
+            $paciente->attachPrivadosPorMedico();
+        } else {
+            $this->injectPrivadosDoMedico($paciente, $user);
+        }
 
         return Inertia::render('Pacientes/Show', [
             'paciente' => $paciente,
+            'isAdmin' => $user->isAdmin(),
         ]);
     }
 
@@ -553,7 +561,11 @@ class PacienteController extends Controller
         }
 
         // Opção 2: campos privados vão para o pivot do médico de contexto.
+        // Admin/callcenter/secretária não editam esses campos no update (evita zerar notas alheias).
         $privados = $this->extractPrivados($validated);
+        if (! $user->isMedico()) {
+            $privados = [];
+        }
         if ($this->codigoDuplicadoNoMedico($medicoContexto, $privados['codigo'] ?? null, $paciente->id)) {
             return $this->jsonOrBackForFieldError($request, 'codigo', 'Já existe um paciente com este Nº Registro para este médico.');
         }
@@ -792,6 +804,7 @@ class PacienteController extends Controller
         unset($validated['id'], $validated['telefones']);
 
         // Opção 2: campos privados por médico vão para o pivot.
+        // Em update, só o médico pode gravar Indicado por / Nº Registro / Observações.
         $privados = $this->extractPrivados($validated);
 
         if ($id) {
@@ -800,6 +813,10 @@ class PacienteController extends Controller
             // Check access
             if (! $user->canAccessPaciente($paciente)) {
                 return response()->json(['error' => 'Acesso não autorizado'], 403);
+            }
+
+            if (! $user->isMedico()) {
+                $privados = [];
             }
 
             $medicoContexto = ($user->isMedico() && $user->medico_id)

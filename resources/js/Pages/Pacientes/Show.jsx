@@ -4,11 +4,13 @@ import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
-export default function PacienteShow({ paciente }) {
+export default function PacienteShow({ paciente, isAdmin = false }) {
     const { auth } = usePage().props;
     const isCallcenter = auth?.user?.role === 'callcenter';
     const [toast, setToast] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const privadosPorMedico = paciente.privados_por_medico || [];
+    const showPrivadosPorMedico = (isAdmin || isCallcenter) && privadosPorMedico.length > 0;
 
     const handleDelete = () => {
         router.delete(`/pacientes/${paciente.id}`, {
@@ -117,10 +119,12 @@ export default function PacienteShow({ paciente }) {
                                 <dt className="text-gray-500">CPF</dt>
                                 <dd className="text-gray-900 font-medium">{paciente.cpf || '-'}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Nº Registro</dt>
-                                <dd className="text-gray-900 font-medium">{paciente.codigo || '-'}</dd>
-                            </div>
+                            {!showPrivadosPorMedico && (
+                                <div className="flex justify-between">
+                                    <dt className="text-gray-500">Nº Registro</dt>
+                                    <dd className="text-gray-900 font-medium">{paciente.codigo || '-'}</dd>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <dt className="text-gray-500">RG</dt>
                                 <dd className="text-gray-900 font-medium">{paciente.rg || '-'}</dd>
@@ -158,10 +162,12 @@ export default function PacienteShow({ paciente }) {
                                 <dt className="text-gray-500">E-mail 2</dt>
                                 <dd className="text-gray-900 font-medium">{paciente.email2 || '-'}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Indicado por</dt>
-                                <dd className="text-gray-900 font-medium">{paciente.indicado_por || '-'}</dd>
-                            </div>
+                            {!showPrivadosPorMedico && (
+                                <div className="flex justify-between">
+                                    <dt className="text-gray-500">Indicado por</dt>
+                                    <dd className="text-gray-900 font-medium">{paciente.indicado_por || '-'}</dd>
+                                </div>
+                            )}
                         </dl>
                     </div>
                 </div>
@@ -184,8 +190,38 @@ export default function PacienteShow({ paciente }) {
                     )}
                 </div>
 
+                {/* Notas privadas por médico (admin) */}
+                {showPrivadosPorMedico && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Notas por médico</h2>
+                        <div className="space-y-5">
+                            {privadosPorMedico.map((vinculo) => (
+                                <div key={vinculo.medico_id} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                                        {nomeExibicaoSemTitulo(vinculo.medico_nome) || `Médico #${vinculo.medico_id}`}
+                                    </h3>
+                                    <dl className="space-y-2 text-sm">
+                                        <div className="flex justify-between gap-4">
+                                            <dt className="text-gray-500">Indicado por</dt>
+                                            <dd className="text-gray-900 font-medium text-right">{vinculo.indicado_por || '—'}</dd>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <dt className="text-gray-500">Nº Registro</dt>
+                                            <dd className="text-gray-900 font-medium text-right tabular-nums">{vinculo.codigo || '—'}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-gray-500 mb-1">Observações</dt>
+                                            <dd className="text-gray-900 whitespace-pre-wrap">{vinculo.anotacoes || '—'}</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Anotações */}
-                {paciente.anotacoes && (
+                {!showPrivadosPorMedico && paciente.anotacoes && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Anotações</h2>
                         <p className="text-gray-700 whitespace-pre-wrap">{paciente.anotacoes}</p>
