@@ -52,6 +52,19 @@ class SyncClienteTinyJob implements ShouldQueue
         $client = new TinyErpClient;
         $paciente = $this->paciente->fresh();
 
+        // Sem tiny_id local, o contato pode já existir no Tiny (cadastro legado);
+        // criar às cegas falharia por CPF duplicado — vincular pelo CPF antes.
+        if (! $paciente->tiny_id) {
+            $tinyIdExistente = $this->buscarTinyIdPorCpf($client);
+            if ($tinyIdExistente) {
+                $paciente->update(['tiny_id' => (string) $tinyIdExistente]);
+                Log::info('Tiny ERP: Contato existente no Tiny vinculado por CPF', [
+                    'paciente_id' => $paciente->id,
+                    'tiny_id' => $tinyIdExistente,
+                ]);
+            }
+        }
+
         if ($paciente->tiny_id) {
             $result = $client->obterContato((int) $paciente->tiny_id);
 
@@ -112,6 +125,24 @@ class SyncClienteTinyJob implements ShouldQueue
             ]);
             throw new \Exception($result['message'] ?? 'Erro ao sincronizar cliente');
         }
+    }
+
+    protected function buscarTinyIdPorCpf(TinyErpClient $client): ?int
+    {
+        $cpf = preg_replace('/\D/', '', $this->paciente->cpf ?? '');
+        if (strlen($cpf) !== 11) {
+            return null;
+        }
+
+        $result = $client->listarContatos(['cpf_cnpj' => $cpf]);
+        if ($result['status'] !== 'success') {
+            return null;
+        }
+
+        $itens = $result['data']['itens'] ?? [];
+        $id = $itens[0]['id'] ?? null;
+
+        return $id !== null ? (int) $id : null;
     }
 
     protected function validarCamposObrigatorios(): bool
