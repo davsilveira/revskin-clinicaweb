@@ -63,6 +63,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/manual', [ManualController::class, 'index'])->name('manual.index');
+    Route::get('/manual/pdf', [ManualController::class, 'pdf'])->name('manual.pdf');
+    Route::get('/manual/imprimir', [ManualController::class, 'imprimir'])->name('manual.imprimir');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');

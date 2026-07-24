@@ -193,10 +193,40 @@ export default function ManualIndex({ modules = [] }) {
                         className="lg:grid lg:grid-cols-[1fr_minmax(220px,280px)] lg:gap-8 xl:gap-10 items-start"
                     >
                         <div className="min-w-0 space-y-6">
-                            <PageHeader
-                                title="Manual de uso"
-                                description="Documentação por módulo. Em telas grandes o índice fica à direita; no celular use os atalhos rápidos. A busca filtra tópicos e trechos."
-                            />
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <PageHeader
+                                    title="Manual de uso"
+                                    description="Documentação por módulo. Em telas grandes o índice fica à direita; no celular use os atalhos rápidos. A busca filtra tópicos e trechos."
+                                />
+                                <div className="flex flex-shrink-0 gap-2 print:hidden">
+                                    <a
+                                        href="/manual/pdf"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="7 10 12 15 17 10" />
+                                            <line x1="12" y1="15" x2="12" y2="3" />
+                                        </svg>
+                                        Baixar em PDF
+                                    </a>
+                                    <a
+                                        href="/manual/imprimir"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                            <polyline points="6 9 6 2 18 2 18 9" />
+                                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                                            <rect x="6" y="14" width="12" height="8" />
+                                        </svg>
+                                        Imprimir
+                                    </a>
+                                </div>
+                            </div>
 
                             <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5">
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">

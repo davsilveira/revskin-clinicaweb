@@ -46,6 +46,43 @@ class ManualContent
         return $out;
     }
 
+    /**
+     * Converte um trecho do manual (com tokens {{link:href|rótulo}} e {{icon:chave}})
+     * em HTML seguro para as versões PDF/impressão. Os ícones (SVG do app) são
+     * removidos, pois não existem no lado servidor; links viram <a href>.
+     */
+    public static function richTextToHtml(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+
+        $out = '';
+        $offset = 0;
+        if (preg_match_all('/\{\{link:([^|]+)\|([^}]+)\}\}/', $text, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $full = $match[0][0];
+                $pos = $match[0][1];
+                $out .= self::plainSegmentToHtml(substr($text, $offset, $pos - $offset));
+                $href = trim($match[1][0]);
+                $label = trim($match[2][0]);
+                $out .= '<a href="'.htmlspecialchars($href, ENT_QUOTES).'">'.self::plainSegmentToHtml($label).'</a>';
+                $offset = $pos + strlen($full);
+            }
+        }
+        $out .= self::plainSegmentToHtml(substr($text, $offset));
+
+        return $out;
+    }
+
+    private static function plainSegmentToHtml(string $segment): string
+    {
+        $segment = preg_replace('/\{\{icon:[a-zA-Z0-9_-]+\}\}/', '', $segment);
+        $segment = preg_replace('/[ \t]{2,}/', ' ', $segment);
+
+        return htmlspecialchars($segment, ENT_QUOTES);
+    }
+
     private static function moduleVisible(User $user, array $module): bool
     {
         if ($user->isCallcenter()) {
