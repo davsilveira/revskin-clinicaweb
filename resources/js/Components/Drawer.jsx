@@ -6,6 +6,8 @@ export default function Drawer({
     title,
     children,
     width = 'w-full max-w-[100vw] sm:max-w-[700px] sm:w-[700px]',
+    /** Quando false, clicar no fundo (backdrop) não fecha o drawer — evita perder um cadastro/edição por engano. */
+    closeOnBackdrop = true,
 }) {
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -56,7 +58,7 @@ export default function Drawer({
                     transition-opacity duration-300 ease-out
                     ${isAnimating ? 'opacity-100' : 'opacity-0'}
                 `}
-                onClick={onClose}
+                onClick={closeOnBackdrop ? onClose : undefined}
             />
 
             {/* Drawer */}

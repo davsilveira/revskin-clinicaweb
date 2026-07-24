@@ -548,7 +548,8 @@ export default function PatientDrawer({
                         flushSync(() => {
                             setFormBaseline(cloneDeep(normalizePatientData(data)));
                         });
-                        onSave?.();
+                        // Passa o paciente salvo para quem chamou poder selecioná-lo (ex.: nova receita).
+                        onSave?.(body?.paciente ?? null);
                         return true;
                     }
 
@@ -606,6 +607,16 @@ export default function PatientDrawer({
     }, [isOpen, formBaseline, data]);
 
     /** Mesmas regras que persistPatient / canAutoSave: só habilita Salvar com obrigatórios válidos (como Usuários). */
+    /** Erro de CPF em tempo real: assim que 11 dígitos forem digitados e o CPF for inválido,
+     *  mostra a mensagem — deixa claro por que o botão Salvar fica desabilitado. */
+    const cpfLiveError = useMemo(() => {
+        const digits = (data.cpf || '').replace(/\D/g, '');
+        if (digits.length === 11 && !validateCPF(data.cpf)) {
+            return 'CPF inválido. Por favor, verifique os números digitados.';
+        }
+        return null;
+    }, [data.cpf]);
+
     const isManualSaveValid = useMemo(() => {
         if (!isOpen) return false;
         if (!data.nome || data.nome.trim().length < 2) return false;
@@ -726,6 +737,7 @@ export default function PatientDrawer({
             isOpen={isOpen}
             onClose={requestClose}
             title={paciente ? 'Editar Paciente' : 'Novo Paciente'}
+            closeOnBackdrop={false}
         >
             <form onSubmit={handleSubmit} className="flex flex-col h-full" autoComplete="off">
                 <div className="flex-1 p-6 space-y-6 overflow-y-auto">
@@ -785,7 +797,7 @@ export default function PatientDrawer({
                                 if (lookupNotice) setLookupNotice(null);
                             }}
                             onBlur={doCpfLookup}
-                            error={cpfError || fieldErrors.cpf || errors.cpf}
+                            error={cpfError || cpfLiveError || fieldErrors.cpf || errors.cpf}
                             placeholder="000.000.000-00"
                             required
                             {...NO_AUTOFILL}
@@ -807,7 +819,6 @@ export default function PatientDrawer({
                             value={data.sexo}
                             onChange={(e) => setData('sexo', e.target.value)}
                             options={[
-                                { value: '', label: 'Selecione' },
                                 { value: 'M', label: 'Masculino' },
                                 { value: 'F', label: 'Feminino' },
                             ]}
@@ -1072,14 +1083,12 @@ export default function PatientDrawer({
                                                 setData('medico_id', e.target.value ? Number(e.target.value) : '');
                                                 setFieldErrors(prev => ({ ...prev, medico_id: null }));
                                             }}
-                                            options={[
-                                                { value: '', label: 'Selecione o médico' },
-                                                ...medicos.map((m) => ({
-                                                    value: String(m.id),
-                                                    label:
-                                                        nomeExibicaoSemTitulo(m.nome || m.linked_user?.name) || `Médico ${m.id}`,
-                                                })),
-                                            ]}
+                                            placeholder="Selecione o médico"
+                                            options={medicos.map((m) => ({
+                                                value: String(m.id),
+                                                label:
+                                                    nomeExibicaoSemTitulo(m.nome || m.linked_user?.name) || `Médico ${m.id}`,
+                                            }))}
                                             error={fieldErrors.medico_id || errors.medico_id}
                                             autoComplete="off"
                                             name="revskin_paciente_medico_id"
