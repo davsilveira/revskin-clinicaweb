@@ -195,6 +195,29 @@ class Receita extends Model
     }
 
     /**
+     * Rótulo da venda no ERP (oList/Tiny) para relatórios.
+     *
+     * Uma receita finalizada é "Vendido" quando ao menos um item foi
+     * comercializado (item->vendido = true, marcado pela sincronia do pedido
+     * faturado). Se ainda não houver pedido faturado, é "Aberto".
+     * Para receitas ainda "aberta", a venda não se aplica (retorna null).
+     *
+     * Requer itens_vendidos_count carregado via withCount; sem ele, consulta
+     * os itens diretamente.
+     */
+    public function getVendaLabelAttribute(): ?string
+    {
+        if ($this->status !== 'finalizada') {
+            return null;
+        }
+
+        $vendidos = $this->itens_vendidos_count
+            ?? $this->itens()->where('vendido', true)->count();
+
+        return $vendidos > 0 ? 'Vendido' : 'Aberto';
+    }
+
+    /**
      * Generate next number.
      */
     public static function gerarNumero(int $pacienteId): string

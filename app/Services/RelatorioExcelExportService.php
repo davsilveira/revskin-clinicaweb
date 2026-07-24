@@ -64,6 +64,7 @@ class RelatorioExcelExportService
     public function buildReceitasMedicoExport(array $filters): array
     {
         $query = Receita::with(['paciente:id,nome', 'medico:id,apelido,crm,uf_crm', 'medico.linkedUser:id,name,medico_id', 'medico.users:id,name'])
+            ->withCount(['itens as itens_vendidos_count' => fn ($q) => $q->where('vendido', true)])
             ->whereIn('status', ['finalizada', 'aberta'])
             ->when($filters['medico_id'] ?? null, fn ($q, $id) => $q->where('medico_id', $id))
             ->when($filters['data_inicio'] ?? null, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))

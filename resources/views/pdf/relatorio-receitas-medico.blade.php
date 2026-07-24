@@ -120,6 +120,21 @@
             background: #fee2e2;
             color: #dc2626;
         }
+        .venda {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 8px;
+            font-weight: bold;
+        }
+        .venda-vendido {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .venda-aberto {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
         .footer {
             position: fixed;
             bottom: 10mm;
@@ -183,6 +198,7 @@
                 <th>Paciente</th>
                 <th>Médico</th>
                 <th style="width: 70px;">Status</th>
+                <th style="width: 60px;">Venda</th>
                 <th style="width: 80px;">Valor</th>
             </tr>
         </thead>
@@ -198,11 +214,20 @@
                             {{ ucfirst($receita->status) }}
                         </span>
                     </td>
+                    <td>
+                        @if($receita->venda_label)
+                            <span class="venda venda-{{ strtolower($receita->venda_label) }}">
+                                {{ $receita->venda_label }}
+                            </span>
+                        @else
+                            —
+                        @endif
+                    </td>
                     <td>R$ {{ number_format($receita->valor_total, 2, ',', '.') }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 20px; color: #999;">
+                    <td colspan="7" style="text-align: center; padding: 20px; color: #999;">
                         Nenhuma receita encontrada para os filtros selecionados.
                     </td>
                 </tr>
@@ -210,7 +235,7 @@
             
             @if($receitas->count() > 0)
                 <tr class="total-row">
-                    <td colspan="5" style="text-align: right;">
+                    <td colspan="6" style="text-align: right;">
                         <strong>TOTAL:</strong>
                     </td>
                     <td>

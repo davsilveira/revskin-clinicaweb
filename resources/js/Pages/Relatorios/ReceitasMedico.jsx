@@ -87,6 +87,13 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
         return dados?.receitas?.total ?? dados?.receitas?.data?.length ?? 0;
     };
 
+    // Rótulo da venda no ERP (oList/Tiny): só se aplica a receitas finalizadas.
+    // "Vendido" quando há pedido faturado sincronizado (itens marcados como vendido).
+    const vendaLabel = (receita) => {
+        if (receita.status !== 'finalizada') return null;
+        return (receita.itens_vendidos_count ?? 0) > 0 ? 'Vendido' : 'Aberto';
+    };
+
     const buildExcelDownloadUrl = () => {
         const p = new URLSearchParams();
         if (medicoId) p.set('medico_id', String(medicoId));
@@ -275,6 +282,9 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     Status
                                                 </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Venda
+                                                </th>
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     Valor
                                                 </th>
@@ -314,6 +324,21 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                                 {receita.status}
                                                             </span>
                                                         </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            {vendaLabel(receita) ? (
+                                                                <span
+                                                                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                                        vendaLabel(receita) === 'Vendido'
+                                                                            ? 'bg-blue-100 text-blue-800'
+                                                                            : 'bg-gray-100 text-gray-800'
+                                                                    }`}
+                                                                >
+                                                                    {vendaLabel(receita)}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-sm text-gray-400">—</span>
+                                                            )}
+                                                        </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                                                             {new Intl.NumberFormat('pt-BR', {
                                                                 style: 'currency',
@@ -324,7 +349,7 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                                         Nenhuma receita encontrada
                                                     </td>
                                                 </tr>
@@ -344,17 +369,30 @@ export default function ReceitasMedico({ medicos, dados, filters }) {
                                                         >
                                                             #{receita.numero}
                                                         </Link>
-                                                        <span
-                                                            className={`flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ${
-                                                                receita.status === 'finalizada'
-                                                                    ? 'bg-green-100 text-green-800'
-                                                                    : receita.status === 'cancelada'
-                                                                      ? 'bg-red-100 text-red-800'
-                                                                      : 'bg-gray-100 text-gray-800'
-                                                            }`}
-                                                        >
-                                                            {receita.status}
-                                                        </span>
+                                                        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                                                            <span
+                                                                className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                                    receita.status === 'finalizada'
+                                                                        ? 'bg-green-100 text-green-800'
+                                                                        : receita.status === 'cancelada'
+                                                                          ? 'bg-red-100 text-red-800'
+                                                                          : 'bg-gray-100 text-gray-800'
+                                                                }`}
+                                                            >
+                                                                {receita.status}
+                                                            </span>
+                                                            {vendaLabel(receita) && (
+                                                                <span
+                                                                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                                        vendaLabel(receita) === 'Vendido'
+                                                                            ? 'bg-blue-100 text-blue-800'
+                                                                            : 'bg-gray-100 text-gray-800'
+                                                                    }`}
+                                                                >
+                                                                    {vendaLabel(receita)}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <p
                                                         className="text-sm text-gray-800 mt-2 truncate"
