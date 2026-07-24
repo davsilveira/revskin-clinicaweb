@@ -54,7 +54,8 @@ export default function ReceitaFormItemRow({
         const el = anotacoesRef.current;
         if (!el) return;
         el.style.height = 'auto';
-        el.style.height = `${Math.min(Math.max(el.scrollHeight, 32), 320)}px`;
+        // Match ProductCombobox single-line height (~30px with py-1 + text-sm)
+        el.style.height = `${Math.min(Math.max(el.scrollHeight, 30), 320)}px`;
     }, [item.anotacoes]);
 
     const annFieldDisabled = annotationsReadOnly ?? isReadOnly;
@@ -76,7 +77,7 @@ export default function ReceitaFormItemRow({
                 if (isLastItem && lastItemRef) lastItemRef.current = el;
                 registerRef?.(index, el);
             }}
-            className={`flex flex-col gap-1 py-2 px-2 rounded transition-colors lg:flex-row lg:items-center lg:gap-2 lg:py-1.5 ${rowTone}`}
+            className={`flex flex-col gap-1 py-2 px-2 rounded transition-colors lg:flex-row lg:items-start lg:gap-2 lg:py-1.5 ${rowTone}`}
         >
             {/* Mobile: checkbox + remover */}
             <div className="flex items-center justify-between gap-2 lg:hidden">
@@ -107,8 +108,8 @@ export default function ReceitaFormItemRow({
                 )}
             </div>
 
-            {/* Desktop: checkbox + vendido */}
-            <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+            {/* Desktop: checkbox + vendido — mt aligns with py-1 inputs */}
+            <div className="hidden lg:flex items-center gap-2 flex-shrink-0 lg:mt-1.5">
                 {item.vendido && (
                     <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -150,7 +151,7 @@ export default function ReceitaFormItemRow({
             </div>
 
             <div className="w-full min-w-0 lg:flex-[2]">
-                <span className="text-xs font-medium text-gray-500 lg:hidden block mb-1">Anotações</span>
+                <span className="text-xs font-medium text-gray-500 lg:hidden block mb-0.5">Anotações</span>
                 <textarea
                     ref={anotacoesRef}
                     rows={1}
@@ -158,7 +159,7 @@ export default function ReceitaFormItemRow({
                     value={item.anotacoes || ''}
                     onChange={(e) => onUpdateItem(index, 'anotacoes', e.target.value)}
                     disabled={annFieldDisabled}
-                    className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 bg-gray-50 resize-none overflow-hidden leading-snug"
+                    className="w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50 resize-none overflow-hidden"
                 />
             </div>
 
@@ -253,7 +254,7 @@ export default function ReceitaFormItemRow({
                 <button
                     type="button"
                     onClick={() => onRemoveItem(index)}
-                    className="hidden lg:inline-flex lg:w-8 lg:justify-center flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded self-center"
+                    className="hidden lg:inline-flex lg:w-8 lg:justify-center flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded lg:mt-0.5"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

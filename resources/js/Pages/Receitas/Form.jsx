@@ -35,16 +35,24 @@ const duplicarBloqueioTippyContent = (
     </div>
 );
 
-const pendenciaFinalizarTippyContent = (
-    <div className="text-xs text-gray-800 max-w-xs">
-        Resolva as pendências abaixo para finalizar.
-    </div>
+const tippyTexto = (texto) => (
+    <div className="text-xs text-gray-800 max-w-xs">{texto}</div>
 );
 
-const pendenciaSalvarTippyContent = (
-    <div className="text-xs text-gray-800 max-w-xs">
-        Resolva as pendências de produtos descontinuados para salvar.
-    </div>
+const pendenciaFinalizarTippyContent = tippyTexto(
+    'Resolva as pendências abaixo para finalizar.',
+);
+
+const finalizarSemPersistirTippyContent = tippyTexto(
+    'Salve a receita antes de finalizar.',
+);
+
+const finalizarSemItensTippyContent = tippyTexto(
+    'Adicione ao menos um produto para finalizar.',
+);
+
+const pendenciaSalvarTippyContent = tippyTexto(
+    'Resolva as pendências de produtos descontinuados para salvar.',
 );
 
 // Mapeamento de local_uso para nomes mais descritivos
@@ -1042,6 +1050,19 @@ function ReceitaFormInner({
     const receitaOrigem = receita?.receita_origem;
     const duplicadaToastFiredRef = useRef(false);
 
+    /** Receita já criada no servidor (edição ou autosave/salvar na criação). */
+    const receitaJaPersistida = !!(isEditing || currentReceitaId);
+    /** Mostrar Finalizar desde a criação (aberta), não só depois do 1º save — evita o botão “surgir” do nada. */
+    const showFinalizarButton =
+        data.status === 'aberta' && (!isReadOnly || receitaJaPersistida || isCallcenter);
+    const podeFinalizar =
+        receitaJaPersistida && data.itens.length > 0 && !processing && !temPendenciaLegado;
+    const finalizarTippyContent = !receitaJaPersistida
+        ? finalizarSemPersistirTippyContent
+        : data.itens.length === 0
+          ? finalizarSemItensTippyContent
+          : pendenciaFinalizarTippyContent;
+
     useEffect(() => {
         if (duplicadaToastFiredRef.current) {
             return;
@@ -1230,25 +1251,27 @@ function ReceitaFormInner({
                                         </span>
                                     </Tippy>
                                 )}
-                                {(isEditing || currentReceitaId) && data.status === 'aberta' && (
+                                {showFinalizarButton && (
                                     <Tippy
-                                        content={pendenciaFinalizarTippyContent}
-                                        disabled={!temPendenciaLegado}
+                                        content={finalizarTippyContent}
+                                        disabled={podeFinalizar}
                                         placement="top"
                                         theme="light-border"
                                         {...tippyAquisicaoProps}
                                     >
-                                        <button
-                                            type="button"
-                                            onClick={handleAbrirFinalizar}
-                                            disabled={processing || data.itens.length === 0}
-                                            className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            Finalizar
-                                        </button>
+                                        <span className="w-full inline-flex">
+                                            <button
+                                                type="button"
+                                                onClick={handleAbrirFinalizar}
+                                                disabled={!podeFinalizar}
+                                                className="min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Finalizar
+                                            </button>
+                                        </span>
                                     </Tippy>
                                 )}
                                 {isEditing && canOpenAssistenteReceita && (
@@ -1394,25 +1417,27 @@ function ReceitaFormInner({
                                     </Tippy>
                                 )}
 
-                                {(isEditing || currentReceitaId) && data.status === 'aberta' && (
+                                {showFinalizarButton && (
                                     <Tippy
-                                        content={pendenciaFinalizarTippyContent}
-                                        disabled={!temPendenciaLegado}
+                                        content={finalizarTippyContent}
+                                        disabled={podeFinalizar}
                                         placement="top"
                                         theme="light-border"
                                         {...tippyAquisicaoProps}
                                     >
-                                        <button
-                                            type="button"
-                                            onClick={handleAbrirFinalizar}
-                                            disabled={processing || data.itens.length === 0}
-                                            className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            Finalizar
-                                        </button>
+                                        <span className="inline-flex">
+                                            <button
+                                                type="button"
+                                                onClick={handleAbrirFinalizar}
+                                                disabled={!podeFinalizar}
+                                                className="flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Finalizar
+                                            </button>
+                                        </span>
                                     </Tippy>
                                 )}
 
@@ -2418,9 +2443,8 @@ function ReceitaFormInner({
                             <p
                                 className={`text-gray-600 ${workflowExitKind === 'finalize' ? 'mb-6' : 'mb-4'}`}
                             >
-                                Deseja sair sem finalizar receita? No sistema anterior (CLW2), ao sair da tela a receita era
-                                enviada automaticamente; aqui é necessário clicar em <strong>Finalizar</strong> para registrar a
-                                receita.
+                                Deseja sair sem finalizar receita? Para registrar a receita, é necessário clicar em{' '}
+                                <strong>Finalizar</strong> — ao sair da tela sem finalizar, a receita não será enviada.
                             </p>
                         )}
                         {(workflowExitKind === 'renew' || workflowExitKind === 'finalize_and_renew') && (
