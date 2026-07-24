@@ -203,6 +203,7 @@ function ReceitaFormInner({
     const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
     const [selectedPaciente, setSelectedPaciente] = useState(receita?.paciente || initialPaciente || null);
     const [loadingPacientes, setLoadingPacientes] = useState(false);
+    const [noResultsPaciente, setNoResultsPaciente] = useState(false);
     const lastItemRef = useRef(null);
     const legadoRowRefs = useRef({});
 
@@ -635,14 +636,17 @@ function ReceitaFormInner({
             if (term.length < 2) {
                 setPacienteResults([]);
                 setShowPacienteDropdown(false);
+                setNoResultsPaciente(false);
                 return;
             }
             setLoadingPacientes(true);
+            setNoResultsPaciente(false);
             try {
                 const response = await fetch(`/api/pacientes/search?q=${encodeURIComponent(term)}`);
                 const results = await response.json();
                 setPacienteResults(results);
-                setShowPacienteDropdown(true);
+                setShowPacienteDropdown(results.length > 0);
+                setNoResultsPaciente(results.length === 0);
             } catch (e) {
                 console.error(e);
             } finally {
@@ -661,6 +665,7 @@ function ReceitaFormInner({
         setData('paciente_id', paciente.id);
         setSearchPaciente('');
         setShowPacienteDropdown(false);
+        setNoResultsPaciente(false);
     };
 
     useEffect(() => {
@@ -1034,7 +1039,7 @@ function ReceitaFormInner({
     const canOpenAssistenteReceita = (receitaFormIsAdmin || isMedico) && !!pacienteIdParaAssistente;
 
     const canDuplicar = isEditing && !(receita.receita_origem_id && data.status === 'aberta');
-    const receitaOrigem = receita.receita_origem;
+    const receitaOrigem = receita?.receita_origem;
     const duplicadaToastFiredRef = useRef(false);
 
     useEffect(() => {
@@ -1533,13 +1538,47 @@ function ReceitaFormInner({
                             </div>
                         </div>
                     ) : (
-                        /* Form completo para Assistente de Receita */
+                        /* Dados da receita (criação e edição sem paciente vinculado).
+                           Mesma lógica do Assistente de Receita: o médico responsável é
+                           escolhido PRIMEIRO (admin/secretária) e depois o paciente. O
+                           médico logado não escolhe médico nem data — só o paciente. */
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Dados da Receita</h2>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                            <div className="space-y-4">
+                                {/* Médico responsável — só para quem pode escolher (admin/secretária); vem antes do paciente */}
+                                {!isMedico && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Médico responsável <span className="text-red-500">*</span>
+                                        </label>
+                                        {isEditing && !canChangeMedico ? (
+                                            <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                                {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
+                                                    || receita?.medico?.nome
+                                                    || '-'}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={data.medico_id}
+                                                onChange={(e) => setData('medico_id', e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                disabled={isReadOnly || medicos?.length === 1}
+                                            >
+                                                <option value="">Selecione um médico...</option>
+                                                {medicos?.map((medico) => (
+                                                    <option key={medico.id} value={medico.id}>
+                                                        {nomeExibicaoSemTitulo(medico.nome)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        {errors.medico_id && <p className="mt-1 text-sm text-red-600">{errors.medico_id}</p>}
+                                    </div>
+                                )}
+
                                 {/* Paciente */}
-                                <div className="relative md:col-span-2">
+                                <div className="relative">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
                                     {selectedPaciente ? (
                                         <div className="space-y-2">
@@ -1601,91 +1640,46 @@ function ReceitaFormInner({
                                                     ))}
                                                 </div>
                                             )}
+
+                                            {/* Não encontrou o paciente → cadastrar (mesmo recurso do passo 1 do Assistente) */}
+                                            {noResultsPaciente && !loadingPacientes && !isReadOnly && (
+                                                <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm text-amber-800 font-medium">Nenhum paciente encontrado</p>
+                                                        <p className="text-sm text-amber-700">Deseja cadastrar um novo paciente?</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPatientDrawerOpen(true)}
+                                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm shrink-0"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                        </svg>
+                                                        Cadastrar paciente
+                                                    </button>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                     {errors.paciente_id && <p className="mt-1 text-sm text-red-600">{errors.paciente_id}</p>}
                                 </div>
-
-                                {/* Data */}
-                                <div>
-                                    <DatePickerField
-                                        label="Data"
-                                        value={data.data_receita}
-                                        onChange={(v) => setData('data_receita', v)}
-                                        disabled={isReadOnly}
-                                        required
-                                        error={errors.data_receita}
-                                        allowType
-                                    />
-                                </div>
-
-                                {/* Médico — admin pode alterar com receita aberta (backend sincroniza atendimento em aberto) */}
-                                {isEditing && canChangeMedico ? (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
-                                        <select
-                                            value={data.medico_id}
-                                            onChange={(e) => setData('medico_id', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                            disabled={isReadOnly || !medicos?.length}
-                                        >
-                                            <option value="">Selecione</option>
-                                            {medicos?.map((medico) => (
-                                                <option key={medico.id} value={medico.id}>
-                                                    {nomeExibicaoSemTitulo(medico.nome)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ) : isEditing ? (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
-                                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                                            {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome
-                                                || receita?.medico?.nome
-                                                || '-'}
-                                        </div>
-                                    </div>
-                                ) : !isMedico ? (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
-                                        <select value={data.medico_id} onChange={(e) => setData('medico_id', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                            disabled={isReadOnly || medicos?.length === 1}>
-                                            <option value="">Selecione</option>
-                                            {medicos?.map((medico) => (
-                                                <option key={medico.id} value={medico.id}>
-                                                    {nomeExibicaoSemTitulo(medico.nome)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
-                                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                                            {medicos?.find((m) => String(m.id) === String(data.medico_id))?.nome || '-'}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     )}
 
-                    {/* Anotações internas (secretária/admin; não vão ao PDF) */}
-                    {!isMedico && (
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Anotações internas</label>
-                            <textarea
-                                value={data.anotacoes}
-                                onChange={(e) => setData('anotacoes', e.target.value)}
-                                disabled={isReadOnly}
-                                rows={3}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="Uso interno da equipe (não aparece no PDF da receita)."
-                            />
-                        </div>
-                    )}
+                    {/* Anotações internas (equipe e médico; não vão ao PDF) */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Anotações internas</label>
+                        <textarea
+                            value={data.anotacoes}
+                            onChange={(e) => setData('anotacoes', e.target.value)}
+                            disabled={isReadOnly}
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            placeholder="Uso interno da equipe (não aparece no PDF da receita)."
+                        />
+                    </div>
 
                     {/* Itens da Receita */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4">
@@ -2459,9 +2453,14 @@ function ReceitaFormInner({
                 isOpen={patientDrawerOpen}
                 onClose={() => setPatientDrawerOpen(false)}
                 paciente={selectedPaciente?.id ? selectedPaciente : null}
-                onSave={() => {
+                onSave={(savedPaciente) => {
                     setPatientDrawerOpen(false);
-                    reloadPacienteNaReceita();
+                    // Paciente recém-cadastrado no fluxo de criação → seleciona automaticamente.
+                    if (!selectedPaciente?.id && savedPaciente?.id) {
+                        selectPaciente(savedPaciente);
+                    } else {
+                        reloadPacienteNaReceita();
+                    }
                 }}
                 isAdmin={receitaFormIsAdmin}
                 showMedicoField={receitaFormCanSelectMedico}

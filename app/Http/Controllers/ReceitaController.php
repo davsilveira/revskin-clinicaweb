@@ -207,7 +207,7 @@ class ReceitaController extends Controller
             return back()->with('error', 'Você não pode criar receitas para outros médicos.');
         }
 
-        $anotacoesReceita = $user->isMedico() ? null : ($validated['anotacoes'] ?? null);
+        $anotacoesReceita = $validated['anotacoes'] ?? null;
 
         $receita = Receita::create([
             'numero' => Receita::gerarNumero($validated['paciente_id']),
@@ -466,10 +466,6 @@ class ReceitaController extends Controller
 
         if (($validated['status'] ?? $receita->status) === 'finalizada') {
             ReceitaProdutoLegadoGuard::assertSemProdutoLegadoAoFinalizar($validated['itens']);
-        }
-
-        if ($user->isMedico()) {
-            $validated['anotacoes'] = $receita->anotacoes;
         }
 
         $updateData = [
@@ -789,15 +785,13 @@ class ReceitaController extends Controller
 
             $updatePayload = [
                 'data_receita' => $validated['data_receita'],
+                'anotacoes' => $validated['anotacoes'] ?? null,
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
                 'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,
                 'valor_caixa' => $validated['valor_caixa'] ?? 0,
                 'valor_frete' => $validated['valor_frete'] ?? 0,
             ];
-            if (! $user->isMedico()) {
-                $updatePayload['anotacoes'] = $validated['anotacoes'] ?? null;
-            }
 
             if ($user->isAdmin()) {
                 $updatePayload['medico_id'] = $validated['medico_id'];
@@ -817,7 +811,7 @@ class ReceitaController extends Controller
                 'paciente_id' => $validated['paciente_id'],
                 'medico_id' => $validated['medico_id'],
                 'data_receita' => $validated['data_receita'],
-                'anotacoes' => $user->isMedico() ? null : ($validated['anotacoes'] ?? null),
+                'anotacoes' => $validated['anotacoes'] ?? null,
                 'anotacoes_paciente' => $validated['anotacoes_paciente'] ?? null,
                 'desconto_percentual' => $validated['desconto_percentual'] ?? 0,
                 'desconto_motivo' => $validated['desconto_motivo'] ?? null,

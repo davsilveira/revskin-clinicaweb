@@ -163,7 +163,7 @@ export default function ReceitaFormItemRow({
             </div>
 
             <div className="w-full grid grid-cols-2 gap-x-3 gap-y-1 sm:flex sm:flex-row sm:flex-wrap sm:items-end sm:gap-2 lg:contents">
-                <div className="col-span-2 w-full sm:flex-1 sm:min-w-[8rem] lg:w-36 lg:flex-shrink-0 lg:flex lg:items-center lg:justify-center">
+                <div className="col-span-2 w-full sm:flex-1 sm:min-w-[8rem] lg:w-36 lg:flex-none lg:flex lg:items-center lg:justify-center">
                     <span className="text-xs font-medium text-gray-500 lg:hidden block mb-0.5">Data aquisição</span>
                     <div className="flex items-center justify-start sm:justify-center gap-1.5 lg:justify-center w-full">
                         {ultimaAquisicao && ultimaAquisicao !== '-' ? (
@@ -238,7 +238,7 @@ export default function ReceitaFormItemRow({
                 </div>
 
                 {!isMedico && (
-                    <div className="w-full sm:flex-1 sm:text-right lg:w-20 lg:flex-shrink-0 lg:text-right">
+                    <div className="w-full sm:flex-1 sm:text-right lg:w-20 lg:flex-none lg:text-right">
                         <span className="text-xs font-medium text-gray-500 lg:hidden block mb-0.5">Total</span>
                         <span
                             className={`block text-sm font-medium lg:text-right ${item.imprimir ? 'text-gray-900' : 'text-gray-400'}`}
@@ -253,7 +253,7 @@ export default function ReceitaFormItemRow({
                 <button
                     type="button"
                     onClick={() => onRemoveItem(index)}
-                    className="hidden lg:inline-flex flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded self-center"
+                    className="hidden lg:inline-flex lg:w-8 lg:justify-center flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded self-center"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
