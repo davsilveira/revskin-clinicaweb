@@ -135,7 +135,6 @@ class ProdutoController extends Controller
     public function update(Request $request, Produto $produto)
     {
         $rules = [
-            'nome' => 'nullable|string|max:255',
             'descricao' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'modo_uso' => 'nullable|string',
@@ -148,6 +147,8 @@ class ProdutoController extends Controller
         if ($request->user()?->role !== 'admin') {
             unset($validated['anotacoes_internas']);
         }
+        // Nome vem do Tiny/oList e é atualizado só pela sincronização.
+        unset($validated['nome']);
 
         $produto->update($validated);
 
@@ -286,10 +287,7 @@ class ProdutoController extends Controller
     private function extractDadosFromRow(array $row, bool $importAnotacoesInternas = false): array
     {
         $dados = [];
-        $nome = $this->getVal($row, 'nome');
-        if ($nome !== null && $nome !== '') {
-            $dados['nome'] = $nome;
-        }
+        // Nome é sincronizado do Tiny/oList — ignorado na importação em massa.
         $desc = $this->getValAliases($row, ['descricao_formula', 'descricao']);
         if ($desc !== null) {
             $dados['descricao'] = $desc;

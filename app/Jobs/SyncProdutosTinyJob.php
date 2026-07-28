@@ -167,6 +167,7 @@ class SyncProdutosTinyJob implements ShouldQueue
 
         $dados = [
             'tiny_id' => $tinyId,
+            'nome' => $descricao,
             'preco' => $precos['preco'] ?? 0,
             'preco_custo' => $precos['precoCusto'] ?? null,
             'unidade' => $produtoData['unidade'] ?? null,
@@ -175,13 +176,9 @@ class SyncProdutosTinyJob implements ShouldQueue
         ];
 
         if ($produto) {
-            if (empty($produto->nome)) {
-                $dados['nome'] = $descricao;
-            }
             $produto->update($dados);
         } else {
             $dados['codigo'] = $sku ?: ('TINY-'.$tinyId);
-            $dados['nome'] = $descricao;
             Produto::create($dados);
         }
     }

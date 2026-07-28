@@ -47,7 +47,6 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
     const [exportPendentes, setExportPendentes] = useState(false);
 
     const { data, setData, put, processing, errors } = useForm({
-        nome: '',
         descricao: '',
         anotacoes: '',
         anotacoes_internas: '',
@@ -60,7 +59,6 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
     const openEditDrawer = (produto) => {
         setEditingProduto(produto);
         setData({
-            nome: produto.nome || '',
             descricao: produto.descricao || '',
             anotacoes: produto.anotacoes || '',
             anotacoes_internas: produto.anotacoes_internas || '',
@@ -295,7 +293,7 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                         <input
                             type="text"
-                            placeholder="Buscar por código ou nome..."
+                            placeholder="Buscar por SKU ou descrição..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             autoComplete="off"
@@ -321,8 +319,8 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código (SKU)</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descrição (Nome do Produto)</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unidade</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preço</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -435,28 +433,33 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
                     <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Dados do Tiny ERP (somente leitura)</h3>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-3">
                                 <div>
-                                    <span className="block text-xs text-gray-500">Código</span>
-                                    <span className="text-sm font-mono text-gray-900">{editingProduto?.codigo || '-'}</span>
+                                    <span className="block text-xs text-gray-500">Descrição (Nome do Produto)</span>
+                                    <span className="text-sm text-gray-900">{editingProduto?.nome || '-'}</span>
                                 </div>
-                                <div>
-                                    <span className="block text-xs text-gray-500">Unidade</span>
-                                    <span className="text-sm text-gray-900">{editingProduto?.unidade || '-'}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-xs text-gray-500">Preço Venda</span>
-                                    <span className="text-sm text-gray-900">
-                                        {editingProduto?.preco ? `R$ ${parseFloat(editingProduto.preco).toFixed(2)}` : '-'}
-                                    </span>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <span className="block text-xs text-gray-500">Código (SKU)</span>
+                                        <span className="text-sm font-mono text-gray-900">{editingProduto?.codigo || '-'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-xs text-gray-500">Unidade</span>
+                                        <span className="text-sm text-gray-900">{editingProduto?.unidade || '-'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-xs text-gray-500">Preço Venda</span>
+                                        <span className="text-sm text-gray-900">
+                                            {editingProduto?.preco ? `R$ ${parseFloat(editingProduto.preco).toFixed(2)}` : '-'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <div className="border-t pt-6">
                             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Dados ClinicaWeb (editáveis)</h3>
-                            <Input label="Nome" value={data.nome} onChange={(e) => setData('nome', e.target.value)} error={errors.nome} />
-                            <div className="mt-4">
+                            <div>
                                 <Input
                                     label="Fórmula"
                                     value={data.descricao}
@@ -574,7 +577,7 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
                                                 <p className="font-medium mb-2">1. Baixe o modelo abaixo (contém apenas as colunas editáveis).</p>
                                                 <p className="mb-2">2. Edite no Excel: preencha as colunas que deseja alterar. O código identifica cada produto.</p>
                                                 <p className="mb-2">3. Faça o upload do arquivo editado.</p>
-                                                <p className="text-xs">Importante: preço, unidade e outros dados vêm do Tiny ERP e não podem ser alterados aqui. Formatos: CSV ou XLSX. Máx. 2MB.</p>
+                                                <p className="text-xs">Importante: descrição (nome do produto), preço, unidade e outros dados vêm do Tiny/oList e não podem ser alterados aqui. Formatos: CSV ou XLSX. Máx. 2MB.</p>
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium text-gray-700 mb-2">Baixar modelo</p>

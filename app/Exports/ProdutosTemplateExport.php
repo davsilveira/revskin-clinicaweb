@@ -16,7 +16,7 @@ class ProdutosTemplateExport implements FromArray, WithHeadings, WithStyles, Wit
 
     public function array(): array
     {
-        $cols = $this->includeAnotacoesInternas ? 7 : 6;
+        $cols = $this->includeAnotacoesInternas ? 6 : 5;
 
         return [array_fill(0, $cols, '')];
     }
@@ -25,7 +25,6 @@ class ProdutosTemplateExport implements FromArray, WithHeadings, WithStyles, Wit
     {
         $headings = [
             'codigo',
-            'nome',
             'descricao_formula',
             'modo_uso',
             'anotacoes_especialista',
