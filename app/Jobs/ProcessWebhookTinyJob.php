@@ -12,6 +12,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +22,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 1;
+    public int $tries = 5;
 
     public int $timeout = 120;
 
@@ -31,6 +32,20 @@ class ProcessWebhookTinyJob implements ShouldQueue
         public array $payload
     ) {
         $this->onQueue('tiny-webhooks');
+    }
+
+    /**
+     * Serializa merges do mesmo pedido Tiny (evita webhook duplicado criando linhas em paralelo).
+     *
+     * @return list<object>
+     */
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping('tiny-pedido-'.$this->pedidoId))
+                ->releaseAfter(15)
+                ->expireAfter(180),
+        ];
     }
 
     public function handle(): void
@@ -150,6 +165,12 @@ class ProcessWebhookTinyJob implements ShouldQueue
         $linhasNovas = 0;
 
         DB::transaction(function () use ($receita, $parsed, $dataAquisicao, $marcarVendido, &$itensMarcados, &$linhasNovas) {
+            // Trava a receita para serializar merges concorrentes do mesmo pedido.
+            $receita = Receita::whereKey($receita->id)->lockForUpdate()->first();
+            if (! $receita) {
+                return;
+            }
+
             $pending = $parsed;
             $receita->load('itens.produto');
 

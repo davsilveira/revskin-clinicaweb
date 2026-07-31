@@ -1,0 +1,44 @@
+name: Fix DESINFLAM duplicado receita 27796
+
+# Correção pontual (read-check + delete controlado) do race webhook Tiny.
+# Dry-run por padrão. Marque "force" para aplicar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Aplicar de fato (desmarcado = dry-run — NADA é gravado)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar tiny:fix-desinflam-duplicado-27796 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: IN_FORCE,APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -euo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP FORCE=$IN_FORCE"
+            if [ "$IN_FORCE" = "true" ]; then
+              "$PHP" artisan tiny:fix-desinflam-duplicado-27796 --force
+            else
+              "$PHP" artisan tiny:fix-desinflam-duplicado-27796
+            fi
+            echo "==> Fim."
+        env:
+          IN_FORCE: ${{ inputs.force }}
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
