@@ -31,6 +31,7 @@ export default function RdStationSettings({
         produto_padrao_id: settings.produto_padrao_id || '69a956705a1a6a00133167dc',
         medico_field_id: settings.medico_field_id || '69a955ea78fde3001f6f61dc',
         receita_field_id: settings.receita_field_id || '699efc3a13a467001cb81ea1',
+        cortesia_field_id: settings.cortesia_field_id || '6a721f71257c0d0020d8178e',
         owner_id: settings.owner_id || '',
         cancelamento_field_id: settings.cancelamento_field_id || '',
         cancelamento_field_value: settings.cancelamento_field_value || '',
@@ -44,6 +45,7 @@ export default function RdStationSettings({
             produto_padrao_id: data.produto_padrao_id,
             medico_field_id: data.medico_field_id,
             receita_field_id: data.receita_field_id,
+            cortesia_field_id: data.cortesia_field_id,
             owner_id: data.owner_id,
             cancelamento_field_id: data.cancelamento_field_id,
             cancelamento_field_value: data.cancelamento_field_value,
@@ -453,6 +455,19 @@ export default function RdStationSettings({
                                     />
                                     <p className="mt-1 text-xs text-gray-500">
                                         ID do campo personalizado "Receita" na negociacao do RD Station.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <Input
+                                        label="ID do Campo - Cortesia"
+                                        value={data.cortesia_field_id}
+                                        onChange={(event) => setData('cortesia_field_id', event.target.value)}
+                                        placeholder="ID do campo personalizado"
+                                        error={errors.cortesia_field_id}
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        ID do campo personalizado "Cortesia" na negociacao. Envia "Sim" quando marcado na receita; vazio quando nao.
                                     </p>
                                 </div>
 

@@ -38,6 +38,8 @@ class PacienteObserver
         $camposRelevantes = [
             'nome',
             'cpf',
+            'outro_documento',
+            'pais',
             'email1',
             'telefone1',
             'celular',

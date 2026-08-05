@@ -424,6 +424,9 @@ class RelatorioController extends Controller
                         'nome' => $paciente->nome,
                         'telefone' => $paciente->telefone_principal,
                         'cpf' => $paciente->cpf ?? '',
+                        // Sem CPF (estrangeiro, p.ex.) o relatório mostra o documento livre.
+                        'documento' => $paciente->documento ?? '',
+                        'documento_label' => $paciente->documento_label,
                         'medico_nome' => $receita->medico->nome ?? '',
                     ],
                     'produtos' => [],
@@ -480,6 +483,9 @@ class RelatorioController extends Controller
                         'nome' => $paciente->nome,
                         'telefone' => $paciente->telefone_principal,
                         'cpf' => $paciente->cpf ?? '',
+                        // Sem CPF (estrangeiro, p.ex.) o relatório mostra o documento livre.
+                        'documento' => $paciente->documento ?? '',
+                        'documento_label' => $paciente->documento_label,
                         'medico_nome' => $receita->medico->nome ?? '',
                     ],
                     'produtos' => [],

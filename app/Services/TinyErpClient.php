@@ -948,15 +948,20 @@ class TinyErpClient
         if (! empty($data['celular'])) {
             $contato['celular'] = $data['celular'];
         }
+        if (! empty($data['pais'])) {
+            $contato['pais'] = $data['pais'];
+        }
         if (! empty($data['endereco']) && is_array($data['endereco'])) {
-            $end = $data['endereco'];
-            $contato['endereco'] = $end['endereco'] ?? '';
-            $contato['numero'] = $end['numero'] ?? '';
-            $contato['complemento'] = $end['complemento'] ?? '';
-            $contato['bairro'] = $end['bairro'] ?? '';
-            $contato['cidade'] = $end['cidade'] ?? '';
-            $contato['uf'] = $end['uf'] ?? '';
-            $contato['cep'] = $end['cep'] ?? '';
+            // Campos vazios ficam de fora: o contato.incluir valida `cidade` contra a tabela
+            // de municípios brasileiros e recusa qualquer cidade estrangeira
+            // ("O nome municipio não foi localizado na lista de cidade"). Para estrangeiro,
+            // quem chama simplesmente não envia cidade/uf.
+            foreach (['endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'cep'] as $campo) {
+                $valor = trim((string) ($data['endereco'][$campo] ?? ''));
+                if ($valor !== '') {
+                    $contato[$campo] = $valor;
+                }
+            }
         }
 
         return ['contatos' => [['contato' => $contato]]];

@@ -70,6 +70,28 @@ class CriarPedidoTinyJob implements ShouldQueue
         }
 
         $cpf = preg_replace('/\D/', '', $paciente->cpf ?? '');
+        $brasil = $paciente->isBrasil();
+
+        $cliente = [
+            'nome' => $paciente->nome,
+            // 'E' = Estrangeiro (tabela F/J/E do oList/Tiny). cpf_cnpj é opcional na API.
+            'tipo_pessoa' => $brasil ? 'F' : 'E',
+            'cpf_cnpj' => $cpf,
+            'email' => $paciente->email1 ?? '',
+            'fone' => preg_replace('/\D/', '', $paciente->telefone1 ?? $paciente->celular ?? ''),
+            'endereco' => $paciente->endereco ?? '',
+            'numero' => $paciente->numero ?? '',
+            'complemento' => $paciente->complemento ?? '',
+            'bairro' => $paciente->bairro ?? '',
+            'cidade' => $paciente->cidade ?? '',
+            'uf' => $paciente->uf ?? '',
+            'cep' => preg_replace('/\D/', '', $paciente->cep ?? ''),
+            'atualizar_cliente' => 'S',
+        ];
+
+        if (! $brasil && $paciente->pais) {
+            $cliente['pais'] = $paciente->pais;
+        }
 
         $dados = [
             'observacoes' => $this->buildObservacoes($receita),
@@ -78,21 +100,7 @@ class CriarPedidoTinyJob implements ShouldQueue
             'ecommerce' => 'ClinicaWeb',
             'data' => $receita->data_receita?->format('Y-m-d') ?? now()->format('Y-m-d'),
             'itens' => $itens,
-            'cliente' => [
-                'nome' => $paciente->nome,
-                'tipo_pessoa' => 'F',
-                'cpf_cnpj' => $cpf,
-                'email' => $paciente->email1 ?? '',
-                'fone' => preg_replace('/\D/', '', $paciente->telefone1 ?? $paciente->celular ?? ''),
-                'endereco' => $paciente->endereco ?? '',
-                'numero' => $paciente->numero ?? '',
-                'complemento' => $paciente->complemento ?? '',
-                'bairro' => $paciente->bairro ?? '',
-                'cidade' => $paciente->cidade ?? '',
-                'uf' => $paciente->uf ?? '',
-                'cep' => preg_replace('/\D/', '', $paciente->cep ?? ''),
-                'atualizar_cliente' => 'S',
-            ],
+            'cliente' => $cliente,
         ];
 
         if ($receita->valor_frete > 0) {

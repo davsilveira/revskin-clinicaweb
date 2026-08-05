@@ -5,6 +5,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import PatientDrawer from '@/Components/PatientDrawer';
+import { documentoPaciente } from '@/utils/documentoPaciente';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 import { sequenciaNumeroReceita } from '@/utils/receitaNumero';
 import PacientesIndexBackLink from '@/Components/PacientesIndexBackLink';
@@ -348,7 +349,7 @@ export default function ReceitasIndex({
                                                                 {receita.paciente?.nome}
                                                             </div>
                                                             <div className="text-sm text-gray-500">
-                                                                {receita.paciente?.cpf}
+                                                                {documentoPaciente(receita.paciente)}
                                                             </div>
                                                         </td>
                                                     )}
@@ -447,7 +448,7 @@ export default function ReceitasIndex({
                                                                         {receita.paciente?.nome || '—'}
                                                                     </div>
                                                                     <p className="text-sm text-gray-600 mt-1">
-                                                                        {receita.paciente?.cpf || '—'} ·{' '}
+                                                                        {documentoPaciente(receita.paciente) || '—'} ·{' '}
                                                                         {new Date(receita.data_receita).toLocaleDateString('pt-BR')}
                                                                     </p>
                                                                 </>

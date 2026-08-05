@@ -161,6 +161,7 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
         $stageId = Setting::get('rd_stage_id', '6929f60257dcba001d9b375b');
         $medicoFieldId = Setting::get('rd_medico_field_id', '69a955ea78fde3001f6f61dc');
         $receitaFieldId = Setting::get('rd_receita_field_id', '699efc3a13a467001cb81ea1');
+        $cortesiaFieldId = trim((string) Setting::get('rd_cortesia_field_id', '6a721f71257c0d0020d8178e'));
 
         $medicoNome = $receita->medico?->nome ?? 'Não informado';
         $receitaNumero = $receita->numero ?? 'REC-'.$receita->id;
@@ -170,6 +171,17 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
 
         $valorNegociacao = round(floatval($receita->valor_total ?? 0), 2);
 
+        $customFields = [
+            $medicoFieldKey => $medicoNome,
+            $receitaFieldKey => $receitaNumero,
+        ];
+
+        if ($cortesiaFieldId !== '') {
+            $cortesiaFieldKey = $client->resolverChaveCustomField($cortesiaFieldId);
+            // Marcado = "Sim"; desmarcado = vazio (conforme campo Cortesia no CRM).
+            $customFields[$cortesiaFieldKey] = $receita->cortesia ? 'Sim' : '';
+        }
+
         $dealData = [
             'name' => "Receita #{$receitaNumero} - {$paciente->nome}",
             'status' => 'ongoing',
@@ -178,10 +190,7 @@ class CriarNegociacaoRdStationJob implements ShouldQueue
             'organization_id' => $organizationId,
             'contact_ids' => [$contactId],
             'one_time_price' => $valorNegociacao,
-            'custom_fields' => [
-                $medicoFieldKey => $medicoNome,
-                $receitaFieldKey => $receitaNumero,
-            ],
+            'custom_fields' => $customFields,
         ];
 
         Log::debug('RD Station CRM: [Etapa 3/4] Criando negociação — payload completo', $dealData);

@@ -7,6 +7,8 @@ import DatePickerField from '@/Components/Form/DatePickerField';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import Select from '@/Components/Form/Select';
 import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
+import PacientesEncontrados from '@/Components/PacientesEncontrados';
+import usePacientesCandidatos from '@/hooks/usePacientesCandidatos';
 import { validateCPF } from '@/utils/validations';
 import useAutoSave from '@/hooks/useAutoSave';
 import useDrawerUnsavedChanges from '@/hooks/useDrawerUnsavedChanges';
@@ -21,6 +23,7 @@ const INITIAL_PACIENTE_FORM = {
     codigo: '',
     indicado_por: '',
     cpf: '',
+    outro_documento: '',
     data_nascimento: '',
     sexo: '',
     email1: '',
@@ -46,6 +49,32 @@ const NO_AUTOFILL = {
     'data-1p-ignore': 'true',
     'data-form-type': 'other',
 };
+
+/**
+ * Só bloqueia por conteúdo inválido — a obrigatoriedade é regra separada (ver `cpfObrigatorio`).
+ */
+function cpfPreenchidoInvalido(cpf) {
+    const digits = String(cpf || '').replace(/\D/g, '');
+    return digits.length > 0 && !validateCPF(cpf);
+}
+
+function cpfVazio(cpf) {
+    return String(cpf || '').replace(/\D/g, '').length === 0;
+}
+
+/**
+ * E-mail é opcional (decisão do cliente): campo em branco é um estado válido. Só um
+ * endereço mal formado é erro. O domínio NÃO pode ter underline — é o que trava hoje os
+ * cadastros importados com `@cadastrar_email.com`, e o backend rejeita.
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@_]+\.[^\s@_]+$/;
+
+function emailPreenchidoInvalido(email) {
+    const valor = String(email || '').trim();
+    return valor.length > 0 && !EMAIL_RE.test(valor);
+}
+
+const MSG_CPF_OBRIGATORIO = 'O CPF é obrigatório para pacientes no Brasil.';
 
 function normalizePatientData(d) {
     return {
@@ -98,6 +127,7 @@ export default function PatientDrawer({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
     const [cpfError, setCpfError] = useState(null);
+    const [cpfTouched, setCpfTouched] = useState(false);
     const [currentPacienteId, setCurrentPacienteId] = useState(paciente?.id || null);
     const isFirstRender = useRef(true);
     const [fieldErrors, setFieldErrors] = useState({});
@@ -106,7 +136,31 @@ export default function PatientDrawer({
     const guardBrowserAutofillRef = useRef(false);
     const autofillGuardTimerRef = useRef(null);
 
+    const [candidatosDispensados, setCandidatosDispensados] = useState(false);
+    /** Cadastro existente escolhido na busca por nome: manda no upsert do backend. */
+    const [pacienteExistente, setPacienteExistente] = useState(null);
+    /** Formulário como estava antes de escolher um cadastro (para o "x" do chip desfazer). */
+    const formAntesDoCandidatoRef = useRef(null);
+
     const { data, setData, post, put, processing, errors, reset } = useForm({ ...INITIAL_PACIENTE_FORM });
+
+    /**
+     * Busca por NOME — caminho principal contra cadastro duplicado (a busca por CPF nunca
+     * acharia os clientes vindos do oList sem CPF). Só em cadastro novo.
+     */
+    const buscaCandidatosHabilitada = Boolean(
+        isOpen && !paciente && !currentPacienteId && !candidatosDispensados && !pacienteExistente
+    );
+    const {
+        candidatos,
+        total: candidatosTotal,
+        buscando: buscandoCandidatos,
+        limpar: limparCandidatos,
+    } = usePacientesCandidatos({
+        termo: data.nome,
+        habilitado: buscaCandidatosHabilitada,
+        medicoId: data.medico_id || null,
+    });
 
     // Medico search states (for admin)
     const [searchMedico, setSearchMedico] = useState('');
@@ -160,6 +214,7 @@ export default function PatientDrawer({
                     codigo: paciente.codigo || '',
                     indicado_por: paciente.indicado_por || '',
                     cpf: paciente.cpf || '',
+                    outro_documento: paciente.outro_documento || '',
                     data_nascimento: paciente.data_nascimento ? paciente.data_nascimento.split('T')[0] : '',
                     sexo: paciente.sexo || '',
                     email1: paciente.email1 || '',
@@ -199,8 +254,13 @@ export default function PatientDrawer({
             }
             setShowDeleteConfirm(false);
             setCpfError(null);
+            setCpfTouched(false);
             setFieldErrors({});
             setSearchMedico('');
+            setCandidatosDispensados(false);
+            setPacienteExistente(null);
+            formAntesDoCandidatoRef.current = null;
+            setLookupNotice(null);
             isFirstRender.current = true;
         } else {
             setFormBaseline(null);
@@ -226,7 +286,10 @@ export default function PatientDrawer({
             clearTimeout(autofillGuardTimerRef.current);
             autofillGuardTimerRef.current = null;
         }
-        setData({
+        // Precisa ser merge: `setData` com objeto SUBSTITUI o form inteiro e derruba
+        // nome/CPF/telefones, deixando inputs sem valor e o drawer em loop de render.
+        setData((prev) => ({
+            ...prev,
             pais: 'Brasil',
             cep: '',
             endereco: '',
@@ -235,7 +298,7 @@ export default function PatientDrawer({
             bairro: '',
             cidade: '',
             uf: '',
-        });
+        }));
         setAutofillNotice(true);
     }, [isOpen, paciente, data.pais, setData]);
 
@@ -297,6 +360,17 @@ export default function PatientDrawer({
 
     const isBrazil = data.pais === 'Brasil';
 
+    /**
+     * CPF obrigatório no Brasil (feedback do cliente). Exceção: cadastro que JÁ está salvo
+     * sem CPF — pacientes legados e clientes importados do oList (1 em cada 4 vem sem CPF)
+     * não podem travar a edição nem o vínculo. Mesma regra do backend.
+     */
+    const cadastroExistenteSemCpf = Boolean(
+        (paciente && cpfVazio(paciente.cpf)) || (pacienteExistente && cpfVazio(pacienteExistente.cpf))
+    );
+    const cpfObrigatorio = isBrazil && !cadastroExistenteSemCpf;
+    const cpfFaltando = cpfObrigatorio && cpfVazio(data.cpf);
+
     const persistedPacienteId = currentPacienteId ?? paciente?.id ?? null;
     const medicoLocked = Boolean(persistedPacienteId && data.medico_id);
 
@@ -309,15 +383,14 @@ export default function PatientDrawer({
             return Promise.resolve(undefined);
         }
         if (!data.nome || data.nome.trim().length < 2) return Promise.resolve();
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
-            return Promise.resolve();
-        }
         if (!data.data_nascimento) return Promise.resolve();
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) {
             return Promise.resolve();
         }
-        if (!data.email1 || !data.email1.trim()) return Promise.resolve();
-        if (data.cpf && !validateCPF(data.cpf)) return Promise.resolve();
+        // E-mail é opcional; só um endereço mal digitado segura o rascunho (o backend
+        // devolveria 422 a cada 2 s enquanto o campo estivesse pela metade).
+        if (emailPreenchidoInvalido(data.email1)) return Promise.resolve();
+        if (cpfPreenchidoInvalido(data.cpf) || cpfFaltando) return Promise.resolve();
 
         return runExclusive(async () => {
             const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
@@ -381,21 +454,20 @@ export default function PatientDrawer({
 
             return result;
         });
-    }, [data, currentPacienteId, medicoRequired, showMedico, enableAutoSave, paciente, runExclusive, csrfForRequests]);
+    }, [data, currentPacienteId, medicoRequired, showMedico, enableAutoSave, paciente, runExclusive, csrfForRequests, cpfFaltando]);
 
     const canAutoSave = useCallback(() => {
         if (!enableAutoSave || !isOpen || !paciente) {
             return false;
         }
         if (!data.nome || data.nome.trim().length < 2) return false;
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
         if (!data.data_nascimento) return false;
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
-        if (!data.email1 || !data.email1.trim()) return false;
-        if (data.cpf && !validateCPF(data.cpf)) return false;
+        if (emailPreenchidoInvalido(data.email1)) return false;
+        if (cpfPreenchidoInvalido(data.cpf) || cpfFaltando) return false;
         if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico, paciente]);
+    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico, paciente, cpfFaltando]);
 
     const {
         lastSaved,
@@ -444,13 +516,13 @@ export default function PatientDrawer({
                     hasErrors = true;
                 }
 
-                if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) {
-                    setCpfError('CPF é obrigatório.');
-                    newErrors.cpf = 'CPF é obrigatório.';
-                    hasErrors = true;
-                } else if (!validateCPF(data.cpf)) {
+                if (cpfPreenchidoInvalido(data.cpf)) {
                     setCpfError('CPF inválido. Por favor, verifique os números digitados.');
                     newErrors.cpf = 'CPF inválido.';
+                    hasErrors = true;
+                } else if (cpfFaltando) {
+                    setCpfError(MSG_CPF_OBRIGATORIO);
+                    newErrors.cpf = MSG_CPF_OBRIGATORIO;
                     hasErrors = true;
                 }
 
@@ -464,10 +536,7 @@ export default function PatientDrawer({
                     hasErrors = true;
                 }
 
-                if (!data.email1 || !data.email1.trim()) {
-                    newErrors.email1 = 'E-mail é obrigatório.';
-                    hasErrors = true;
-                } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email1.trim())) {
+                if (emailPreenchidoInvalido(data.email1)) {
                     newErrors.email1 = 'Informe um e-mail válido.';
                     hasErrors = true;
                 }
@@ -508,6 +577,9 @@ export default function PatientDrawer({
                             _token: csrfForRequests,
                             ...data,
                             telefones: telefonesValidos,
+                            // Cadastro escolhido na busca por nome: o backend atualiza ESTE
+                            // paciente e cria o vínculo, em vez de adivinhar pela identidade.
+                            paciente_existente_id: id ? null : (pacienteExistente?.id ?? null),
                         }),
                     });
 
@@ -597,7 +669,7 @@ export default function PatientDrawer({
                 isManualPersistRef.current = false;
             }
         });
-    }, [data, paciente, medicoRequired, showMedico, onSave, cancelAutoSave, runExclusive, csrfForRequests]);
+    }, [data, paciente, medicoRequired, showMedico, onSave, cancelAutoSave, runExclusive, csrfForRequests, cpfFaltando, pacienteExistente]);
 
     const saveBeforeClose = useCallback(async () => persistPatient(), [persistPatient]);
 
@@ -610,24 +682,35 @@ export default function PatientDrawer({
     /** Erro de CPF em tempo real: assim que 11 dígitos forem digitados e o CPF for inválido,
      *  mostra a mensagem — deixa claro por que o botão Salvar fica desabilitado. */
     const cpfLiveError = useMemo(() => {
+        if (cpfVazio(data.cpf)) {
+            // Obrigatório e vazio: só reclama depois de passar pelo campo, senão o drawer
+            // abre já pintado de vermelho.
+            return cpfObrigatorio && cpfTouched ? MSG_CPF_OBRIGATORIO : null;
+        }
+        if (!cpfPreenchidoInvalido(data.cpf)) return null;
         const digits = (data.cpf || '').replace(/\D/g, '');
-        if (digits.length === 11 && !validateCPF(data.cpf)) {
+        // Enquanto digita, só reclama com 11 dígitos; incompleto só depois de sair do campo,
+        // senão o erro pisca a cada tecla.
+        if (digits.length === 11) {
             return 'CPF inválido. Por favor, verifique os números digitados.';
         }
-        return null;
-    }, [data.cpf]);
+        return cpfTouched
+            ? (cpfObrigatorio
+                ? 'CPF incompleto. Preencha os 11 dígitos.'
+                : 'CPF incompleto. Preencha os 11 dígitos ou deixe o campo em branco.')
+            : null;
+    }, [data.cpf, cpfTouched, cpfObrigatorio]);
 
     const isManualSaveValid = useMemo(() => {
         if (!isOpen) return false;
         if (!data.nome || data.nome.trim().length < 2) return false;
-        if (!data.cpf || data.cpf.replace(/\D/g, '').length === 0) return false;
-        if (!validateCPF(data.cpf)) return false;
+        if (cpfPreenchidoInvalido(data.cpf) || cpfFaltando) return false;
         if (!data.data_nascimento) return false;
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
-        if (!data.email1 || !data.email1.trim()) return false;
+        if (emailPreenchidoInvalido(data.email1)) return false;
         if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [isOpen, data, medicoRequired, showMedico]);
+    }, [isOpen, data, medicoRequired, showMedico, cpfFaltando]);
 
     const {
         requestClose,
@@ -650,17 +733,34 @@ export default function PatientDrawer({
     };
 
     /**
-     * Opção 2: ao informar um CPF já cadastrado (por qualquer médico), pré-preenche os
-     * DADOS COMPARTILHADOS do paciente. Os campos exclusivos deste médico ficam em
-     * branco (a serem preenchidos). Só roda em cadastro novo (sem paciente carregado).
+     * Opção 2: ao informar um identificador já cadastrado (por qualquer médico), pré-preenche
+     * os DADOS COMPARTILHADOS do paciente. Os campos exclusivos deste médico ficam em branco
+     * (a serem preenchidos). Só roda em cadastro novo (sem paciente carregado).
+     *
+     * `campo` diz por onde procurar: 'cpf' (11 dígitos), 'outro_documento' ou 'email'.
      */
-    const doCpfLookup = useCallback(async () => {
+    const doLookup = useCallback(async (campo, valor = null) => {
         if (paciente || currentPacienteIdRef.current) return; // só em cadastro novo
-        const digits = String(data.cpf || '').replace(/\D/g, '');
-        if (digits.length !== 11) return;
+
+        const params = new URLSearchParams();
+        if (campo === 'id') {
+            if (!valor) return;
+            params.set('id', String(valor));
+        } else if (campo === 'cpf') {
+            const digits = String(data.cpf || '').replace(/\D/g, '');
+            if (digits.length !== 11) return;
+            params.set('cpf', digits);
+        } else if (campo === 'outro_documento') {
+            const doc = String(data.outro_documento || '').trim();
+            if (doc.length < 3) return;
+            params.set('outro_documento', doc);
+        } else {
+            const email = String(data.email1 || '').trim();
+            if (!EMAIL_RE.test(email)) return;
+            params.set('email', email);
+        }
 
         try {
-            const params = new URLSearchParams({ cpf: digits });
             if (data.medico_id) params.set('medico_id', String(data.medico_id));
             const resp = await fetch(`/api/pacientes/lookup?${params.toString()}`, {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -674,6 +774,9 @@ export default function PatientDrawer({
             }
 
             const p = json.paciente;
+            // Dados vindos do lookup são intencionais: o guard anti-autofill não deve
+            // reverter para Brasil o país de um paciente estrangeiro já cadastrado.
+            guardBrowserAutofillRef.current = false;
             const shared = {
                 nome: p.nome || '', rg: p.rg || '', data_nascimento: p.data_nascimento || '',
                 sexo: p.sexo || '', fototipo: p.fototipo || '',
@@ -682,19 +785,76 @@ export default function PatientDrawer({
                 tipo_endereco: p.tipo_endereco || '', endereco: p.endereco || '', numero: p.numero || '',
                 complemento: p.complemento || '', bairro: p.bairro || '', cidade: p.cidade || '',
                 uf: p.uf || '', pais: p.pais || '', cep: p.cep || '',
+                cpf: p.cpf || '', outro_documento: p.outro_documento || '',
             };
-            setData((prev) => ({ ...prev, ...shared }));
+            // Match fraco (e-mail de família, por exemplo) apenas COMPLETA campos vazios:
+            // substituir o nome e a data de nascimento já digitados trocaria a pessoa sendo
+            // cadastrada — a mãe entraria no lugar da filha, sem o usuário perceber.
+            const substituir = json.match_forte !== false;
+            setData((prev) => {
+                const merged = { ...prev };
+                Object.entries(shared).forEach(([campo, valor]) => {
+                    if (!valor) return;
+                    if (substituir || !String(prev[campo] ?? '').trim()) {
+                        merged[campo] = valor;
+                    }
+                });
 
-            // Só avisa se já há vínculo com este médico; caso contrário só preenche os campos.
-            setLookupNotice(
-                json.ja_vinculado
-                    ? 'Este paciente já está cadastrado para este médico. Verifique antes de salvar novamente.'
-                    : null
-            );
+                return merged;
+            });
+
+            if (json.match_por === 'id') {
+                // Escolha explícita na busca por nome: o cadastro selecionado manda no upsert.
+                // Sem aviso em faixa — o chip abaixo do Nome já diz o que está acontecendo.
+                setPacienteExistente(p);
+                setLookupNotice(null);
+            } else if (json.ja_vinculado) {
+                setLookupNotice('Este paciente já está cadastrado para este médico. Verifique antes de salvar novamente.');
+            } else if (json.match_por === 'email') {
+                setLookupNotice(
+                    `Já existe um paciente com este e-mail (${p.nome}). Completamos apenas os campos que estavam `
+                    + 'em branco — o que você digitou foi mantido. Se for a mesma pessoa, procure-a pelo nome e use '
+                    + '"Usar este cadastro"; se for outra pessoa (e-mail de família), siga com o cadastro novo.'
+                );
+            } else if (json.match_por === 'outro_documento') {
+                setLookupNotice('Já existe um paciente com este documento — os dados compartilhados foram pré-preenchidos.');
+            } else {
+                setLookupNotice(null);
+            }
         } catch (_) {
             // silencioso: lookup é conveniência, não bloqueia o cadastro
         }
-    }, [paciente, data.cpf, data.medico_id, setData]);
+    }, [paciente, data.cpf, data.outro_documento, data.email1, data.medico_id, setData]);
+
+    /** "Usar este cadastro": carrega os dados compartilhados e fixa o alvo do upsert. */
+    const usarCandidato = useCallback((candidato) => {
+        limparCandidatos();
+        setCpfError(null);
+        setFieldErrors({});
+        // Guarda o que o usuário já tinha digitado: o "x" do chip desfaz a escolha em vez de
+        // simplesmente apagar tudo.
+        formAntesDoCandidatoRef.current = cloneDeep(data);
+        doLookup('id', candidato.id);
+    }, [doLookup, limparCandidatos, data]);
+
+    /** "Nenhum destes": segue com cadastro novo e para de avisar para este nome. */
+    const dispensarCandidatos = useCallback(() => {
+        setCandidatosDispensados(true);
+        limparCandidatos();
+    }, [limparCandidatos]);
+
+    /** "x" do chip: desfaz a escolha e devolve o formulário ao estado anterior. */
+    const trocarParaNovoCadastro = useCallback(() => {
+        const anterior = formAntesDoCandidatoRef.current;
+        formAntesDoCandidatoRef.current = null;
+        setPacienteExistente(null);
+        setCandidatosDispensados(false);
+        setLookupNotice(null);
+        setCpfError(null);
+        setCpfTouched(false);
+        setFieldErrors({});
+        setData(() => (anterior ?? { ...INITIAL_PACIENTE_FORM, medico_id: data.medico_id || '' }));
+    }, [setData, data.medico_id]);
 
     const handleDelete = () => {
         if (paciente) {
@@ -771,6 +931,12 @@ export default function PatientDrawer({
                             </button>
                         </div>
                     )}
+                    {/* Legenda do asterisco: sem ela o `*` só faz sentido para quem já
+                        conhece a convenção — e agora que o e-mail deixou de ser obrigatório
+                        a diferença entre os campos precisa ficar explícita. */}
+                    <p className="text-xs text-gray-500">
+                        Campos marcados com <span className="text-red-500">*</span> são obrigatórios.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <Input
@@ -779,30 +945,111 @@ export default function PatientDrawer({
                                 onChange={(e) => {
                                     setData('nome', e.target.value);
                                     setFieldErrors(prev => ({ ...prev, nome: null }));
+                                    setCandidatosDispensados(false);
                                 }}
                                 error={fieldErrors.nome || errors.nome}
                                 required
+                                loading={buscandoCandidatos}
                                 {...NO_AUTOFILL}
                                 name="revskin_paciente_nome"
                             />
+                            {/* Cadastro escolhido na lista: um chip discreto basta — o aviso em
+                                faixa duplicava a informação e empurrava o formulário para baixo. */}
+                            {pacienteExistente && (
+                                <div className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 py-1 pl-2.5 pr-1 text-xs text-emerald-900">
+                                    <span className="truncate">
+                                        Usando o cadastro <span className="font-medium">#{pacienteExistente.id}</span>
+                                        {' — '}será vinculado a você ao salvar
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={trocarParaNovoCadastro}
+                                        title="Remover o vínculo com este cadastro e voltar ao que você tinha digitado"
+                                        aria-label="Remover cadastro vinculado"
+                                        className="shrink-0 rounded-full p-0.5 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900"
+                                    >
+                                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                            {/* Busca por nome: avisa de cadastro existente ANTES de duplicar. */}
+                            {!paciente && !currentPacienteId && !pacienteExistente && (
+                                <PacientesEncontrados
+                                    candidatos={candidatos}
+                                    total={candidatosTotal}
+                                    nomeDigitado={String(data.nome || '').trim()}
+                                    onSelecionar={usarCandidato}
+                                    onIgnorar={dispensarCandidatos}
+                                />
+                            )}
                         </div>
-                        <MaskedInput
-                            label="CPF"
-                            mask="000.000.000-00"
-                            value={data.cpf}
-                            onChange={(e) => {
-                                setData('cpf', e.target.value);
-                                setCpfError(null);
-                                setFieldErrors((prev) => ({ ...prev, cpf: null }));
-                                if (lookupNotice) setLookupNotice(null);
-                            }}
-                            onBlur={doCpfLookup}
-                            error={cpfError || cpfLiveError || fieldErrors.cpf || errors.cpf}
-                            placeholder="000.000.000-00"
-                            required
-                            {...NO_AUTOFILL}
-                            name="revskin_paciente_cpf"
-                        />
+                        <div className="col-span-2">
+                            <Select
+                                label="País"
+                                value={data.pais}
+                                onChange={(e) => {
+                                    // Manual country change — stop treating as browser autofill.
+                                    guardBrowserAutofillRef.current = false;
+                                    setData('pais', e.target.value);
+                                }}
+                                onFocus={() => {
+                                    guardBrowserAutofillRef.current = false;
+                                }}
+                                onPointerDown={() => {
+                                    guardBrowserAutofillRef.current = false;
+                                }}
+                                options={countries}
+                                {...NO_AUTOFILL}
+                                name="revskin_paciente_pais"
+                            />
+                        </div>
+                        {isBrazil ? (
+                            <div>
+                                <MaskedInput
+                                    label="CPF"
+                                    mask="000.000.000-00"
+                                    value={data.cpf}
+                                    required={cpfObrigatorio}
+                                    onChange={(e) => {
+                                        setData('cpf', e.target.value);
+                                        setCpfError(null);
+                                        setFieldErrors((prev) => ({ ...prev, cpf: null }));
+                                        if (lookupNotice && !pacienteExistente) setLookupNotice(null);
+                                    }}
+                                    onBlur={() => {
+                                        setCpfTouched(true);
+                                        if (!pacienteExistente) doLookup('cpf');
+                                    }}
+                                    error={cpfError || cpfLiveError || fieldErrors.cpf || errors.cpf}
+                                    placeholder="000.000.000-00"
+                                    {...NO_AUTOFILL}
+                                    name="revskin_paciente_cpf"
+                                />
+                                {/* Cadastro antigo/importado sem CPF: pedimos, mas não travamos o salvamento. */}
+                                {cadastroExistenteSemCpf && cpfVazio(data.cpf) && (
+                                    <p className="mt-1 text-xs text-amber-700">
+                                        Este cadastro veio sem CPF. Preencha quando tiver — não é obrigatório para salvar.
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                            <Input
+                                label="Documento"
+                                value={data.outro_documento}
+                                onChange={(e) => {
+                                    setData('outro_documento', e.target.value);
+                                    setFieldErrors((prev) => ({ ...prev, outro_documento: null }));
+                                    if (lookupNotice && !pacienteExistente) setLookupNotice(null);
+                                }}
+                                onBlur={() => { if (!pacienteExistente) doLookup('outro_documento'); }}
+                                error={fieldErrors.outro_documento || errors.outro_documento}
+                                placeholder="Passaporte ou documento local"
+                                {...NO_AUTOFILL}
+                                name="revskin_paciente_outro_documento"
+                            />
+                        )}
                         <DatePickerField
                             label="Data de Nascimento"
                             value={data.data_nascimento}
@@ -833,34 +1080,37 @@ export default function PatientDrawer({
                                 onChange={(e) => {
                                     setData('email1', e.target.value);
                                     setFieldErrors(prev => ({ ...prev, email1: null }));
+                                    if (lookupNotice && !pacienteExistente) setLookupNotice(null);
                                 }}
+                                /** Rede de segurança extra: e-mail já cadastrado também avisa. */
+                                onBlur={() => { if (!pacienteExistente) doLookup('email'); }}
                                 error={fieldErrors.email1 || errors.email1}
-                                required
                                 {...NO_AUTOFILL}
                                 inputMode="email"
                                 name="revskin_paciente_email"
                             />
                         </div>
-                        <div className="col-span-2">
-                            <Select
-                                label="País"
-                                value={data.pais}
-                                onChange={(e) => {
-                                    // Manual country change — stop treating as browser autofill.
-                                    guardBrowserAutofillRef.current = false;
-                                    setData('pais', e.target.value);
-                                }}
-                                onFocus={() => {
-                                    guardBrowserAutofillRef.current = false;
-                                }}
-                                onPointerDown={() => {
-                                    guardBrowserAutofillRef.current = false;
-                                }}
-                                options={countries}
-                                {...NO_AUTOFILL}
-                                name="revskin_paciente_pais"
-                            />
-                        </div>
+                        {/* CPF de paciente estrangeiro que já tinha o campo preenchido: não esconder o dado.
+                            Continua montado se o usuário apagar o valor, senão o campo desaparece
+                            no meio da digitação e não há como corrigir. */}
+                        {!isBrazil && (data.cpf || paciente?.cpf || pacienteExistente?.cpf) ? (
+                            <div className="col-span-2 sm:col-span-1">
+                                <MaskedInput
+                                    label="CPF (opcional)"
+                                    mask="000.000.000-00"
+                                    value={data.cpf}
+                                    onChange={(e) => {
+                                        setData('cpf', e.target.value);
+                                        setCpfError(null);
+                                        setFieldErrors((prev) => ({ ...prev, cpf: null }));
+                                    }}
+                                    onBlur={() => setCpfTouched(true)}
+                                    error={cpfError || cpfLiveError || fieldErrors.cpf || errors.cpf}
+                                    {...NO_AUTOFILL}
+                                    name="revskin_paciente_cpf"
+                                />
+                            </div>
+                        ) : null}
                         {isBrazil ? (
                             <MaskedInput
                                 label="Celular"

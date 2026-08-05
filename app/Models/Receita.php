@@ -30,6 +30,7 @@ class Receita extends Model
         'valor_frete',
         'valor_total',
         'status',
+        'cortesia',
         'ativo',
         'tiny_pedido_id',
         'rd_deal_id',
@@ -45,6 +46,7 @@ class Receita extends Model
             'valor_caixa' => 'decimal:2',
             'valor_frete' => 'decimal:2',
             'valor_total' => 'decimal:2',
+            'cortesia' => 'boolean',
             'ativo' => 'boolean',
         ];
     }

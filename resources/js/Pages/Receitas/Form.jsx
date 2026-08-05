@@ -2,6 +2,10 @@ import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PatientDrawer from '@/Components/PatientDrawer';
+import PacientesEncontrados from '@/Components/PacientesEncontrados';
+import usePacientesCandidatos from '@/hooks/usePacientesCandidatos';
+import { vincularPacienteAoMedico } from '@/utils/vincularPaciente';
+import { documentoPaciente } from '@/utils/documentoPaciente';
 import Toast from '@/Components/Toast';
 import DatePickerField from '@/Components/Form/DatePickerField';
 import UnsavedChangesModal from '@/Components/UnsavedChangesModal';
@@ -10,6 +14,7 @@ import useAutoSave from '@/hooks/useAutoSave';
 import ReceitaFormItemRow from '@/Components/Receita/ReceitaFormItemRow';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
+import ClinicalToggleSwitch from '@/Components/AssistenteReceita/ClinicalToggleSwitch';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
@@ -191,6 +196,7 @@ function ReceitaFormInner({
         valor_caixa: receita?.valor_caixa || 0,
         valor_frete: receita?.valor_frete || 0,
         status: receita?.status || 'aberta',
+        cortesia: !!receita?.cortesia,
         itens: receita?.itens?.map(item => ({
             id: item.id,
             produto_id: item.produto_id,
@@ -674,6 +680,47 @@ function ReceitaFormInner({
         setSearchPaciente('');
         setShowPacienteDropdown(false);
         setNoResultsPaciente(false);
+    };
+
+    /**
+     * "Meus pacientes" (busca acima) não acha quem ainda não é meu — inclusive os clientes
+     * importados do oList. Esta busca varre o sistema todo pelo nome; escolher um cria o
+     * vínculo na hora, sem recadastrar.
+     */
+    const {
+        candidatos: candidatosGlobais,
+        total: totalCandidatosGlobais,
+        buscando: buscandoCandidatosGlobais,
+        limpar: limparCandidatosGlobais,
+    } = usePacientesCandidatos({
+        termo: searchPaciente,
+        habilitado: !selectedPaciente && !isReadOnly,
+        medicoId: data.medico_id || null,
+    });
+
+    /** Há cadastro do sistema listado como opção (fora os que já são meus e já apareceram acima). */
+    const temCandidatosGlobais = candidatosGlobais.some(
+        (c) => !c.ja_vinculado && !pacienteResults.some((p) => p.id === c.id)
+    );
+
+    const vinculandoRef = useRef(false);
+
+    const usarPacienteDoSistema = async (candidato) => {
+        if (vinculandoRef.current) return;
+        vinculandoRef.current = true;
+        try {
+            const { paciente: vinculado, erro } = await vincularPacienteAoMedico(candidato.id, {
+                medicoId: data.medico_id || null,
+            });
+            if (vinculado) {
+                limparCandidatosGlobais();
+                selectPaciente(vinculado);
+            } else {
+                setToast({ message: erro, type: 'error' });
+            }
+        } finally {
+            vinculandoRef.current = false;
+        }
     };
 
     useEffect(() => {
@@ -1503,7 +1550,9 @@ function ReceitaFormInner({
                                 <div className="flex flex-col gap-1 min-w-0 w-full lg:w-auto lg:flex-row lg:items-center lg:gap-2">
                                     <span className="text-gray-500 flex-shrink-0">Paciente:</span>
                                     <span className="text-lg font-semibold text-gray-900 break-words">{selectedPaciente.nome}</span>
-                                    <span className="text-gray-400">({selectedPaciente.cpf})</span>
+                                    {documentoPaciente(selectedPaciente) ? (
+                                        <span className="text-gray-400">({documentoPaciente(selectedPaciente)})</span>
+                                    ) : null}
                                 </div>
                                 <div className="flex flex-col gap-1 min-w-0 w-full sm:flex-row sm:items-center sm:gap-2 lg:w-auto sm:max-w-[11rem]">
                                     <span className="text-gray-500 flex-shrink-0">Data:</span>
@@ -1541,6 +1590,17 @@ function ReceitaFormInner({
                                                 ) || '-'}
                                             </span>
                                         )}
+                                    </div>
+                                )}
+                                {receitaFormIsAdmin && (
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <ClinicalToggleSwitch
+                                            checked={!!data.cortesia}
+                                            onChange={(checked) => setData('cortesia', checked)}
+                                            disabled={isReadOnly}
+                                            aria-label="Cortesia"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">Cortesia</span>
                                     </div>
                                 )}
                                 <div className={`inline-flex items-center shrink-0 px-2 py-0.5 rounded text-xs font-medium leading-tight ${
@@ -1610,7 +1670,7 @@ function ReceitaFormInner({
                                             <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 gap-2">
                                                 <div className="min-w-0">
                                                     <span className="font-medium text-gray-900">{selectedPaciente.nome}</span>
-                                                    <span className="text-sm text-gray-500 ml-2">{selectedPaciente.cpf}</span>
+                                                    <span className="text-sm text-gray-500 ml-2">{documentoPaciente(selectedPaciente)}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     {!isReadOnly && (
@@ -1643,9 +1703,10 @@ function ReceitaFormInner({
                                                     placeholder="Digite o nome ou CPF do paciente..."
                                                     value={searchPaciente}
                                                     onChange={(e) => setSearchPaciente(e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                                 />
-                                                {loadingPacientes && (
+                                                {/* Gira também durante a busca no sistema todo, senão some antes do resultado. */}
+                                                {(loadingPacientes || buscandoCandidatosGlobais) && (
                                                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
                                                         <svg className="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24">
                                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -1660,17 +1721,43 @@ function ReceitaFormInner({
                                                         <button key={paciente.id} type="button" onClick={() => selectPaciente(paciente)}
                                                             className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0">
                                                             <span className="font-medium text-gray-900">{paciente.nome}</span>
-                                                            <span className="text-sm text-gray-500 ml-2">{paciente.cpf}</span>
+                                                            <span className="text-sm text-gray-500 ml-2">{documentoPaciente(paciente)}</span>
+                                                            {/* Diferencia homônimos sem precisar abrir o cadastro */}
+                                                            <span className="block text-xs text-gray-500">
+                                                                {[
+                                                                    paciente.data_nascimento
+                                                                        ? `Nasc. ${String(paciente.data_nascimento).split('T')[0].split('-').reverse().join('/')}`
+                                                                        : null,
+                                                                    paciente.celular,
+                                                                    paciente.email1,
+                                                                ].filter(Boolean).join(' · ')}
+                                                            </span>
                                                         </button>
                                                     ))}
                                                 </div>
+                                            )}
+
+                                            {/* Existe no sistema (outro médico ou vindo do oList) mas ainda não é meu paciente */}
+                                            {!isReadOnly && (
+                                                <PacientesEncontrados
+                                                    candidatos={candidatosGlobais}
+                                                    total={totalCandidatosGlobais}
+                                                    ocultarIds={pacienteResults.map((p) => p.id)}
+                                                    ocultarVinculados
+                                                    titulo="Já cadastrados no sistema, ainda não são seus pacientes"
+                                                    rotuloAcao="Selecionar"
+                                                    onSelecionar={usarPacienteDoSistema}
+                                                />
                                             )}
 
                                             {/* Não encontrou o paciente → cadastrar (mesmo recurso do passo 1 do Assistente) */}
                                             {noResultsPaciente && !loadingPacientes && !isReadOnly && (
                                                 <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                                     <div>
-                                                        <p className="text-sm text-amber-800 font-medium">Nenhum paciente encontrado</p>
+                                                        {/* Com candidatos listados acima, "nenhum encontrado" se contradiz. */}
+                                                        <p className="text-sm text-amber-800 font-medium">
+                                                            {temCandidatosGlobais ? 'Não é nenhum dos acima?' : 'Nenhum paciente encontrado'}
+                                                        </p>
                                                         <p className="text-sm text-amber-700">Deseja cadastrar um novo paciente?</p>
                                                     </div>
                                                     <button
@@ -1689,6 +1776,18 @@ function ReceitaFormInner({
                                     )}
                                     {errors.paciente_id && <p className="mt-1 text-sm text-red-600">{errors.paciente_id}</p>}
                                 </div>
+
+                                {receitaFormIsAdmin && (
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <ClinicalToggleSwitch
+                                            checked={!!data.cortesia}
+                                            onChange={(checked) => setData('cortesia', checked)}
+                                            disabled={isReadOnly}
+                                            aria-label="Cortesia"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">Cortesia</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

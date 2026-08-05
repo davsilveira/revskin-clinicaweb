@@ -95,6 +95,8 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
 
         foreach ($this->dados['pacientes'] as $pacienteData) {
             $cpf = $this->formatarCpf($pacienteData['paciente']['cpf'] ?? null);
+            $documento = trim((string) ($pacienteData['paciente']['documento'] ?? ''));
+            $documentoLabel = (string) ($pacienteData['paciente']['documento_label'] ?? 'Documento');
             $tel = $this->formatarTelefone($pacienteData['paciente']['telefone'] ?? null);
             $medicoNome = $this->isAdmin ? ($pacienteData['paciente']['medico_nome'] ?? '') : '';
 
@@ -104,6 +106,8 @@ class AquisicaoProdutosExport implements FromArray, ShouldAutoSize, WithCustomSt
             }
             if ($cpf) {
                 $pacienteRow[] = 'CPF: '.$cpf;
+            } elseif ($documento !== '') {
+                $pacienteRow[] = $documentoLabel.': '.$documento;
             }
             if ($medicoNome) {
                 $pacienteRow[] = $medicoNome;

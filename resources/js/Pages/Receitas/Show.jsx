@@ -7,6 +7,7 @@ import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light-border.css';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 import { tituloReceitaComSequencia } from '@/utils/receitaNumero';
+import { documentoPaciente, documentoPacienteLabel } from '@/utils/documentoPaciente';
 
 const tippyCopiarProps = {
     appendTo: () => document.body,
@@ -317,9 +318,10 @@ const formatDate = (dateString) => {
                             </div>
                             <div className="space-y-2">
                                 <p className="font-semibold text-gray-900">{receita.paciente?.nome}</p>
-                                {receita.paciente?.cpf && (
+                                {documentoPaciente(receita.paciente) && (
                                     <p className="text-sm text-gray-600">
-                                        <span className="text-gray-500">CPF:</span> {receita.paciente.cpf}
+                                        <span className="text-gray-500">{documentoPacienteLabel(receita.paciente)}:</span>{' '}
+                                        {documentoPaciente(receita.paciente)}
                                     </p>
                                 )}
                                 {receita.paciente?.telefone1 && (

@@ -153,6 +153,12 @@
                     $cpfFormatado = $pacienteData['paciente']['cpf'];
                 }
             }
+            // Sem CPF (paciente estrangeiro, p.ex.) cai no documento livre — nunca rotular passaporte como CPF.
+            $documentoLinha = $cpfFormatado !== ''
+                ? 'CPF: '.$cpfFormatado
+                : (trim((string) ($pacienteData['paciente']['documento'] ?? '')) !== ''
+                    ? ($pacienteData['paciente']['documento_label'] ?? 'Documento').': '.$pacienteData['paciente']['documento']
+                    : '');
             $telRaw = preg_replace('/\D/', '', (string) ($pacienteData['paciente']['telefone'] ?? ''));
             $telefoneFmt = '';
             if (strlen($telRaw) === 11) {
@@ -170,8 +176,8 @@
                 @if($telefoneFmt !== '')
                     <span class="telefone">{{ $telefoneFmt }}</span>
                 @endif
-                @if($cpfFormatado)
-                    <span class="cpf">CPF: {{ $cpfFormatado }}</span>
+                @if($documentoLinha !== '')
+                    <span class="cpf">{{ $documentoLinha }}</span>
                 @endif
                 @if(!empty($isAdmin) && !empty($pacienteData['paciente']['medico_nome']))
                     <span class="medico">{{ $pacienteData['paciente']['medico_nome'] }}</span>

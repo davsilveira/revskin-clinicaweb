@@ -1,13 +1,20 @@
 import { router } from '@inertiajs/react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import ReceitasIndexBackLink from '@/Components/ReceitasIndexBackLink';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import { validateCPF } from '@/utils/validations';
+import { documentoPaciente } from '@/utils/documentoPaciente';
+import countries from '@/utils/countries';
 import debounce from 'lodash/debounce';
 import ClinicalToggleSwitch from '@/Components/AssistenteReceita/ClinicalToggleSwitch';
 import DatePickerField from '@/Components/Form/DatePickerField';
+import PacientesEncontrados from '@/Components/PacientesEncontrados';
+import usePacientesCandidatos from '@/hooks/usePacientesCandidatos';
+import { vincularPacienteAoMedico } from '@/utils/vincularPaciente';
+
+const MSG_CPF_OBRIGATORIO = 'O CPF é obrigatório para pacientes no Brasil.';
 
 export default function AssistenteReceitaIndex({ 
     tipoPeleOptions, 
@@ -45,7 +52,9 @@ export default function AssistenteReceitaIndex({
     // New patient form
     const [novoPaciente, setNovoPaciente] = useState({
         nome: '',
+        pais: 'Brasil',
         cpf: '',
+        outro_documento: '',
         data_nascimento: '',
         sexo: '',
         email1: '',
@@ -58,7 +67,6 @@ export default function AssistenteReceitaIndex({
         bairro: '',
         cidade: '',
         uf: '',
-        pais: 'Brasil',
     });
     
     // Médico: use patient's linked medico if available, otherwise user's own medico_id.
@@ -138,6 +146,51 @@ export default function AssistenteReceitaIndex({
         setShowCreateForm(false);
     };
 
+    /**
+     * A busca acima só devolve "meus pacientes" — não acha quem existe no sistema mas ainda
+     * não é meu, caso de todos os clientes importados do oList. Esta busca é por nome em toda
+     * a base; escolher um cria o vínculo na hora, sem recadastrar.
+     */
+    const {
+        candidatos: candidatosGlobais,
+        total: totalCandidatosGlobais,
+        buscando: buscandoCandidatosGlobais,
+        limpar: limparCandidatosGlobais,
+    } = usePacientesCandidatos({
+        termo: showCreateForm ? novoPaciente.nome : searchPaciente,
+        habilitado: !selectedPaciente,
+        medicoId: selectedMedicoId,
+    });
+
+    /** Há cadastro do sistema listado como opção (fora os que já são meus e já apareceram acima). */
+    const temCandidatosGlobais = candidatosGlobais.some(
+        (c) => !c.ja_vinculado && !pacienteResults.some((p) => p.id === c.id)
+    );
+
+    const vinculandoRef = useRef(false);
+
+    const usarPacienteDoSistema = async (candidato) => {
+        if (vinculandoRef.current) return;
+        vinculandoRef.current = true;
+        try {
+            const { paciente: vinculado, erro } = await vincularPacienteAoMedico(candidato.id, {
+                medicoId: selectedMedicoId,
+            });
+            if (vinculado) {
+                limparCandidatosGlobais();
+                setShowCreateForm(false);
+                setCreateError('');
+                setFieldErrors({});
+                selectPaciente(vinculado);
+            } else {
+                setCreateError(erro);
+                setError(erro);
+            }
+        } finally {
+            vinculandoRef.current = false;
+        }
+    };
+
     const openCreateForm = () => {
         setShowCreateForm(true);
         const trimmed = searchPaciente.trim();
@@ -158,6 +211,9 @@ export default function AssistenteReceitaIndex({
         setShowPacienteDropdown(false);
         setNoResults(false);
     };
+
+    /** País vazio conta como Brasil (default do cadastro). */
+    const novoPacienteBrasil = !novoPaciente.pais || novoPaciente.pais === 'Brasil';
 
     const updateNovoPaciente = (field, value) => {
         setNovoPaciente(prev => ({ ...prev, [field]: value }));
@@ -206,14 +262,23 @@ export default function AssistenteReceitaIndex({
             errors.celular = 'O celular é obrigatório';
         }
         
-        // CPF - validar apenas se preenchido
+        // CPF: obrigatório no Brasil; fora do Brasil o documento é opcional.
         const cpfLimpo = novoPaciente.cpf?.replace(/\D/g, '');
         if (cpfLimpo && cpfLimpo.length > 0) {
             if (cpfLimpo.length !== 11 || !validateCPF(novoPaciente.cpf)) {
                 errors.cpf = 'CPF inválido';
             }
+        } else if (novoPacienteBrasil) {
+            errors.cpf = MSG_CPF_OBRIGATORIO;
         }
-        
+
+        // E-mail é opcional (decisão do cliente): em branco é válido. Só um endereço mal
+        // formado é erro — inclusive underline no domínio, que o backend rejeita.
+        const email = novoPaciente.email1?.trim();
+        if (email && !/^[^\s@]+@[^\s@_]+\.[^\s@_]+$/.test(email)) {
+            errors.email1 = 'Informe um e-mail válido';
+        }
+
         setFieldErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -259,8 +324,8 @@ export default function AssistenteReceitaIndex({
                 setSelectedPaciente(data.paciente);
                 setShowCreateForm(false);
                 setNovoPaciente({
-                    nome: '', cpf: '', data_nascimento: '', sexo: '', email1: '',
-                    telefone1: '', celular: '', cep: '', endereco: '', numero: '',
+                    nome: '', cpf: '', outro_documento: '', data_nascimento: '', sexo: '',
+                    email1: '', telefone1: '', celular: '', cep: '', endereco: '', numero: '',
                     complemento: '', bairro: '', cidade: '', uf: '', pais: 'Brasil',
                 });
                 setFieldErrors({});
@@ -404,8 +469,8 @@ export default function AssistenteReceitaIndex({
                                             <div className="text-xl font-semibold text-gray-900 leading-tight break-words">
                                                 {selectedPaciente.nome}
                                             </div>
-                                            {selectedPaciente.cpf ? (
-                                                <div className="text-sm text-gray-600 mt-1 tabular-nums">{selectedPaciente.cpf}</div>
+                                            {documentoPaciente(selectedPaciente) ? (
+                                                <div className="text-sm text-gray-600 mt-1 tabular-nums">{documentoPaciente(selectedPaciente)}</div>
                                             ) : null}
                                         </div>
                                         {!lockPatientClear && (
@@ -480,38 +545,87 @@ export default function AssistenteReceitaIndex({
                                     </div>
                                 )}
 
+                                {/* Mesma legenda do drawer de paciente: o `*` só comunica se
+                                    estiver explicado em algum lugar antes dos campos. */}
+                                <p className="mb-3 text-xs text-gray-500">
+                                    Campos marcados com <span className="text-red-500">*</span> são obrigatórios.
+                                </p>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                             Nome Completo <span className="text-red-500">*</span>
                                         </label>
-                                        <input
-                                            type="text"
-                                            value={novoPaciente.nome}
-                                            onChange={(e) => {
-                                                updateNovoPaciente('nome', e.target.value);
-                                                setFieldErrors(prev => ({ ...prev, nome: null }));
-                                            }}
-                                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
-                                                fieldErrors.nome ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                                            }`}
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={novoPaciente.nome}
+                                                onChange={(e) => {
+                                                    updateNovoPaciente('nome', e.target.value);
+                                                    setFieldErrors(prev => ({ ...prev, nome: null }));
+                                                }}
+                                                className={`w-full px-3 py-2 pr-9 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                    fieldErrors.nome ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                                }`}
+                                            />
+                                            {buscandoCandidatosGlobais && (
+                                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden="true">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                    </svg>
+                                                </span>
+                                            )}
+                                        </div>
                                         {fieldErrors.nome && (
                                             <p className="mt-1 text-sm text-red-600">{fieldErrors.nome}</p>
                                         )}
+                                        {/* Avisa de cadastro já existente ANTES de duplicar */}
+                                        <PacientesEncontrados
+                                            candidatos={candidatosGlobais}
+                                            total={totalCandidatosGlobais}
+                                            nomeDigitado={String(novoPaciente.nome || '').trim()}
+                                            onSelecionar={usarPacienteDoSistema}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
+                                        <select
+                                            value={novoPaciente.pais}
+                                            onChange={(e) => updateNovoPaciente('pais', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        >
+                                            {countries.map((c) => (
+                                                <option key={c.value} value={c.value}>{c.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div>
-                                        <MaskedInput
-                                            label="CPF"
-                                            mask="000.000.000-00"
-                                            value={novoPaciente.cpf}
-                                            onAccept={(value) => {
-                                                updateNovoPaciente('cpf', value);
-                                                setFieldErrors(prev => ({ ...prev, cpf: null }));
-                                            }}
-                                            placeholder="000.000.000-00"
-                                            error={fieldErrors.cpf}
-                                        />
+                                        {novoPacienteBrasil ? (
+                                            <MaskedInput
+                                                label="CPF"
+                                                mask="000.000.000-00"
+                                                value={novoPaciente.cpf}
+                                                required
+                                                onAccept={(value) => {
+                                                    updateNovoPaciente('cpf', value);
+                                                    setFieldErrors(prev => ({ ...prev, cpf: null }));
+                                                }}
+                                                placeholder="000.000.000-00"
+                                                error={fieldErrors.cpf}
+                                            />
+                                        ) : (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Documento</label>
+                                                <input
+                                                    type="text"
+                                                    value={novoPaciente.outro_documento}
+                                                    onChange={(e) => updateNovoPaciente('outro_documento', e.target.value)}
+                                                    placeholder="Passaporte ou documento local"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <DatePickerField
@@ -539,13 +653,23 @@ export default function AssistenteReceitaIndex({
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            E-mail
+                                        </label>
                                         <input
                                             type="email"
                                             value={novoPaciente.email1}
-                                            onChange={(e) => updateNovoPaciente('email1', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            onChange={(e) => {
+                                                updateNovoPaciente('email1', e.target.value);
+                                                setFieldErrors(prev => ({ ...prev, email1: null }));
+                                            }}
+                                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                fieldErrors.email1 ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                            }`}
                                         />
+                                        {fieldErrors.email1 && (
+                                            <p className="mt-1 text-sm text-red-600">{fieldErrors.email1}</p>
+                                        )}
                                     </div>
                                     <div>
                                         <MaskedInput
@@ -634,17 +758,28 @@ export default function AssistenteReceitaIndex({
                                                 />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">UF</label>
-                                                <select
-                                                    value={novoPaciente.uf}
-                                                    onChange={(e) => updateNovoPaciente('uf', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                                >
-                                                    <option value="">UF</option>
-                                                    {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
-                                                        <option key={uf} value={uf}>{uf}</option>
-                                                    ))}
-                                                </select>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    {novoPacienteBrasil ? 'UF' : 'Estado/Província'}
+                                                </label>
+                                                {novoPacienteBrasil ? (
+                                                    <select
+                                                        value={novoPaciente.uf}
+                                                        onChange={(e) => updateNovoPaciente('uf', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    >
+                                                        <option value="">UF</option>
+                                                        {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
+                                                            <option key={uf} value={uf}>{uf}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        value={novoPaciente.uf}
+                                                        onChange={(e) => updateNovoPaciente('uf', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    />
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -690,9 +825,10 @@ export default function AssistenteReceitaIndex({
                                         placeholder="Digite o nome ou CPF do paciente..."
                                         value={searchPaciente}
                                         onChange={(e) => setSearchPaciente(e.target.value)}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
-                                    {loadingPacientes && (
+                                    {/* Gira também durante a busca no sistema todo, senão some antes do resultado. */}
+                                    {(loadingPacientes || buscandoCandidatosGlobais) && (
                                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                                             <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -711,18 +847,40 @@ export default function AssistenteReceitaIndex({
                                                 className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                                             >
                                                 <div className="font-medium text-gray-900">{paciente.nome}</div>
-                                                <div className="text-sm text-gray-500">{paciente.cpf}</div>
+                                                <div className="text-sm text-gray-500">
+                                                    {[
+                                                        documentoPaciente(paciente),
+                                                        paciente.data_nascimento
+                                                            ? String(paciente.data_nascimento).split('T')[0].split('-').reverse().join('/')
+                                                            : null,
+                                                        paciente.celular,
+                                                    ].filter(Boolean).join(' · ')}
+                                                </div>
                                             </button>
                                         ))}
                                     </div>
                                 )}
-                                
+
+                                {/* Existe no sistema (outro médico ou vindo do oList), mas ainda não é meu */}
+                                <PacientesEncontrados
+                                    candidatos={candidatosGlobais}
+                                    total={totalCandidatosGlobais}
+                                    ocultarIds={pacienteResults.map((p) => p.id)}
+                                    ocultarVinculados
+                                    titulo="Já cadastrados no sistema, ainda não são seus pacientes"
+                                    rotuloAcao="Selecionar"
+                                    onSelecionar={usarPacienteDoSistema}
+                                />
+
                                 {/* Opção de incluir paciente quando não encontrado */}
                                 {noResults && !loadingPacientes && (
                                     <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-sm text-amber-800 font-medium">Nenhum paciente encontrado</p>
+                                                {/* Com candidatos listados acima, "nenhum encontrado" se contradiz. */}
+                                                <p className="text-sm text-amber-800 font-medium">
+                                                    {temCandidatosGlobais ? 'Não é nenhum dos acima?' : 'Nenhum paciente encontrado'}
+                                                </p>
                                                 <p className="text-sm text-amber-700">Deseja cadastrar um novo paciente?</p>
                                             </div>
                                             <button

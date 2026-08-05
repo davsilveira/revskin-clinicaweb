@@ -163,14 +163,16 @@ class ManualContent
                     'title' => 'Cadastro e edição',
                     'paragraphs' => [
                         'O formulário reúne dados pessoais, contato e vínculo com o médico. Campos obrigatórios são validados antes de salvar.',
-                        'Comece pelo CPF: ao informar um CPF já cadastrado no sistema (por você ou por outro médico), os dados compartilhados do paciente — nome, contato e endereço — são preenchidos automaticamente. Assim você evita cadastros duplicados e só confirma para criar o seu vínculo com esse paciente. Veja {{link:#pacientes-paciente-multi-medico|Um paciente, vários médicos}}.',
+                        'Comece pelo País: para o Brasil o campo seguinte é o CPF, obrigatório em cadastro novo; para qualquer outro país ele vira Documento, um campo livre e opcional onde você informa passaporte ou documento local. Cadastros antigos ou importados do oList que estão sem CPF continuam podendo ser salvos — o sistema pede o CPF, mas não bloqueia.',
+                        'Assim que você digita o Nome, o sistema procura pacientes já cadastrados com esse nome em todo o sistema (seus, de outros médicos e os que vieram do oList) e mostra celular, e-mail, data de nascimento e CPF de cada um, para você distinguir homônimos. Se for a mesma pessoa, clique em Usar este cadastro: o paciente passa a ser seu sem criar um cadastro repetido. Se for outra pessoa com o mesmo nome, use "Nenhum destes" e siga com o cadastro novo.',
+                        'O CPF, o documento e o e-mail continuam servindo de rede de segurança: informar um valor já cadastrado também preenche os dados compartilhados automaticamente. Veja {{link:#pacientes-paciente-multi-medico|Um paciente, vários médicos}}.',
                         'Ao informar o CEP e sair do campo, o sistema consulta a base e preenche logradouro, bairro, cidade e UF quando o retorno for válido.',
                     ],
                     'bullets' => [
                         'No painel de cadastro, o autosave grava várias alterações automaticamente enquanto você edita, sem precisar clicar em salvar a cada campo.',
                     ],
                     'images' => [
-                        ['src' => '/img/manual/paciente-cadastro.png', 'alt' => 'Painel de cadastro de paciente', 'caption' => 'Painel Novo Paciente: o CPF fica no topo e comanda o preenchimento automático dos dados.'],
+                        ['src' => '/img/manual/paciente-cadastro.png', 'alt' => 'Painel de cadastro de paciente', 'caption' => 'Painel Novo Paciente: o País fica no topo e define se o campo seguinte é CPF ou Documento.'],
                     ],
                 ],
                 [
@@ -178,7 +180,7 @@ class ManualContent
                     'level' => 2,
                     'title' => 'Um paciente, vários médicos',
                     'paragraphs' => [
-                        'Cada paciente é único no sistema e é identificado pelo CPF. Um mesmo paciente pode estar vinculado a mais de um médico: se outro profissional já o cadastrou, você não cria um registro duplicado — ao informar o CPF, o sistema reaproveita o cadastro existente e cria apenas o seu vínculo com ele.',
+                        'Cada paciente é único no sistema. A identificação usa o CPF quando ele existe; sem CPF (paciente estrangeiro, por exemplo), o sistema usa e-mail + data de nascimento — e a busca por nome no cadastro permite escolher o cadastro certo à mão. Um mesmo paciente pode estar vinculado a mais de um médico: se outro profissional já o cadastrou, você não cria um registro duplicado — o sistema reaproveita o cadastro existente e cria apenas o seu vínculo com ele.',
                         'Alguns dados são compartilhados por todos os médicos (nome, contato, endereço); outros são privados de cada vínculo. Indicado por, Nº Registro e Observações pertencem só ao médico que os preencheu e não ficam visíveis para os demais.',
                     ],
                     'bullets' => [
@@ -734,7 +736,8 @@ class ManualContent
                     ],
                     'bullets' => [
                         'Produtos: na área Produtos, use Sincronizar produtos para trazer itens do Tiny (em geral os com a tag clinicaweb, conforme a configuração). Campos editáveis, importação em massa e o que uma nova sincronização preserva ou atualiza estão no {{link:#mod-produtos|módulo Produtos deste manual}}.',
-                        'Pacientes: em rotina automática (uma vez ao dia), o sistema busca contatos no Tiny e alinha com pacientes no ClinicaWeb, gravando o vínculo com o ERP. Contatos sem CPF válido com 11 dígitos costumam ser ignorados nessa carga.',
+                        'Pacientes: em rotina automática, o sistema busca no oList/Tiny os contatos alterados e alinha com os pacientes do ClinicaWeb, gravando o vínculo com o ERP. Cliente do oList que ainda não existe aqui é criado como paciente — inclusive sem CPF, situação comum no ERP. Antes de criar, o sistema tenta reconhecer quem já está cadastrado por CPF, e-mail, celular ou data de nascimento (sempre com nome compatível), para não duplicar.',
+                        'Esse paciente trazido do oList entra sem vínculo com médico: ele não aparece na sua lista de pacientes, mas aparece na busca por nome do cadastro e da receita. Ao selecioná-lo, o vínculo com você é criado na hora — sem recadastrar.',
                         'Receitas: ao usar Finalizar em uma receita com o Tiny ativo, os dados são enviados ao ERP: o cliente é criado ou atualizado no Tiny conforme o paciente, e é gerado um pedido de venda em aberto com os itens da receita e referência ao número da receita.',
                         'Retorno do pedido (webhook): quando o pedido no Tiny avança para situações como finalizado ou enviado, o ClinicaWeb recebe o aviso, localiza a receita ligada ao pedido e atualiza a tela: os itens efetivamente comercializados aparecem marcados em verde e registra-se a data de aquisição daquele produto para aquele paciente. Situações de cancelamento também são tratadas automaticamente.',
                     ],
@@ -746,8 +749,8 @@ class ManualContent
                     'paragraphs' => [
                         'A aba RD Station concentra credenciais da API (Client ID e Client Secret), o interruptor de integração e os identificadores que o CRM exige para criar negócios automaticamente.',
                         'Depois de salvar Client ID e Secret, use Autorizar aplicativo para concluir o OAuth: o RD Station redireciona de volta ao ClinicaWeb e os tokens ficam armazenados. O botão Testar conexão confirma se a API responde com o token atual.',
-                        'Com a integração ativada, ao Finalizar uma receita que ainda não tinha atendimento vinculado, o sistema enfileira a criação no CRM: organização e contato a partir do paciente (reaproveitando IDs já salvos quando existirem), depois uma negociação (deal) na etapa configurada, com campos customizados para médico e receita e linha de produto padrão.',
-                        'Na mesma aba você informa o Owner (obrigatório para o job rodar), o Stage da negociação, os IDs dos campos customizados de médico e receita e o produto padrão da linha do negócio — todos devem existir no seu pipeline RD Station.',
+                        'Com a integração ativada, ao Finalizar uma receita que ainda não tinha atendimento vinculado, o sistema enfileira a criação no CRM: organização e contato a partir do paciente (reaproveitando IDs já salvos quando existirem), depois uma negociação (deal) na etapa configurada, com campos customizados para médico, receita e cortesia e linha de produto padrão.',
+                        'Na mesma aba você informa o Owner (obrigatório para o job rodar), o Stage da negociação, os IDs dos campos customizados de médico, receita e cortesia e o produto padrão da linha do negócio — todos devem existir no seu pipeline RD Station. Administradores marcam Cortesia no topo da receita; o CRM recebe "Sim" ou vazio conforme o interruptor.',
                     ],
                     'bullets' => [
                         'Sem Owner configurado, a criação da negociação falha: preencha antes de produção.',

@@ -21,6 +21,7 @@ class Paciente extends Model
         'sexo',
         'fototipo',
         'cpf',
+        'outro_documento',
         'rg',
         'telefone1',
         'celular',
@@ -175,6 +176,33 @@ class Paciente extends Model
             return null;
         }
         return $this->data_nascimento->age;
+    }
+
+    /**
+     * País vazio conta como Brasil (default histórico da coluna).
+     */
+    public function isBrasil(): bool
+    {
+        $pais = trim((string) $this->pais);
+
+        return $pais === '' || mb_strtolower($pais) === 'brasil';
+    }
+
+    /**
+     * Documento de identificação a exibir: CPF quando houver, senão o documento livre
+     * (passaporte/ID do estrangeiro). Ambos são opcionais.
+     */
+    public function getDocumentoAttribute(): ?string
+    {
+        return $this->cpf ?: ($this->outro_documento ?: null);
+    }
+
+    /**
+     * Rótulo correspondente ao `documento` — nunca chamar passaporte de "CPF".
+     */
+    public function getDocumentoLabelAttribute(): string
+    {
+        return $this->cpf ? 'CPF' : 'Documento';
     }
 
     /**

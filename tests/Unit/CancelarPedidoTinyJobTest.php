@@ -23,6 +23,9 @@ class CancelarPedidoTinyJobTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Paciente sem CPF agora é sincronizável (o oList aceita contato sem cpf_cnpj);
+        // sem isso o observer dispararia o SyncClienteTinyJob inline e bateria na API real.
+        Bus::fake();
         Setting::set('tiny_enabled', true);
         Setting::set('tiny_api_version', 'v3');
         Setting::set('tiny_url_base', 'https://api.tiny.com.br/public-api/v3');

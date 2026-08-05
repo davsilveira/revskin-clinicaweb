@@ -7,6 +7,7 @@ import Toast from '@/Components/Toast';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
 import { persistPacientesIndexQueryFromLocation } from '@/utils/pacientesListNavigation';
+import { documentoPaciente } from '@/utils/documentoPaciente';
 
 /** Alinha o select de status ao que veio do backend (query / Inertia). */
 function normalizarAtivoFiltro(filtersObj) {
@@ -209,7 +210,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Médico(s)</th>
                                             )}
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Registro</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF / Documento</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cidade</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -237,7 +238,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                             ? String(paciente.codigo).trim()
                                                             : '—'}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cpf || '—'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{documentoPaciente(paciente) || '—'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.celular || paciente.telefone1 || '—'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paciente.cidade ? `${paciente.cidade}/${paciente.uf}` : '—'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -315,7 +316,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                                                                     : '—'}
                                                             </p>
                                                             <p className="text-sm text-gray-600 mt-0.5">
-                                                                {paciente.cpf || '—'} · {paciente.celular || paciente.telefone1 || '—'}
+                                                                {documentoPaciente(paciente) || '—'} · {paciente.celular || paciente.telefone1 || '—'}
                                                             </p>
                                                             <p className="text-sm text-gray-500 mt-0.5">
                                                                 {paciente.cidade ? `${paciente.cidade}/${paciente.uf}` : '—'}

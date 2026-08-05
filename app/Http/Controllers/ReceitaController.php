@@ -32,7 +32,8 @@ class ReceitaController extends Controller
     {
         $user = $request->user();
 
-        $query = Receita::with(['paciente:id,nome', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
+        // A listagem mostra o documento sob o nome; sem estas colunas a linha vinha vazia.
+        $query = Receita::with(['paciente:id,nome,cpf,outro_documento', 'medico:id', 'medico.linkedUser:id,name,medico_id'])
             ->when($request->search, function ($q, $search) {
                 $q->whereHas('paciente', fn ($pq) => $pq->where('nome', 'like', "%{$search}%"));
             })
@@ -190,6 +191,7 @@ class ReceitaController extends Controller
             'valor_caixa' => 'nullable|numeric|min:0',
             'valor_frete' => 'nullable|numeric|min:0',
             'status' => 'nullable|in:aberta,finalizada',
+            'cortesia' => 'nullable|boolean',
             'itens' => 'required|array|min:1',
             'itens.*.produto_id' => 'required|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string',
@@ -221,6 +223,7 @@ class ReceitaController extends Controller
             'valor_caixa' => $validated['valor_caixa'] ?? 0,
             'valor_frete' => $validated['valor_frete'] ?? 0,
             'status' => $validated['status'] ?? 'aberta',
+            'cortesia' => $user->isAdmin() ? (bool) ($validated['cortesia'] ?? false) : false,
         ]);
 
         // Opção 2: emitir receita garante o vínculo médico↔paciente (origem: receita).
@@ -451,6 +454,7 @@ class ReceitaController extends Controller
             'valor_caixa' => 'nullable|numeric|min:0',
             'valor_frete' => 'nullable|numeric|min:0',
             'status' => 'nullable|in:aberta,finalizada,cancelada',
+            'cortesia' => 'nullable|boolean',
             'itens' => 'required|array|min:1',
             'itens.*.produto_id' => 'required|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string',
@@ -481,6 +485,7 @@ class ReceitaController extends Controller
 
         if ($user->isAdmin()) {
             $updateData['medico_id'] = $validated['medico_id'];
+            $updateData['cortesia'] = (bool) ($validated['cortesia'] ?? false);
         }
 
         $receita->update($updateData);
@@ -707,6 +712,7 @@ class ReceitaController extends Controller
             'data_receita' => now(),
             'anotacoes' => $receita->anotacoes,
             'status' => 'aberta',
+            'cortesia' => (bool) $receita->cortesia,
         ]);
 
         $novaReceita->copiarItensDeReceita($receita);
@@ -735,6 +741,7 @@ class ReceitaController extends Controller
             'valor_caixa' => 'nullable|numeric|min:0',
             'valor_frete' => 'nullable|numeric|min:0',
             'status' => 'nullable|in:aberta,finalizada',
+            'cortesia' => 'nullable|boolean',
             'itens' => 'nullable|array',
             'itens.*.produto_id' => 'required|exists:produtos,id',
             'itens.*.local_uso' => 'nullable|string',
@@ -795,6 +802,7 @@ class ReceitaController extends Controller
 
             if ($user->isAdmin()) {
                 $updatePayload['medico_id'] = $validated['medico_id'];
+                $updatePayload['cortesia'] = (bool) ($validated['cortesia'] ?? false);
             }
 
             $receita->update($updatePayload);
@@ -818,6 +826,7 @@ class ReceitaController extends Controller
                 'valor_caixa' => $validated['valor_caixa'] ?? 0,
                 'valor_frete' => $validated['valor_frete'] ?? 0,
                 'status' => 'aberta',
+                'cortesia' => $user->isAdmin() ? (bool) ($validated['cortesia'] ?? false) : false,
             ]);
 
             // Opção 2: emitir receita garante o vínculo médico↔paciente (origem: receita).
@@ -954,6 +963,7 @@ class ReceitaController extends Controller
             'data_receita' => now(),
             'anotacoes' => $receita->anotacoes,
             'status' => 'aberta',
+            'cortesia' => (bool) $receita->cortesia,
         ]);
 
         $novaReceita->copiarItensDeReceita($receita);

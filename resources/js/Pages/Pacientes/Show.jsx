@@ -3,6 +3,7 @@ import { useState } from 'react';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import Toast from '@/Components/Toast';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import { documentoPaciente, documentoPacienteLabel } from '@/utils/documentoPaciente';
 
 export default function PacienteShow({ paciente, isAdmin = false }) {
     const { auth } = usePage().props;
@@ -117,8 +118,8 @@ export default function PacienteShow({ paciente, isAdmin = false }) {
                                 <dd className="text-gray-900 font-medium">{paciente.fototipo ? `Tipo ${paciente.fototipo}` : '-'}</dd>
                             </div>
                             <div className="flex justify-between">
-                                <dt className="text-gray-500">CPF</dt>
-                                <dd className="text-gray-900 font-medium">{paciente.cpf || '-'}</dd>
+                                <dt className="text-gray-500">{documentoPacienteLabel(paciente)}</dt>
+                                <dd className="text-gray-900 font-medium">{documentoPaciente(paciente) || '-'}</dd>
                             </div>
                             {!showPrivadosPorMedico && (
                                 <div className="flex justify-between">

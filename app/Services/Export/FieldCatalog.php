@@ -251,6 +251,10 @@ class FieldCatalog
                 'label' => 'CPF',
                 'resolver' => fn (Paciente $paciente) => $paciente->cpf,
             ],
+            'outro_documento' => [
+                'label' => 'Documento (estrangeiro/outro)',
+                'resolver' => fn (Paciente $paciente) => $paciente->outro_documento,
+            ],
             'rg' => [
                 'label' => 'RG',
                 'resolver' => fn (Paciente $paciente) => $paciente->rg,
@@ -420,6 +424,10 @@ class FieldCatalog
                 'label' => 'CPF do Paciente',
                 'resolver' => fn (Receita $receita) => $receita->paciente?->cpf,
             ],
+            'paciente_outro_documento' => [
+                'label' => 'Documento do Paciente (estrangeiro/outro)',
+                'resolver' => fn (Receita $receita) => $receita->paciente?->outro_documento,
+            ],
             'paciente_codigo' => [
                 'label' => 'Código do Paciente',
                 'resolver' => fn (Receita $receita) => $receita->paciente?->codigo,
@@ -544,6 +552,10 @@ class FieldCatalog
             'paciente_cpf' => [
                 'label' => 'CPF do Paciente',
                 'resolver' => fn (AtendimentoCallcenter $atendimento) => $atendimento->paciente?->cpf,
+            ],
+            'paciente_outro_documento' => [
+                'label' => 'Documento do Paciente (estrangeiro/outro)',
+                'resolver' => fn (AtendimentoCallcenter $atendimento) => $atendimento->paciente?->outro_documento,
             ],
             'paciente_telefone' => [
                 'label' => 'Telefone do Paciente',

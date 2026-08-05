@@ -18,6 +18,14 @@ class ReceitaCancelarOlistTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Paciente sem CPF agora é sincronizável (o oList aceita contato sem cpf_cnpj);
+        // sem isso o observer dispararia o SyncClienteTinyJob inline e bateria na API real.
+        Bus::fake();
+    }
+
     private function makeMedicoUser(?Medico $medico = null): array
     {
         $medico ??= Medico::create(['nome' => 'Dr. Cancel Test']);

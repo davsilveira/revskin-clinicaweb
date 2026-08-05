@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\EmailPlaceholder;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
@@ -63,17 +64,21 @@ class TinyContatoMapper
         return substr($digits, 0, 3).'.'.substr($digits, 3, 3).'.'.substr($digits, 6, 3).'-'.substr($digits, 9, 2);
     }
 
+    /**
+     * `pacientes.sexo` guarda 'M'/'F' (é o que o formulário grava e o que existe no banco);
+     * devolver "Masculino" deixaria o Select do drawer em branco no cadastro importado.
+     */
     public static function mapSexo(?string $tinySexo): ?string
     {
         if ($tinySexo === null || $tinySexo === '') {
             return null;
         }
         $s = mb_strtolower(trim($tinySexo));
-        if ($s === 'masculino') {
-            return 'Masculino';
+        if ($s === 'masculino' || $s === 'm') {
+            return 'M';
         }
-        if ($s === 'feminino') {
-            return 'Feminino';
+        if ($s === 'feminino' || $s === 'f') {
+            return 'F';
         }
 
         return null;
@@ -111,9 +116,12 @@ class TinyContatoMapper
             }
         }
 
-        $email = $contato['email'] ?? null;
-        if ($email !== null && $email !== '') {
-            $attrs['email1'] = mb_substr((string) $email, 0, 255);
+        // O oList tem ~54% dos contatos com e-mail de marcação, e boa parte no domínio com
+        // underline (`@cadastrar_email.com`), que é inválido: gravado assim, o cadastro deixa
+        // de salvar aqui. `normalizar()` traz todos para `@cadastraremail.rsk`.
+        $email = EmailPlaceholder::normalizar($contato['email'] ?? null);
+        if ($email !== null) {
+            $attrs['email1'] = mb_substr($email, 0, 255);
         }
 
         $fone = $contato['fone'] ?? $contato['telefone'] ?? null;

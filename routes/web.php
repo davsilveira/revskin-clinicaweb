@@ -80,6 +80,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('pacientes', PacienteController::class);
     Route::get('/api/pacientes/search', [PacienteController::class, 'search'])->name('pacientes.search');
     Route::get('/api/pacientes/lookup', [PacienteController::class, 'lookup'])->name('pacientes.lookup');
+    // Busca por nome no cadastro de paciente (substitui a busca por CPF) e vínculo de um
+    // paciente que já existe no sistema (ex.: cliente trazido do oList).
+    Route::get('/api/pacientes/candidatos', [PacienteController::class, 'candidatos'])->name('pacientes.candidatos');
+    Route::post('/api/pacientes/{paciente}/vincular', [PacienteController::class, 'vincular'])->name('pacientes.vincular');
     Route::post('/api/pacientes/autosave', [PacienteController::class, 'autosave'])->name('pacientes.autosave');
     Route::post('/api/pacientes/quick-create', [PacienteController::class, 'quickCreate'])->name('pacientes.quickCreate');
 

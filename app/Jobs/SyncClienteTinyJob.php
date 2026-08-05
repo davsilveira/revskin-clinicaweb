@@ -147,17 +147,9 @@ class SyncClienteTinyJob implements ShouldQueue
 
     protected function validarCamposObrigatorios(): bool
     {
-        // Campos obrigatórios: nome e CPF (para pessoa física)
-        if (empty($this->paciente->nome)) {
-            return false;
-        }
-
-        // CPF é obrigatório para pessoa física no Tiny
-        if (empty($this->paciente->cpf)) {
-            return false;
-        }
-
-        return true;
+        // Só o nome é obrigatório: a API oList/Tiny aceita contato sem cpf_cnpj
+        // (verificado contra a API v2 em 30/07/2026), inclusive pessoa física.
+        return ! empty($this->paciente->nome);
     }
 
     protected function prepararDadosContato(): array
@@ -166,12 +158,18 @@ class SyncClienteTinyJob implements ShouldQueue
         $telefone = preg_replace('/\D/', '', $this->paciente->telefone1 ?? '');
         $celular = preg_replace('/\D/', '', $this->paciente->celular ?? '');
         $cep = preg_replace('/\D/', '', $this->paciente->cep ?? '');
+        $brasil = $this->paciente->isBrasil();
 
         $dados = [
             'nome' => $this->paciente->nome,
-            'tipoPessoa' => 'F',
+            // 'E' = Estrangeiro na tabela de tipo_pessoa do oList/Tiny (F/J/E).
+            'tipoPessoa' => $brasil ? 'F' : 'E',
             'cpfCnpj' => $cpf,
         ];
+
+        if (! $brasil && $this->paciente->pais) {
+            $dados['pais'] = $this->paciente->pais;
+        }
 
         if ($this->paciente->email1) {
             $dados['email'] = $this->paciente->email1;
@@ -191,9 +189,11 @@ class SyncClienteTinyJob implements ShouldQueue
                 'numero' => $this->paciente->numero ?? '',
                 'complemento' => $this->paciente->complemento ?? '',
                 'bairro' => $this->paciente->bairro ?? '',
-                'cidade' => $this->paciente->cidade ?? '',
-                'uf' => $this->paciente->uf ?? '',
-                'cep' => $cep,
+                // Cidade/UF estrangeiras são recusadas pelo contato.incluir (valida contra a
+                // lista de municípios do Brasil); fora do Brasil vão só no país + logradouro.
+                'cidade' => $brasil ? ($this->paciente->cidade ?? '') : '',
+                'uf' => $brasil ? ($this->paciente->uf ?? '') : '',
+                'cep' => $brasil ? $cep : '',
             ];
         }
 
