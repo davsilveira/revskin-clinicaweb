@@ -189,6 +189,8 @@ class LegadoIncrementalImporter
         $signals = [];
         $pacienteIdMap = []; // legado_id => clw3 id
         $pacientesTocados = [];
+        $changesPacientes = [];
+        $changesReceitas = [];
 
         $runner = function () use (
             $pacientesFiltrados,
@@ -200,6 +202,8 @@ class LegadoIncrementalImporter
             &$signals,
             &$pacienteIdMap,
             &$pacientesTocados,
+            &$changesPacientes,
+            &$changesReceitas,
             $dryRun
         ) {
             foreach ($pacientesFiltrados as $item) {
@@ -207,6 +211,9 @@ class LegadoIncrementalImporter
                 $stats[$result['stat']]++;
                 if (! empty($result['signal'])) {
                     $signals[] = $result['signal'];
+                }
+                if (! empty($result['change'])) {
+                    $changesPacientes[] = $result['change'];
                 }
                 if (! empty($result['paciente_id'])) {
                     $pacienteIdMap[(int) $item['legado_id']] = (int) $result['paciente_id'];
@@ -218,7 +225,6 @@ class LegadoIncrementalImporter
                 $legadoPacienteId = isset($item['legado_paciente_id']) ? (int) $item['legado_paciente_id'] : null;
                 $pacienteId = $legadoPacienteId ? ($pacienteIdMap[$legadoPacienteId] ?? null) : null;
                 if (! $pacienteId) {
-                    // paciente pode já existir de carga anterior fora do filtro de merge
                     if ($legadoPacienteId) {
                         $pacienteId = $this->findPacienteIdFromPriorImport($legadoPacienteId, $item);
                     }
@@ -254,6 +260,9 @@ class LegadoIncrementalImporter
                 }
                 if (! empty($result['signal'])) {
                     $signals[] = $result['signal'];
+                }
+                if (! empty($result['change'])) {
+                    $changesReceitas[] = $result['change'];
                 }
             }
 
@@ -294,6 +303,11 @@ class LegadoIncrementalImporter
             'pacientes_filtrados' => count($pacientesFiltrados),
             'receitas_filtradas' => count($receitasFiltradas),
             'legado_medico_ids' => $legadoMedicoIds,
+            'report_hash' => basename($workDir),
+            'changes' => [
+                'pacientes' => $changesPacientes,
+                'receitas' => $changesReceitas,
+            ],
         ]);
     }
 
@@ -422,7 +436,7 @@ class LegadoIncrementalImporter
     /**
      * @param  array<string, mixed>  $item
      * @param  array<int, int>  $clw3ByLegadoMedico
-     * @return array{stat:string,paciente_id:?int,signal:?array}
+     * @return array{stat:string,paciente_id:?int,signal:?array,change:?array}
      */
     private function upsertPaciente(array $item, array $clw3ByLegadoMedico): array
     {
@@ -431,20 +445,20 @@ class LegadoIncrementalImporter
 
         $existente = $this->findPaciente($item, $medicoId);
         $signal = null;
+        $matchBy = 'cpf_ou_codigo';
 
         if ($existente === null) {
             $porNome = $this->findPacientePorNome($item, $medicoId);
             if ($porNome) {
-                // Mesma heurística da 1ª carga: nome (+ DN quando houver) no escopo do médico.
-                // Sem CPF: sinaliza no report, mas faz merge (não cria duplicata).
                 $existente = $porNome;
+                $matchBy = 'nome_medico'.(! empty($item['data_nascimento']) ? '_dn' : '');
                 if (empty($item['cpf'])) {
                     $signal = [
                         'tipo' => 'paciente_merge_sem_cpf',
                         'legado_id' => $item['legado_id'] ?? null,
                         'nome' => $item['nome'] ?? null,
                         'paciente_id' => $porNome->id,
-                        'motivo' => 'nome_medico'.(! empty($item['data_nascimento']) ? '_dn' : ''),
+                        'motivo' => $matchBy,
                     ];
                 }
             }
@@ -453,7 +467,8 @@ class LegadoIncrementalImporter
         if ($existente) {
             $cpfLegado = preg_replace('/\D+/', '', (string) ($item['cpf'] ?? '')) ?? '';
             $cpfAtual = preg_replace('/\D+/', '', (string) $existente->cpf) ?? '';
-            if ($cpfLegado !== '' && $cpfAtual !== '' && $cpfLegado !== $cpfAtual) {
+            $skipCpf = $cpfLegado !== '' && $cpfAtual !== '' && $cpfLegado !== $cpfAtual;
+            if ($skipCpf) {
                 $signal = [
                     'tipo' => 'cpf_divergente',
                     'paciente_id' => $existente->id,
@@ -463,8 +478,8 @@ class LegadoIncrementalImporter
                 ];
             }
 
-            // Dry-run também aplica merge na transaction (rollback no fim).
-            $this->mergePaciente($existente, $item, $cpfLegado !== '' && $cpfAtual !== '' && $cpfLegado !== $cpfAtual);
+            $before = $this->pacienteSnapshot($existente);
+            $diff = $this->mergePaciente($existente, $item, $skipCpf);
             if ($medicoId) {
                 $this->vinculoService->garantir($existente, $medicoId, [
                     'codigo' => $item['codigo'] ?? null,
@@ -473,11 +488,31 @@ class LegadoIncrementalImporter
                     'ativo' => (bool) ($item['ativo'] ?? true),
                 ], null, 'import');
             }
+            $after = $this->pacienteSnapshot($existente->fresh() ?? $existente);
 
-            return ['stat' => 'pacientes_merge', 'paciente_id' => $existente->id, 'signal' => $signal];
+            return [
+                'stat' => 'pacientes_merge',
+                'paciente_id' => $existente->id,
+                'signal' => $signal,
+                'change' => [
+                    'id' => 'p-'.($item['legado_id'] ?? $existente->id),
+                    'entity' => 'paciente',
+                    'action' => 'merge',
+                    'action_label' => 'Mesclar',
+                    'legado_id' => $item['legado_id'] ?? null,
+                    'clw3_id' => $existente->id,
+                    'label' => (string) ($item['nome'] ?? $existente->nome ?? 'Paciente'),
+                    'subtitle' => 'CLW3 #'.$existente->id.' · match: '.$matchBy,
+                    'match_by' => $matchBy,
+                    'before' => $before,
+                    'after' => $after,
+                    'diff' => $diff,
+                    'warning' => $signal['tipo'] ?? null,
+                ],
+            ];
         }
 
-        $paciente = Paciente::create([
+        $attrs = [
             'codigo' => $item['codigo'] ?? null,
             'indicado_por' => $item['indicado_por'] ?? null,
             'nome' => $item['nome'],
@@ -501,7 +536,9 @@ class LegadoIncrementalImporter
             'medico_id' => $medicoId,
             'anotacoes' => $item['anotacoes'] ?? null,
             'ativo' => (bool) ($item['ativo'] ?? true),
-        ]);
+        ];
+
+        $paciente = Paciente::create($attrs);
 
         foreach ($item['telefones_adicionais'] ?? [] as $tel) {
             PacienteTelefone::create([
@@ -521,7 +558,41 @@ class LegadoIncrementalImporter
             ], null, 'import');
         }
 
-        return ['stat' => 'pacientes_novos', 'paciente_id' => $paciente->id, 'signal' => null];
+        $after = $this->pacienteSnapshot($paciente);
+        $diff = [];
+        foreach ($after as $field => $to) {
+            if ($to === null || $to === '') {
+                continue;
+            }
+            $diff[] = [
+                'field' => $field,
+                'label' => self::fieldLabel($field),
+                'from' => null,
+                'to' => $to,
+                'op' => 'add',
+            ];
+        }
+
+        return [
+            'stat' => 'pacientes_novos',
+            'paciente_id' => $paciente->id,
+            'signal' => null,
+            'change' => [
+                'id' => 'p-'.($item['legado_id'] ?? $paciente->id),
+                'entity' => 'paciente',
+                'action' => 'novo',
+                'action_label' => 'Novo',
+                'legado_id' => $item['legado_id'] ?? null,
+                'clw3_id' => $paciente->id,
+                'label' => (string) ($item['nome'] ?? 'Paciente'),
+                'subtitle' => 'Será criado no CLW3',
+                'match_by' => null,
+                'before' => [],
+                'after' => $after,
+                'diff' => $diff,
+                'warning' => null,
+            ],
+        ];
     }
 
     /**
@@ -583,18 +654,28 @@ class LegadoIncrementalImporter
 
     /**
      * @param  array<string, mixed>  $item
+     * @return list<array{field:string,label:string,from:mixed,to:mixed,op:string}>
      */
-    private function mergePaciente(Paciente $paciente, array $item, bool $skipCpf): void
+    private function mergePaciente(Paciente $paciente, array $item, bool $skipCpf): array
     {
         $legadoTs = $this->parseTs($item['dta_ult_alteracao'] ?? $item['dta_inclusao'] ?? null);
         $clw3Ts = $paciente->updated_at ? Carbon::parse($paciente->updated_at) : null;
         $legadoMaisNovo = $legadoTs && $clw3Ts ? $legadoTs->gt($clw3Ts) : (bool) $legadoTs;
+        $diff = [];
 
-        foreach (self::PACIENTE_SHARED_FIELDS as $field) {
+        $fields = self::PACIENTE_SHARED_FIELDS;
+        if (! $skipCpf) {
+            $fields[] = 'cpf';
+        }
+
+        foreach ($fields as $field) {
             if ($field === 'email1' || $field === 'email2') {
                 $val = LegadoEmail::usable($item[$field] ?? null);
             } elseif ($field === 'data_nascimento') {
                 $val = $this->sanitizarData($item[$field] ?? null);
+            } elseif ($field === 'cpf') {
+                $val = trim((string) ($item['cpf'] ?? ''));
+                $val = $val === '' ? null : $val;
             } else {
                 $val = $item[$field] ?? null;
                 if (is_string($val)) {
@@ -607,34 +688,162 @@ class LegadoIncrementalImporter
             if ($atual instanceof \DateTimeInterface) {
                 $atual = $atual->format('Y-m-d');
             }
-            $atualVazio = $atual === null || $atual === '';
+            $atualStr = $atual === null || $atual === '' ? null : (string) $atual;
+            $valStr = $val === null || $val === '' ? null : (string) $val;
+            $atualVazio = $atualStr === null;
 
-            if ($val === null || $val === '') {
+            if ($valStr === null) {
                 continue;
             }
 
-            if ($legadoMaisNovo) {
-                $paciente->{$field} = $val;
+            $willSet = false;
+            if ($field === 'cpf') {
+                $willSet = $atualVazio;
+            } elseif ($legadoMaisNovo) {
+                $willSet = $atualStr !== $valStr;
             } elseif ($atualVazio) {
-                $paciente->{$field} = $val;
+                $willSet = true;
             }
-        }
 
-        if (! $skipCpf) {
-            $cpfLegado = trim((string) ($item['cpf'] ?? ''));
-            if ($cpfLegado !== '' && ($paciente->cpf === null || $paciente->cpf === '')) {
-                $paciente->cpf = $cpfLegado;
+            if (! $willSet) {
+                continue;
             }
+
+            $diff[] = [
+                'field' => $field,
+                'label' => self::fieldLabel($field),
+                'from' => $atualStr,
+                'to' => $valStr,
+                'op' => $atualVazio ? 'add' : 'change',
+            ];
+            $paciente->{$field} = $val;
         }
 
         $paciente->saveQuietly();
+
+        return $diff;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pacienteSnapshot(Paciente $paciente): array
+    {
+        $out = [];
+        foreach ([...self::PACIENTE_SHARED_FIELDS, 'cpf', 'codigo', 'indicado_por', 'anotacoes', 'ativo'] as $field) {
+            $v = $paciente->{$field} ?? null;
+            if ($v instanceof \DateTimeInterface) {
+                $v = $v->format('Y-m-d');
+            }
+            if (is_bool($v)) {
+                $v = $v ? 'sim' : 'não';
+            }
+            $out[$field] = $v === null || $v === '' ? null : (string) $v;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function receitaSnapshot(Receita $receita): array
+    {
+        return [
+            'numero' => $receita->numero,
+            'numero_origem' => $receita->numero_origem,
+            'data_receita' => $receita->data_receita
+                ? (string) ($receita->data_receita instanceof \DateTimeInterface
+                    ? $receita->data_receita->format('Y-m-d')
+                    : $receita->data_receita)
+                : null,
+            'status' => $receita->status,
+            'subtotal' => (string) ($receita->subtotal ?? '0'),
+            'desconto_percentual' => (string) ($receita->desconto_percentual ?? '0'),
+            'desconto_valor' => (string) ($receita->desconto_valor ?? '0'),
+            'valor_frete' => (string) ($receita->valor_frete ?? '0'),
+            'valor_total' => (string) ($receita->valor_total ?? '0'),
+            'anotacoes' => $receita->anotacoes,
+            'itens_count' => (string) $receita->itens()->count(),
+            'medico_id' => (string) $receita->medico_id,
+            'paciente_id' => (string) $receita->paciente_id,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     * @return list<array{field:string,label:string,from:mixed,to:mixed,op:string}>
+     */
+    private function snapshotDiff(array $before, array $after): array
+    {
+        $diff = [];
+        $keys = array_unique([...array_keys($before), ...array_keys($after)]);
+        foreach ($keys as $field) {
+            $from = $before[$field] ?? null;
+            $to = $after[$field] ?? null;
+            $from = $from === '' ? null : $from;
+            $to = $to === '' ? null : $to;
+            if ((string) $from === (string) $to) {
+                continue;
+            }
+            $diff[] = [
+                'field' => $field,
+                'label' => self::fieldLabel($field),
+                'from' => $from,
+                'to' => $to,
+                'op' => $from === null ? 'add' : ($to === null ? 'remove' : 'change'),
+            ];
+        }
+
+        return $diff;
+    }
+
+    private static function fieldLabel(string $field): string
+    {
+        return match ($field) {
+            'nome' => 'Nome',
+            'data_nascimento' => 'Nascimento',
+            'sexo' => 'Sexo',
+            'fototipo' => 'Fototipo',
+            'cpf' => 'CPF',
+            'rg' => 'RG',
+            'celular' => 'Celular',
+            'telefone1' => 'Telefone',
+            'email1' => 'E-mail',
+            'email2' => 'E-mail 2',
+            'tipo_endereco' => 'Tipo endereço',
+            'endereco' => 'Endereço',
+            'numero' => 'Número',
+            'complemento' => 'Complemento',
+            'bairro' => 'Bairro',
+            'cidade' => 'Cidade',
+            'uf' => 'UF',
+            'cep' => 'CEP',
+            'codigo' => 'Nº registro',
+            'indicado_por' => 'Indicado por',
+            'anotacoes' => 'Anotações',
+            'ativo' => 'Ativo',
+            'numero_origem' => 'Nº origem CLW2',
+            'data_receita' => 'Data receita',
+            'status' => 'Status',
+            'subtotal' => 'Subtotal',
+            'desconto_percentual' => 'Desconto %',
+            'desconto_valor' => 'Desconto R$',
+            'valor_frete' => 'Frete',
+            'valor_total' => 'Total',
+            'itens_count' => 'Qtd. itens',
+            'medico_id' => 'Médico ID',
+            'paciente_id' => 'Paciente ID',
+            default => $field,
+        };
     }
 
     /**
      * @param  array<string, mixed>  $item
      * @param  array<string, string>  $mapeamentoCodigos
      * @param  \Illuminate\Support\Collection  $produtoCache
-     * @return array{stat:string,signal:?array,itens_sem_produto?:int}
+     * @return array{stat:string,signal:?array,itens_sem_produto?:int,change?:?array}
      */
     private function upsertReceita(
         array $item,
@@ -649,6 +858,9 @@ class LegadoIncrementalImporter
 
         $status = (string) ($item['status'] ?? 'aberta');
         $legadoTs = $this->parseTs($item['dta_ult_alteracao'] ?? $item['dta_inclusao'] ?? $item['data_receita'] ?? null);
+        $label = 'Receita legado #'.$legadoId
+            .(! empty($item['numero_legado']) ? ' (nº '.$item['numero_legado'].')' : '')
+            .' · '.($item['data_receita'] ?? 'sem data');
 
         if ($existente) {
             if ($existente->legado_id === null) {
@@ -660,15 +872,16 @@ class LegadoIncrementalImporter
 
             $clw3Ts = $existente->updated_at ? Carbon::parse($existente->updated_at) : null;
             $createdTs = $existente->created_at ? Carbon::parse($existente->created_at) : null;
-            // updated_at da carga inicial não conta como edição clínica.
             $tocadaNoClw3 = $clw3Ts && $createdTs && $clw3Ts->gt($createdTs->copy()->addMinutes(5));
             $legadoMaisNovo = $legadoTs && $clw3Ts ? $legadoTs->gt($clw3Ts) : (bool) $legadoTs;
 
             if ($tocadaNoClw3 && ! $legadoMaisNovo) {
+                $before = $this->receitaSnapshot($existente);
                 if ($status === 'cancelada' && $existente->status !== 'cancelada') {
                     $existente->status = 'cancelada';
                     $existente->ativo = false;
                     $existente->saveQuietly();
+                    $after = $this->receitaSnapshot($existente);
 
                     return [
                         'stat' => 'receitas_canceladas_espelhadas',
@@ -676,9 +889,17 @@ class LegadoIncrementalImporter
                             'tipo' => 'receita_clw3_mais_recente_mas_cancelada_no_legado',
                             'receita_id' => $existente->id,
                             'legado_id' => $legadoId,
-                            'legado_ts' => $legadoTs?->toDateTimeString(),
-                            'clw3_ts' => $clw3Ts?->toDateTimeString(),
                         ],
+                        'change' => $this->receitaChange(
+                            'cancelada',
+                            'Cancelar',
+                            $label,
+                            $legadoId,
+                            $existente->id,
+                            $before,
+                            $after,
+                            'CLW3 tinha edição local; espelhou cancelamento do legado'
+                        ),
                     ];
                 }
 
@@ -688,15 +909,22 @@ class LegadoIncrementalImporter
                         'tipo' => 'receita_clw3_mais_recente',
                         'receita_id' => $existente->id,
                         'legado_id' => $legadoId,
-                        'legado_ts' => $legadoTs?->toDateTimeString(),
-                        'clw3_ts' => $clw3Ts?->toDateTimeString(),
                         'acao' => 'mantido_clw3',
                     ],
+                    'change' => $this->receitaChange(
+                        'conflito',
+                        'Conflito (mantém CLW3)',
+                        $label,
+                        $legadoId,
+                        $existente->id,
+                        $before,
+                        $before,
+                        'Receita editada no CLW3 após import; dump legado ignorado'
+                    ),
                 ];
             }
 
-            // Importada e não tocada: refresca do dump (incremental).
-            // Se legadoMaisNovo: também atualiza mesmo se tocada.
+            $before = $this->receitaSnapshot($existente);
             $semProduto = $this->aplicarCabecalhoEItens(
                 $existente,
                 $item,
@@ -706,6 +934,9 @@ class LegadoIncrementalImporter
                 $produtoCache,
                 false
             );
+            $existente->refresh();
+            $after = $this->receitaSnapshot($existente);
+            $action = $status === 'cancelada' ? 'cancelada' : 'atualizada';
 
             return [
                 'stat' => $status === 'cancelada' ? 'receitas_canceladas_espelhadas' : 'receitas_atualizadas',
@@ -713,11 +944,19 @@ class LegadoIncrementalImporter
                     'tipo' => 'receita_atualizada_do_legado',
                     'receita_id' => $existente->id,
                     'legado_id' => $legadoId,
-                    'legado_ts' => $legadoTs?->toDateTimeString(),
-                    'clw3_ts' => $clw3Ts?->toDateTimeString(),
                     'motivo' => $tocadaNoClw3 ? 'legado_mais_novo' : 'clw3_somente_import',
                 ],
                 'itens_sem_produto' => $semProduto,
+                'change' => $this->receitaChange(
+                    $action,
+                    $action === 'cancelada' ? 'Cancelar' : 'Atualizar',
+                    $label,
+                    $legadoId,
+                    $existente->id,
+                    $before,
+                    $after,
+                    $tocadaNoClw3 ? 'Legado mais recente' : 'Refresh do dump (sem edição local)'
+                ),
             ];
         }
 
@@ -733,11 +972,53 @@ class LegadoIncrementalImporter
         );
 
         $this->vinculoService->garantir(Paciente::findOrFail($pacienteId), $medicoId, [], null, 'import');
+        $after = $this->receitaSnapshot($receita);
 
         return [
             'stat' => 'receitas_novas',
             'signal' => null,
             'itens_sem_produto' => $semProduto,
+            'change' => $this->receitaChange(
+                'nova',
+                'Nova',
+                $label,
+                $legadoId,
+                $receita->id,
+                [],
+                $after,
+                'Será criada no CLW3'
+            ),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     * @return array<string, mixed>
+     */
+    private function receitaChange(
+        string $action,
+        string $actionLabel,
+        string $label,
+        int $legadoId,
+        ?int $clw3Id,
+        array $before,
+        array $after,
+        ?string $subtitle = null
+    ): array {
+        return [
+            'id' => 'r-'.$legadoId,
+            'entity' => 'receita',
+            'action' => $action,
+            'action_label' => $actionLabel,
+            'legado_id' => $legadoId,
+            'clw3_id' => $clw3Id,
+            'label' => $label,
+            'subtitle' => $subtitle,
+            'before' => $before,
+            'after' => $after,
+            'diff' => $this->snapshotDiff($before, $after),
+            'warning' => $action === 'conflito' ? 'conflito' : null,
         ];
     }
 

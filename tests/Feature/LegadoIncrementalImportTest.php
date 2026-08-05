@@ -102,6 +102,48 @@ class LegadoIncrementalImportTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_admin_can_fetch_report_changes(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $hash = 'abcdef0123456789abcdef0123456789';
+        $dir = storage_path('app/imports/'.$hash);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        file_put_contents($dir.'/report-latest.json', json_encode([
+            'report_hash' => $hash,
+            'dry_run' => true,
+            'generated_at' => now()->toIso8601String(),
+            'changes' => [
+                'pacientes' => [[
+                    'id' => 'p-1',
+                    'entity' => 'paciente',
+                    'action' => 'novo',
+                    'action_label' => 'Novo',
+                    'label' => 'Fulano',
+                    'subtitle' => 'teste',
+                    'diff' => [['field' => 'nome', 'from' => null, 'to' => 'Fulano', 'op' => 'add']],
+                    'before' => [],
+                    'after' => ['nome' => 'Fulano'],
+                ]],
+                'receitas' => [],
+            ],
+        ], JSON_UNESCAPED_UNICODE));
+
+        $this->actingAs($admin)
+            ->getJson(route('tools.importacao-clw2.report.changes', ['hash' => $hash]))
+            ->assertOk()
+            ->assertJsonPath('pacientes.0.id', 'p-1')
+            ->assertJsonPath('pacientes.0.diff_count', 1)
+            ->assertJsonMissingPath('pacientes.0.diff');
+
+        $this->actingAs($admin)
+            ->getJson(route('tools.importacao-clw2.report.change', ['hash' => $hash, 'id' => 'p-1']))
+            ->assertOk()
+            ->assertJsonPath('id', 'p-1')
+            ->assertJsonPath('diff.0.to', 'Fulano');
+    }
+
     public function test_backfill_receita_legado_id_from_tag(): void
     {
         [$medico, $paciente] = $this->seedMedicoPaciente();

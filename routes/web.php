@@ -165,6 +165,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('tools.importacao-clw2.dry-run');
         Route::post('/tools/importacao-clw2/apply', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'apply'])
             ->name('tools.importacao-clw2.apply');
+        Route::get('/tools/importacao-clw2/report/{hash}/changes', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'reportChanges'])
+            ->where('hash', '[a-f0-9]+')
+            ->name('tools.importacao-clw2.report.changes');
+        Route::get('/tools/importacao-clw2/report/{hash}/changes/{id}', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'reportChange'])
+            ->where(['hash' => '[a-f0-9]+', 'id' => '[A-Za-z0-9_-]+'])
+            ->name('tools.importacao-clw2.report.change');
     });
 
     // Cadastros - Produtos (Call Center and Admin)
