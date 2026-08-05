@@ -17,14 +17,24 @@ class ImportacaoClw2Controller extends Controller
         abort_unless($request->user()?->isAdmin(), 403, 'Acesso restrito a administradores.');
 
         $dumps = $importer->listSqlDumps();
-        $medicos = $resolver->listActiveMedicos()->map(fn ($m) => [
-            'id' => $m->id,
-            'nome' => $m->nome_legado ?: $m->apelido ?: ('#'.$m->id),
-            'crm' => $m->crm,
-            'uf_crm' => $m->uf_crm,
-            'cpf' => $m->cpf,
-            'email1' => $m->email1,
-        ])->values();
+        $medicos = $resolver->listActiveMedicos()->map(function ($m) {
+            $nome = trim((string) ($m->nome_legado ?: $m->apelido ?: ''));
+            if ($nome === '') {
+                $nome = trim((string) ($m->linkedUser?->name ?? ''));
+            }
+            if ($nome === '') {
+                $nome = 'Médico #'.$m->id;
+            }
+
+            return [
+                'id' => $m->id,
+                'nome' => $nome,
+                'crm' => $m->crm,
+                'uf_crm' => $m->uf_crm,
+                'cpf' => $m->cpf,
+                'email1' => $m->email1,
+            ];
+        })->values();
 
         $latestReport = null;
         foreach ($dumps as $dump) {

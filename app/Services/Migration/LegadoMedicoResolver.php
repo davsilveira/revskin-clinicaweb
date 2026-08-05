@@ -187,6 +187,7 @@ class LegadoMedicoResolver
     {
         return Medico::query()
             ->where('ativo', true)
+            ->with('linkedUser:id,name,medico_id')
             ->orderBy('nome_legado')
             ->orderBy('apelido')
             ->get(['id', 'apelido', 'nome_legado', 'crm', 'uf_crm', 'cpf', 'email1']);
