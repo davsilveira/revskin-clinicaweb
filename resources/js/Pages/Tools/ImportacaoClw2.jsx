@@ -12,11 +12,11 @@ function formatBytes(n) {
 const STAT_LABELS = {
     pacientes_novos: 'Pacientes novos',
     pacientes_merge: 'Pacientes a mesclar',
-    pacientes_skip: 'Pacientes ignorados',
+    pacientes_skip: 'Pacientes sem mudança',
     pacientes_needs_review: 'Pacientes p/ revisão',
     receitas_novas: 'Receitas novas',
     receitas_atualizadas: 'Receitas a atualizar',
-    receitas_skip: 'Receitas ignoradas',
+    receitas_skip: 'Receitas sem mudança',
     receitas_conflito: 'Receitas em conflito',
     receitas_canceladas_espelhadas: 'Cancelamentos espelhados',
     itens_sem_produto: 'Itens sem produto',
@@ -372,8 +372,16 @@ function ImportReportPanel({ report }) {
     const compactStats = useMemo(() => {
         const s = report.stats || {};
         return Object.entries(s)
-            .filter(([, v]) => Number(v) > 0)
+            .filter(([k, v]) => Number(v) > 0 && !String(k).endsWith('_skip'))
             .map(([k, v]) => ({ key: k, label: STAT_LABELS[k] || k, value: v }));
+    }, [report.stats]);
+
+    const skipStats = useMemo(() => {
+        const s = report.stats || {};
+        return [
+            { key: 'pacientes_skip', label: STAT_LABELS.pacientes_skip, value: Number(s.pacientes_skip || 0) },
+            { key: 'receitas_skip', label: STAT_LABELS.receitas_skip, value: Number(s.receitas_skip || 0) },
+        ].filter((x) => x.value > 0);
     }, [report.stats]);
 
     return (
@@ -394,6 +402,12 @@ function ImportReportPanel({ report }) {
                         </div>
                     ))}
                 </div>
+                {skipStats.length > 0 && (
+                    <p className="text-xs text-gray-500">
+                        Omitidos da lista (já no CLW3, sem mudança):{' '}
+                        {skipStats.map((s) => `${s.value} ${s.label.toLowerCase()}`).join(' · ')}
+                    </p>
+                )}
                 {!hash && (
                     <p className="text-sm text-amber-700">
                         Report antigo sem lista detalhada. Rode o dry-run de novo para ver pacientes e receitas.

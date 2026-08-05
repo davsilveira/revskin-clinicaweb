@@ -217,7 +217,9 @@ class LegadoIncrementalImporter
                 }
                 if (! empty($result['paciente_id'])) {
                     $pacienteIdMap[(int) $item['legado_id']] = (int) $result['paciente_id'];
-                    $pacientesTocados[(int) $result['paciente_id']] = true;
+                    if (($result['stat'] ?? '') !== 'pacientes_skip') {
+                        $pacientesTocados[(int) $result['paciente_id']] = true;
+                    }
                 }
             }
 
@@ -245,7 +247,6 @@ class LegadoIncrementalImporter
                 }
 
                 $pacienteIdMap[$legadoPacienteId] = $pacienteId;
-                $pacientesTocados[$pacienteId] = true;
 
                 $result = $this->upsertReceita(
                     $item,
@@ -263,6 +264,9 @@ class LegadoIncrementalImporter
                 }
                 if (! empty($result['change'])) {
                     $changesReceitas[] = $result['change'];
+                }
+                if (($result['stat'] ?? '') !== 'receitas_skip') {
+                    $pacientesTocados[$pacienteId] = true;
                 }
             }
 
@@ -480,6 +484,18 @@ class LegadoIncrementalImporter
 
             $before = $this->pacienteSnapshot($existente);
             $diff = $this->mergePaciente($existente, $item, $skipCpf);
+
+            // Já importado e sem campos a preencher/alterar → não inflar stats/lista.
+            if ($diff === []) {
+                return [
+                    'stat' => 'pacientes_skip',
+                    'paciente_id' => $existente->id,
+                    // Mantém só alertas de risco (ex.: CPF divergente); omite ruído de match.
+                    'signal' => (($signal['tipo'] ?? null) === 'cpf_divergente') ? $signal : null,
+                    'change' => null,
+                ];
+            }
+
             if ($medicoId) {
                 $this->vinculoService->garantir($existente, $medicoId, [
                     'codigo' => $item['codigo'] ?? null,
@@ -719,7 +735,9 @@ class LegadoIncrementalImporter
             $paciente->{$field} = $val;
         }
 
-        $paciente->saveQuietly();
+        if ($diff !== []) {
+            $paciente->saveQuietly();
+        }
 
         return $diff;
     }
@@ -924,6 +942,43 @@ class LegadoIncrementalImporter
                 ];
             }
 
+            // Dump ≤ CLW3 e sem edição local: não há motivo para refresh cego.
+            // Exceção: espelhar cancelamento do legado.
+            if (! $legadoMaisNovo && ! $tocadaNoClw3) {
+                if ($status === 'cancelada' && $existente->status !== 'cancelada') {
+                    $before = $this->receitaSnapshot($existente);
+                    $existente->status = 'cancelada';
+                    $existente->ativo = false;
+                    $existente->saveQuietly();
+                    $after = $this->receitaSnapshot($existente);
+
+                    return [
+                        'stat' => 'receitas_canceladas_espelhadas',
+                        'signal' => [
+                            'tipo' => 'receita_cancelada_espelhada_dump_nao_mais_novo',
+                            'receita_id' => $existente->id,
+                            'legado_id' => $legadoId,
+                        ],
+                        'change' => $this->receitaChange(
+                            'cancelada',
+                            'Cancelar',
+                            $label,
+                            $legadoId,
+                            $existente->id,
+                            $before,
+                            $after,
+                            'Espelhou cancelamento do legado (dump ≤ CLW3)'
+                        ),
+                    ];
+                }
+
+                return [
+                    'stat' => 'receitas_skip',
+                    'signal' => null,
+                    'change' => null,
+                ];
+            }
+
             $before = $this->receitaSnapshot($existente);
             $semProduto = $this->aplicarCabecalhoEItens(
                 $existente,
@@ -936,6 +991,18 @@ class LegadoIncrementalImporter
             );
             $existente->refresh();
             $after = $this->receitaSnapshot($existente);
+            $diff = $this->snapshotDiff($before, $after);
+
+            // Legado mais novo, mas após aplicar nada mudou → não listar como atualização.
+            if ($diff === [] && $status !== 'cancelada') {
+                return [
+                    'stat' => 'receitas_skip',
+                    'signal' => null,
+                    'itens_sem_produto' => $semProduto,
+                    'change' => null,
+                ];
+            }
+
             $action = $status === 'cancelada' ? 'cancelada' : 'atualizada';
 
             return [
@@ -955,7 +1022,7 @@ class LegadoIncrementalImporter
                     $existente->id,
                     $before,
                     $after,
-                    $tocadaNoClw3 ? 'Legado mais recente' : 'Refresh do dump (sem edição local)'
+                    $tocadaNoClw3 ? 'Legado mais recente' : 'Dump legado mais novo que o CLW3'
                 ),
             ];
         }

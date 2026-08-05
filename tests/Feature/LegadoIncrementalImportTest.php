@@ -165,4 +165,81 @@ class LegadoIncrementalImportTest extends TestCase
         $this->assertSame('12', $receita->numero_origem);
         $this->assertSame('clw2_importada', $receita->origem);
     }
+
+    public function test_upsert_receita_skips_when_dump_not_newer_and_no_local_edit(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        $receita = Receita::create([
+            'paciente_id' => $paciente->id,
+            'medico_id' => $medico->id,
+            'data_receita' => '2025-08-12',
+            'numero' => $paciente->id.'-0001',
+            'status' => 'finalizada',
+            'ativo' => true,
+            'legado_id' => 866,
+            'numero_origem' => '1',
+            'origem' => 'clw2_importada',
+        ]);
+        $receita->forceFill([
+            'created_at' => '2026-06-16 07:56:03',
+            'updated_at' => '2026-06-16 07:56:03',
+        ])->saveQuietly();
+
+        $importer = app(\App\Services\Migration\LegadoIncrementalImporter::class);
+        $ref = new \ReflectionClass($importer);
+        $method = $ref->getMethod('upsertReceita');
+        $method->setAccessible(true);
+
+        $result = $method->invoke(
+            $importer,
+            [
+                'legado_id' => 866,
+                'numero_legado' => '1',
+                'data_receita' => '2025-08-12',
+                'status' => 'finalizada',
+                'dta_ult_alteracao' => '2025-02-04 10:00:00',
+                'itens' => [],
+            ],
+            $paciente->id,
+            $medico->id,
+            [],
+            collect()
+        );
+
+        $this->assertSame('receitas_skip', $result['stat']);
+        $this->assertNull($result['change'] ?? null);
+        $this->assertSame('2026-06-16 07:56:03', $receita->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_upsert_paciente_skips_when_no_field_diff(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        $paciente->update([
+            'cpf' => '12345678909',
+            'nome' => 'Paciente Teste',
+            'sexo' => 'F',
+        ]);
+
+        $importer = app(\App\Services\Migration\LegadoIncrementalImporter::class);
+        $ref = new \ReflectionClass($importer);
+        $method = $ref->getMethod('upsertPaciente');
+        $method->setAccessible(true);
+
+        $result = $method->invoke(
+            $importer,
+            [
+                'legado_id' => 999001,
+                'legado_medico_id' => null,
+                'nome' => 'Paciente Teste',
+                'cpf' => '123.456.789-09',
+                'sexo' => 'F',
+                'dta_ult_alteracao' => '2024-01-01 00:00:00',
+            ],
+            []
+        );
+
+        $this->assertSame('pacientes_skip', $result['stat']);
+        $this->assertNull($result['change'] ?? null);
+        $this->assertSame($paciente->id, $result['paciente_id']);
+    }
 }
