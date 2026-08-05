@@ -262,15 +262,22 @@ function ImportReportPanel({ report }) {
 
     const hash = report.report_hash;
     const summary = report.changes_summary || {};
+    // O hash do dump é estável; generated_at muda a cada dry-run/apply e precisa
+    // disparar novo fetch (senão a lista fica vazia com o cache do report antigo).
+    const reportKey = `${hash || ''}:${report.generated_at || ''}`;
 
     useEffect(() => {
         if (!hash) return undefined;
         let cancelled = false;
         setLoadingList(true);
         setListError(null);
-        fetch(`/tools/importacao-clw2/report/${hash}/changes`, {
+        setLists({ pacientes: [], receitas: [] });
+        setActiveId(null);
+        setDetail(null);
+        fetch(`/tools/importacao-clw2/report/${hash}/changes?t=${encodeURIComponent(report.generated_at || '')}`, {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
+            cache: 'no-store',
         })
             .then(async (res) => {
                 if (!res.ok) throw new Error(`Falha ao carregar alterações (${res.status})`);
@@ -279,8 +286,8 @@ function ImportReportPanel({ report }) {
             .then((data) => {
                 if (cancelled) return;
                 setLists({
-                    pacientes: data.pacientes || [],
-                    receitas: data.receitas || [],
+                    pacientes: Array.isArray(data.pacientes) ? data.pacientes : [],
+                    receitas: Array.isArray(data.receitas) ? data.receitas : [],
                 });
             })
             .catch((err) => {
@@ -292,7 +299,7 @@ function ImportReportPanel({ report }) {
         return () => {
             cancelled = true;
         };
-    }, [hash]);
+    }, [reportKey, hash]);
 
     const items = tab === 'pacientes' ? lists.pacientes : lists.receitas;
 

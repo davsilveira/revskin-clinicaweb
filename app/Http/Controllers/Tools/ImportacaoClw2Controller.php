@@ -175,7 +175,7 @@ class ImportacaoClw2Controller extends Controller
             'dry_run' => $full['dry_run'] ?? null,
             'pacientes' => array_map(fn ($c) => $this->summarizeChange($c), is_array($pacientes) ? $pacientes : []),
             'receitas' => array_map(fn ($c) => $this->summarizeChange($c), is_array($receitas) ? $receitas : []),
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function reportChange(Request $request, string $hash, string $id): JsonResponse
@@ -192,7 +192,7 @@ class ImportacaoClw2Controller extends Controller
 
         foreach ($all as $change) {
             if (($change['id'] ?? null) === $id) {
-                return response()->json($change);
+                return response()->json($change)->header('Cache-Control', 'no-store, private');
             }
         }
 
