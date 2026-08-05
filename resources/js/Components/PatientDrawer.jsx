@@ -937,8 +937,9 @@ export default function PatientDrawer({
                     <p className="text-xs text-gray-500">
                         Campos marcados com <span className="text-red-500">*</span> são obrigatórios.
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="col-span-2">
+                    {/* Stack below md — sm (640) still squeezes CPF/celular in the 700px drawer. */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
                             <Input
                                 label="Nome Completo"
                                 value={data.nome}
@@ -985,7 +986,7 @@ export default function PatientDrawer({
                                 />
                             )}
                         </div>
-                        <div className="col-span-2">
+                        <div className="md:col-span-2">
                             <Select
                                 label="País"
                                 value={data.pais}
@@ -1072,7 +1073,7 @@ export default function PatientDrawer({
                             {...NO_AUTOFILL}
                             name="revskin_paciente_sexo"
                         />
-                        <div className="col-span-2 sm:col-span-1">
+                        <div>
                             <Input
                                 label="E-mail"
                                 type="text"
@@ -1094,7 +1095,7 @@ export default function PatientDrawer({
                             Continua montado se o usuário apagar o valor, senão o campo desaparece
                             no meio da digitação e não há como corrigir. */}
                         {!isBrazil && (data.cpf || paciente?.cpf || pacienteExistente?.cpf) ? (
-                            <div className="col-span-2 sm:col-span-1">
+                            <div>
                                 <MaskedInput
                                     label="CPF (opcional)"
                                     mask="000.000.000-00"
@@ -1161,8 +1162,8 @@ export default function PatientDrawer({
                         {data.telefones?.length > 0 ? (
                             <div className="space-y-3">
                                 {data.telefones.map((tel, index) => (
-                                    <div key={index} className="flex gap-2 items-end">
-                                        <div className="flex-1">
+                                    <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                                        <div className="sm:flex-1">
                                             <Select
                                                 label={index === 0 ? "Tipo" : ""}
                                                 value={tel.tipo}
@@ -1180,7 +1181,7 @@ export default function PatientDrawer({
                                                 name={`revskin_paciente_tel_tipo_${index}`}
                                             />
                                         </div>
-                                        <div className="flex-[2]">
+                                        <div className="sm:flex-[2]">
                                             {isBrazil ? (
                                                 <MaskedInput
                                                     label={index === 0 ? "Número" : ""}
@@ -1209,7 +1210,7 @@ export default function PatientDrawer({
                                         <button
                                             type="button"
                                             onClick={() => removeTelefone(index)}
-                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                                            className="self-end p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1226,8 +1227,8 @@ export default function PatientDrawer({
                     {/* Address Section */}
                     <div className="border-t pt-6">
                         <h3 className="text-sm font-medium text-gray-900 mb-4">Endereço</h3>
-                        <div className="grid grid-cols-6 gap-4">
-                            <div className="col-span-2">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                            <div className="md:col-span-2">
                                 <MaskedInput
                                     label="CEP"
                                     mask="00000-000"
@@ -1240,7 +1241,7 @@ export default function PatientDrawer({
                                 />
                                 {loadingCep && <span className="text-xs text-gray-500">Buscando...</span>}
                             </div>
-                            <div className="col-span-4">
+                            <div className="md:col-span-4">
                                 <Input
                                     label="Endereço"
                                     value={data.endereco}
@@ -1249,7 +1250,7 @@ export default function PatientDrawer({
                                     name="revskin_paciente_logradouro"
                                 />
                             </div>
-                            <div className="col-span-1">
+                            <div className="md:col-span-1">
                                 <Input
                                     label="Número"
                                     value={data.numero}
@@ -1258,7 +1259,7 @@ export default function PatientDrawer({
                                     name="revskin_paciente_numero"
                                 />
                             </div>
-                            <div className="col-span-2">
+                            <div className="md:col-span-2">
                                 <Input
                                     label="Complemento"
                                     value={data.complemento}
@@ -1267,7 +1268,7 @@ export default function PatientDrawer({
                                     name="revskin_paciente_complemento"
                                 />
                             </div>
-                            <div className="col-span-3">
+                            <div className="md:col-span-3">
                                 <Input
                                     label="Bairro"
                                     value={data.bairro}
@@ -1276,7 +1277,7 @@ export default function PatientDrawer({
                                     name="revskin_paciente_bairro"
                                 />
                             </div>
-                            <div className="col-span-4">
+                            <div className="md:col-span-4">
                                 <Input
                                     label="Cidade"
                                     value={data.cidade}
@@ -1285,7 +1286,7 @@ export default function PatientDrawer({
                                     name="revskin_paciente_cidade"
                                 />
                             </div>
-                            <div className="col-span-2">
+                            <div className="md:col-span-2">
                                 {isBrazil ? (
                                     <Select
                                         label="UF"
@@ -1475,7 +1476,7 @@ export default function PatientDrawer({
                             </div>
                         ) : (
                             <>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <Input
                                         label="Indicado por"
                                         value={data.indicado_por}
