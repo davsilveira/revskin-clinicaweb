@@ -16,7 +16,8 @@ export default function ImportacaoClw2({
     latestReport = null,
     pilotHint = [],
 }) {
-    const { flash } = usePage().props;
+    const page = usePage();
+    const flash = page.props?.flash ?? {};
     const [sqlName, setSqlName] = useState(dumps[0]?.name || '');
     const [selected, setSelected] = useState(() => {
         const ids = (pilotHint || []).map((p) => p.clw3_id).filter(Boolean);
@@ -25,8 +26,8 @@ export default function ImportacaoClw2({
     const [busy, setBusy] = useState(false);
     const [filter, setFilter] = useState('');
 
-    const report = flash?.import_report || latestReport;
-    const preview = flash?.import_preview;
+    const report = flash.import_report || latestReport;
+    const preview = flash.import_preview;
 
     const filteredMedicos = useMemo(() => {
         const q = filter.trim().toLowerCase();
@@ -222,14 +223,18 @@ export default function ImportacaoClw2({
                         </div>
                         <div>
                             <h3 className="text-sm font-medium text-gray-800 mb-2">
-                                Sinais ({(report.signals || []).length})
+                                Sinais ({report.signals_count ?? (report.signals || []).length}
+                                {report.signals_count > (report.signals || []).length
+                                    ? ` — mostrando ${(report.signals || []).length}`
+                                    : ''}
+                                )
                             </h3>
                             <pre className="text-xs bg-gray-50 rounded-lg p-3 overflow-auto max-h-80">
                                 {JSON.stringify(report.signals || [], null, 2)}
                             </pre>
                         </div>
                         <p className="text-xs text-gray-500">
-                            Arquivo: {report.work_dir}/report-latest.json
+                            Arquivo completo: {report.work_dir}/report-latest.json
                         </p>
                     </div>
                 )}

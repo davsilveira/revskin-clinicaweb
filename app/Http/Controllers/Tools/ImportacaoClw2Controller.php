@@ -19,7 +19,7 @@ class ImportacaoClw2Controller extends Controller
         $dumps = $importer->listSqlDumps();
         $medicos = $resolver->listActiveMedicos()->map(fn ($m) => [
             'id' => $m->id,
-            'nome' => $m->nome_legado ?: $m->apelido ?: $m->nome,
+            'nome' => $m->nome_legado ?: $m->apelido ?: ('#'.$m->id),
             'crm' => $m->crm,
             'uf_crm' => $m->uf_crm,
             'cpf' => $m->cpf,
@@ -34,7 +34,11 @@ class ImportacaoClw2Controller extends Controller
             }
             $path = storage_path('app/imports/'.$hash.'/report-latest.json');
             if (is_file($path)) {
-                $latestReport = json_decode((string) file_get_contents($path), true);
+                $full = json_decode((string) file_get_contents($path), true);
+                if (is_array($full)) {
+                    // Não embutir signals completos no HTML data-page (estoura o atributo).
+                    $latestReport = $this->slimReportForUi($full);
+                }
                 break;
             }
         }
@@ -117,7 +121,7 @@ class ImportacaoClw2Controller extends Controller
 
         return back()->with([
             'success' => 'Dry-run concluído. Nada foi persistido.',
-            'import_report' => $report,
+            'import_report' => $this->slimReportForUi($report),
         ]);
     }
 
@@ -143,8 +147,30 @@ class ImportacaoClw2Controller extends Controller
 
         return back()->with([
             'success' => 'Importação aplicada.',
-            'import_report' => $report,
+            'import_report' => $this->slimReportForUi($report),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $full
+     * @return array<string, mixed>
+     */
+    private function slimReportForUi(array $full): array
+    {
+        $signals = $full['signals'] ?? [];
+
+        return [
+            'dry_run' => $full['dry_run'] ?? null,
+            'sql' => $full['sql'] ?? null,
+            'work_dir' => $full['work_dir'] ?? null,
+            'generated_at' => $full['generated_at'] ?? null,
+            'mappings' => $full['mappings'] ?? [],
+            'stats' => $full['stats'] ?? [],
+            'signals_count' => is_array($signals) ? count($signals) : 0,
+            'signals' => array_slice(is_array($signals) ? $signals : [], 0, 40),
+            'pacientes_filtrados' => $full['pacientes_filtrados'] ?? null,
+            'receitas_filtradas' => $full['receitas_filtradas'] ?? null,
+        ];
     }
 
     private function resolveSql(LegadoIncrementalImporter $importer, string $name): string
