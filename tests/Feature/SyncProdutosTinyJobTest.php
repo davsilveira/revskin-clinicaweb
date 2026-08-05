@@ -28,7 +28,7 @@ class SyncProdutosTinyJobTest extends TestCase
     }
 
     #[Test]
-    public function inativa_produtos_com_tiny_id_ausentes_na_listagem(): void
+    public function marca_como_descontinuado_produtos_com_tiny_id_ausentes_na_listagem(): void
     {
         $keep = Produto::create([
             'codigo' => 'KEEP-1',
@@ -68,11 +68,44 @@ class SyncProdutosTinyJobTest extends TestCase
 
         (new SyncProdutosTinyJob)->handle();
 
-        $this->assertTrue($keep->fresh()->ativo);
-        $this->assertSame('Keep Atualizado', $keep->fresh()->nome);
-        $this->assertFalse($orphan->fresh()->ativo);
+        $keep->refresh();
+        $orphan->refresh();
+
+        $this->assertTrue($keep->ativo);
+        $this->assertFalse($keep->legado_somente_leitura);
+        $this->assertSame('Keep Atualizado', $keep->nome);
+
+        $this->assertTrue($orphan->ativo, 'Descontinuado permanece ativo para o filtro admin');
+        $this->assertTrue($orphan->legado_somente_leitura);
+
         $this->assertTrue($localOnly->fresh()->ativo);
+        $this->assertFalse($localOnly->fresh()->legado_somente_leitura);
         $this->assertTrue($legado->fresh()->ativo);
+        $this->assertTrue($legado->fresh()->legado_somente_leitura);
+    }
+
+    #[Test]
+    public function inativo_no_olist_fica_inativo_e_nao_descontinuado(): void
+    {
+        $produto = Produto::create([
+            'codigo' => 'INAT-1',
+            'nome' => 'Inativo ERP',
+            'tiny_id' => '300',
+            'ativo' => true,
+            'preco' => 10,
+        ]);
+
+        Http::fake([
+            'api.tiny.com.br/api2/produtos.pesquisa.php' => Http::response($this->pesquisaResponse([
+                $this->produtoListItem(300, 'INAT-1', 'Inativo ERP', 'I'),
+            ])),
+        ]);
+
+        (new SyncProdutosTinyJob)->handle();
+
+        $produto->refresh();
+        $this->assertFalse($produto->ativo);
+        $this->assertFalse($produto->legado_somente_leitura);
     }
 
     #[Test]
@@ -82,7 +115,8 @@ class SyncProdutosTinyJobTest extends TestCase
             'codigo' => 'SKU-X',
             'nome' => 'Antigo',
             'tiny_id' => '111',
-            'ativo' => false,
+            'ativo' => true,
+            'legado_somente_leitura' => true,
             'preco' => 5,
         ]);
 
@@ -97,6 +131,7 @@ class SyncProdutosTinyJobTest extends TestCase
 
         $produto->refresh();
         $this->assertTrue($produto->ativo);
+        $this->assertFalse($produto->legado_somente_leitura);
         $this->assertSame('222', (string) $produto->tiny_id);
         $this->assertSame('Novo Nome', $produto->nome);
         $this->assertSame('SKU-X', $produto->codigo);
@@ -104,13 +139,14 @@ class SyncProdutosTinyJobTest extends TestCase
     }
 
     #[Test]
-    public function nao_inativa_orfãos_quando_listagem_falha(): void
+    public function nao_marca_descontinuados_quando_listagem_falha(): void
     {
         $orphan = Produto::create([
             'codigo' => 'ORPHAN-2',
             'nome' => 'Orphan',
             'tiny_id' => '777',
             'ativo' => true,
+            'legado_somente_leitura' => false,
             'preco' => 10,
         ]);
 
@@ -126,7 +162,9 @@ class SyncProdutosTinyJobTest extends TestCase
 
         (new SyncProdutosTinyJob)->handle();
 
-        $this->assertTrue($orphan->fresh()->ativo);
+        $orphan->refresh();
+        $this->assertTrue($orphan->ativo);
+        $this->assertFalse($orphan->legado_somente_leitura);
     }
 
     /**

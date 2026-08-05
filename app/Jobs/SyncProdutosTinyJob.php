@@ -114,11 +114,11 @@ class SyncProdutosTinyJob implements ShouldQueue
             }
         } while ($hasMore);
 
-        $inativados = 0;
+        $descontinuados = 0;
         if ($listagemCompleta) {
-            $inativados = $this->inativarProdutosAusentesNoErp(array_keys($seenTinyIds));
+            $descontinuados = $this->marcarDescontinuadosAusentesNoErp(array_keys($seenTinyIds));
         } else {
-            Log::warning('Tiny ERP: Listagem incompleta — órfãos não foram inativados para evitar falsos positivos');
+            Log::warning('Tiny ERP: Listagem incompleta — órfãos não foram marcados como descontinuados para evitar falsos positivos');
         }
 
         Setting::set('tiny_produtos_last_sync', now()->toDateTimeString());
@@ -126,7 +126,7 @@ class SyncProdutosTinyJob implements ShouldQueue
         Log::info('Tiny ERP: Sincronização de produtos concluída', [
             'synced' => $synced,
             'errors' => $errors,
-            'inativados_orfãos' => $inativados,
+            'descontinuados_orfãos' => $descontinuados,
             'listagem_completa' => $listagemCompleta,
         ]);
     }
@@ -162,17 +162,18 @@ class SyncProdutosTinyJob implements ShouldQueue
     }
 
     /**
-     * Inativa produtos com tiny_id que não vieram na listagem desta sync.
-     * Não apaga (preserva histórico de receitas). Ignora legado_somente_leitura.
+     * Marca como descontinuado (legado_somente_leitura) produtos com tiny_id
+     * que não vieram na listagem desta sync — tipicamente excluídos no oList.
+     * Não apaga (preserva histórico de receitas). Não altera quem já é descontinuado.
+     * Produtos ainda listados com situacao ≠ A continuam só inativos (ativo=false).
      *
      * @param  list<string>  $seenTinyIds
      */
-    protected function inativarProdutosAusentesNoErp(array $seenTinyIds): int
+    protected function marcarDescontinuadosAusentesNoErp(array $seenTinyIds): int
     {
         $query = Produto::query()
             ->whereNotNull('tiny_id')
-            ->where('legado_somente_leitura', false)
-            ->where('ativo', true);
+            ->where('legado_somente_leitura', false);
 
         if ($seenTinyIds === []) {
             $ids = (clone $query)->pluck('id');
@@ -184,9 +185,12 @@ class SyncProdutosTinyJob implements ShouldQueue
             return 0;
         }
 
-        $n = Produto::query()->whereIn('id', $ids)->update(['ativo' => false]);
+        $n = Produto::query()->whereIn('id', $ids)->update([
+            'legado_somente_leitura' => true,
+            'ativo' => true,
+        ]);
 
-        Log::info('Tiny ERP: Produtos ausentes no oList inativados', [
+        Log::info('Tiny ERP: Produtos ausentes no oList marcados como descontinuados', [
             'count' => $n,
             'produto_ids' => $ids->take(50)->values()->all(),
         ]);
@@ -196,7 +200,8 @@ class SyncProdutosTinyJob implements ShouldQueue
 
     /**
      * Upsert por tiny_id; se não achar, tenta pelo SKU (codigo).
-     * Produto que volta no oList é atualizado e reativado quando situacao = A.
+     * Produto que volta no oList deixa de ser descontinuado e é atualizado
+     * (ativo conforme situacao: A → ativo, demais → inativo).
      */
     protected function sincronizarProduto(array $produtoData): void
     {
@@ -214,10 +219,6 @@ class SyncProdutosTinyJob implements ShouldQueue
             $produto = Produto::where('codigo', $sku)->first();
         }
 
-        if ($produto && $produto->legado_somente_leitura) {
-            return;
-        }
-
         $dados = [
             'tiny_id' => $tinyId,
             'nome' => $descricao,
@@ -226,6 +227,7 @@ class SyncProdutosTinyJob implements ShouldQueue
             'unidade' => $produtoData['unidade'] ?? null,
             'tiny_sync_at' => now(),
             'ativo' => ($produtoData['situacao'] ?? 'A') === 'A',
+            'legado_somente_leitura' => false,
         ];
 
         if ($produto) {

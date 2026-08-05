@@ -435,10 +435,10 @@ class ManualContent
                     'title' => 'Campos editáveis no ClinicaWeb',
                     'paragraphs' => [
                         'No painel de edição, Descrição (Nome do Produto), Código (SKU), unidade e preço de venda aparecem como dados vindos do Tiny/oList (somente leitura). A seção Dados ClinicaWeb (editáveis) concentra o que você pode alterar: Fórmula, Modo de uso, Anotações dos especialistas, Anotações internas e o Status (Ativo/Inativo) do produto.',
-                        'Quando você sincroniza de novo, o sistema atualiza do Tiny/oList a descrição (nome do produto), preço, custo, unidade, situação (ativo/inativo) e o vínculo com o produto no ERP. Já fórmula, modo de uso, anotações e anotações internas não são sobrescritos por novas sincronizações.',
+                        'Quando você sincroniza de novo, o sistema atualiza do Tiny/oList a descrição (nome do produto), preço, custo, unidade, situação (ativo/inativo) e o vínculo com o produto no ERP. Se o produto foi excluído no oList (some da listagem), ele passa a Descontinuado no ClinicaWeb; se apenas foi inativado no oList, fica Inativo. Já fórmula, modo de uso, anotações e anotações internas não são sobrescritos por novas sincronizações.',
                     ],
                     'bullets' => [
-                        'Observação: o indicativo de ativo/inativo também pode ser alinhado ao Tiny em cada sincronização; ajustes locais podem ser refletidos de novo na próxima carga.',
+                        'Observação: ativo/inativo e descontinuado (quando excluído no oList) podem ser alinhados ao Tiny em cada sincronização; ajustes locais podem ser refletidos de novo na próxima carga.',
                     ],
                 ],
                 [
