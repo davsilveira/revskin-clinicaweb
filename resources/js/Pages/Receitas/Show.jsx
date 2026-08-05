@@ -30,6 +30,7 @@ const copiarTippyBloqueio = (
 export default function ReceitaShow({ receita, receitasAnteriores = [] }) {
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
+    const isAdmin = auth.user.role === 'admin';
     const [showCopiarModal, setShowCopiarModal] = useState(false);
     const [showCancelarModal, setShowCancelarModal] = useState(false);
 
@@ -103,6 +104,14 @@ const formatDate = (dateString) => {
                             <h1 className="text-2xl font-bold text-gray-900">
                                 {tituloReceitaComSequencia('Receita', receita.numero)}
                             </h1>
+                            {isAdmin && receita?.numero_origem && (
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Nº origem CLW2:{' '}
+                                    <span className="font-medium text-gray-700 tabular-nums">
+                                        {receita.numero_origem}
+                                    </span>
+                                </p>
+                            )}
                             {receitaOrigem && (
                                 <div className="mt-2 text-sm text-gray-600 flex flex-wrap items-center gap-1.5">
                                     <span className="text-gray-500">Duplicada de</span>

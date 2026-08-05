@@ -373,6 +373,19 @@ export default function DashboardLayout({ children, title }) {
                                     {showLabels && <span className="font-medium">Integrações</span>}
                                 </Link>
 
+                                <Link
+                                    href="/tools/importacao-clw2"
+                                    className={`flex items-center ${showLabels ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
+                                        isActive('/tools/importacao-clw2')
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                    title={!showLabels ? 'Importação CLW2' : undefined}
+                                >
+                                    <NavIconExport />
+                                    {showLabels && <span className="font-medium">Importação CLW2</span>}
+                                </Link>
+
                                 {showLabels && (
                                     <div className="pt-4 pb-2">
                                         <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">

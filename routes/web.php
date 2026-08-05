@@ -156,6 +156,15 @@ Route::middleware(['auth'])->group(function () {
             ->name('tools.integracoes.retry-batch');
         Route::delete('/tools/integracoes/failed/{uuid}', [IntegrationJobsController::class, 'forget'])
             ->name('tools.integracoes.forget');
+
+        Route::get('/tools/importacao-clw2', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'index'])
+            ->name('tools.importacao-clw2.index');
+        Route::post('/tools/importacao-clw2/preview', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'preview'])
+            ->name('tools.importacao-clw2.preview');
+        Route::post('/tools/importacao-clw2/dry-run', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'dryRun'])
+            ->name('tools.importacao-clw2.dry-run');
+        Route::post('/tools/importacao-clw2/apply', [\App\Http\Controllers\Tools\ImportacaoClw2Controller::class, 'apply'])
+            ->name('tools.importacao-clw2.apply');
     });
 
     // Cadastros - Produtos (Call Center and Admin)

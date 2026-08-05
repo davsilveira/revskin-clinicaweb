@@ -634,7 +634,10 @@ class ImportarDadosLegado extends Command
                 $anotacoes = trim($anotacoes."\n[legado:{$item['legado_id']}|num:{$item['numero_legado']}]");
 
                 $receita = new Receita;
+                $receita->legado_id = (int) $item['legado_id'];
                 $receita->numero = $numero;
+                $receita->numero_origem = $item['numero_legado'] ?? null;
+                $receita->origem = 'clw2_importada';
                 $receita->data_receita = $item['data_receita'];
                 $receita->paciente_id = $pacienteId;
                 $receita->medico_id = $medicoId;
@@ -698,6 +701,11 @@ class ImportarDadosLegado extends Command
 
     private function findReceitaByLegadoTag(int|string $legadoId): ?Receita
     {
+        $byCol = Receita::where('legado_id', (int) $legadoId)->first();
+        if ($byCol) {
+            return $byCol;
+        }
+
         return Receita::where('anotacoes', 'like', "%[legado:{$legadoId}|%")->first();
     }
 

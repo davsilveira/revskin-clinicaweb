@@ -1171,6 +1171,14 @@ function ReceitaFormInner({
                                           ? tituloReceitaComSequencia('Receita', receita.numero)
                                           : tituloReceitaComSequencia('Editar Receita', receita.numero)}
                                 </h1>
+                                {receitaFormIsAdmin && receita?.numero_origem && (
+                                    <span className="text-sm text-gray-500">
+                                        Nº origem CLW2:{' '}
+                                        <span className="font-medium text-gray-700 tabular-nums">
+                                            {receita.numero_origem}
+                                        </span>
+                                    </span>
+                                )}
                                 {(showMainSaveIndicator || showAnnotationSaveIndicator) && (
                                     <div className="text-xs text-gray-500 flex items-center gap-1 shrink-0">
                                         {savingReceitaOuAnotacoes ? (

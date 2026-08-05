@@ -871,6 +871,8 @@ class ExtrairDadosLegado extends Command
                 'legado_medico_id' => $this->col($row, $c, 'medico_id'),
                 'anotacoes' => implode("\n", $anotacoes) ?: null,
                 'ativo' => (bool) $this->col($row, $c, 'ativo'),
+                'dta_inclusao' => $this->normalizarData($this->colStr($row, $c, 'dta_inclusao')),
+                'dta_ult_alteracao' => $this->normalizarData($this->colStr($row, $c, 'dta_ult_alteracao')),
             ];
         }
 
@@ -1021,6 +1023,8 @@ class ExtrairDadosLegado extends Command
                 'status' => ! $ativo
                     ? 'cancelada'
                     : (isset($receitasComCc[(int) $receitaId]) ? 'finalizada' : 'aberta'),
+                'dta_inclusao' => $this->normalizarData($this->colStr($row, $c, 'dta_inclusao')),
+                'dta_ult_alteracao' => $this->normalizarData($this->colStr($row, $c, 'dta_ult_alteracao')),
                 'itens' => $itensExtraidos,
             ];
         }

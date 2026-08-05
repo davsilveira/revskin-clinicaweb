@@ -15,7 +15,10 @@ class Receita extends Model
     protected $table = 'receitas';
 
     protected $fillable = [
+        'legado_id',
         'numero',
+        'numero_origem',
+        'origem',
         'data_receita',
         'paciente_id',
         'medico_id',
@@ -224,8 +227,38 @@ class Receita extends Model
      */
     public static function gerarNumero(int $pacienteId): string
     {
-        $count = static::where('paciente_id', $pacienteId)->count();
+        $max = 0;
+        foreach (static::where('paciente_id', $pacienteId)->pluck('numero') as $numero) {
+            if (preg_match('/-(\d+)\s*$/', (string) $numero, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
 
-        return $pacienteId.'-'.str_pad($count + 1, 4, '0', STR_PAD_LEFT);
+        return $pacienteId.'-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Renumerar sequência contínua do paciente por data_receita (+ id).
+     * Preserva numero_origem quando ainda vazio e o número antigo era legado.
+     */
+    public static function renumerarPorData(int $pacienteId): int
+    {
+        $receitas = static::where('paciente_id', $pacienteId)
+            ->orderBy('data_receita')
+            ->orderBy('id')
+            ->get();
+
+        $n = 0;
+        foreach ($receitas as $receita) {
+            $n++;
+            $novo = $pacienteId.'-'.str_pad((string) $n, 4, '0', STR_PAD_LEFT);
+            if ($receita->numero === $novo) {
+                continue;
+            }
+            $receita->numero = $novo;
+            $receita->saveQuietly();
+        }
+
+        return $n;
     }
 }
