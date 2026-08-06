@@ -64,8 +64,12 @@ class LegadoIncrementalImportTest extends TestCase
         $this->assertTrue(LegadoEmail::isPlaceholder(null));
         $this->assertTrue(LegadoEmail::isPlaceholder(''));
         $this->assertTrue(LegadoEmail::isPlaceholder('x@cadastraremail.rsk'));
+        // Domínios antigos que o dump do CLW2 ainda carrega — também são placeholder.
+        $this->assertTrue(LegadoEmail::isPlaceholder('11996960077@cadastraremail.com'));
+        $this->assertTrue(LegadoEmail::isPlaceholder('x@cadastrar_email.com'));
         $this->assertFalse(LegadoEmail::isPlaceholder('real@example.com'));
         $this->assertNull(LegadoEmail::usable('x@cadastraremail.rsk'));
+        $this->assertNull(LegadoEmail::usable('11996960077@cadastraremail.com'));
         $this->assertSame('real@example.com', LegadoEmail::usable('real@example.com'));
     }
 
