@@ -3,6 +3,7 @@
 namespace App\Services\Migration;
 
 use App\Models\Medico;
+use App\Models\MedicoPaciente;
 use App\Models\Paciente;
 use App\Models\PacienteTelefone;
 use App\Models\Produto;
@@ -25,6 +26,11 @@ class LegadoIncrementalImporter
         'celular', 'telefone1', 'email1', 'email2',
         'tipo_endereco', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'cep',
     ];
+
+    /** @var array<string, int> CPF só com dígitos => paciente id */
+    private array $cpfIndex = [];
+
+    private bool $cpfIndexCarregado = false;
 
     public function __construct(
         private readonly LegadoMedicoResolver $medicoResolver,
@@ -75,6 +81,9 @@ class LegadoIncrementalImporter
         if (! is_file($sqlPath)) {
             throw new \InvalidArgumentException("SQL não encontrado: {$sqlPath}");
         }
+
+        $this->cpfIndex = [];
+        $this->cpfIndexCarregado = false;
 
         $resolved = $this->medicoResolver->resolveMany($medicoTokens);
         if ($resolved['unresolved'] !== []) {
@@ -132,9 +141,10 @@ class LegadoIncrementalImporter
 
         $legadoMedicoIds = array_values(array_unique($legadoMedicoIds));
         if ($legadoMedicoIds === []) {
-            return $this->finishReport($workDir, $dryRun, $sqlPath, $mappings, [
-                'erro' => 'Nenhum médico casou com o dump CLW2',
-            ], []);
+            // Erro de verdade: não pode virar "dry-run concluído" com report vazio.
+            throw new \RuntimeException(
+                'Nenhum dos médicos selecionados casou com o dump CLW2 (confira CPF/CRM em "1. Confirmar mapeamento").'
+            );
         }
 
         $clw3ByLegadoMedico = [];
@@ -181,6 +191,7 @@ class LegadoIncrementalImporter
             'receitas_novas' => 0,
             'receitas_atualizadas' => 0,
             'receitas_skip' => 0,
+            'receitas_sem_vinculo' => 0,
             'receitas_conflito' => 0,
             'receitas_canceladas_espelhadas' => 0,
             'itens_sem_produto' => 0,
@@ -209,6 +220,9 @@ class LegadoIncrementalImporter
             foreach ($pacientesFiltrados as $item) {
                 $result = $this->upsertPaciente($item, $clw3ByLegadoMedico);
                 $stats[$result['stat']]++;
+                if (! empty($result['needs_review'])) {
+                    $stats['pacientes_needs_review']++;
+                }
                 if (! empty($result['signal'])) {
                     $signals[] = $result['signal'];
                 }
@@ -226,16 +240,12 @@ class LegadoIncrementalImporter
             foreach ($receitasFiltradas as $item) {
                 $legadoPacienteId = isset($item['legado_paciente_id']) ? (int) $item['legado_paciente_id'] : null;
                 $pacienteId = $legadoPacienteId ? ($pacienteIdMap[$legadoPacienteId] ?? null) : null;
-                if (! $pacienteId) {
-                    if ($legadoPacienteId) {
-                        $pacienteId = $this->findPacienteIdFromPriorImport($legadoPacienteId, $item);
-                    }
-                }
                 $legadoMedicoId = isset($item['legado_medico_id']) ? (int) $item['legado_medico_id'] : null;
                 $medicoId = $legadoMedicoId ? ($clw3ByLegadoMedico[$legadoMedicoId] ?? null) : null;
 
                 if (! $pacienteId || ! $medicoId) {
-                    $stats['receitas_skip']++;
+                    // Não é "sem mudança": a receita foi descartada por falta de vínculo.
+                    $stats['receitas_sem_vinculo']++;
                     $signals[] = [
                         'tipo' => 'receita_sem_paciente_ou_medico',
                         'legado_receita_id' => $item['legado_id'] ?? null,
@@ -306,6 +316,10 @@ class LegadoIncrementalImporter
         return $this->finishReport($workDir, $dryRun, $sqlPath, $mappings, $stats, $signals, [
             'pacientes_filtrados' => count($pacientesFiltrados),
             'receitas_filtradas' => count($receitasFiltradas),
+            'medico_ids' => array_values(array_unique(array_map(
+                fn ($row) => (int) $row['medico']->id,
+                $resolved['resolved']
+            ))),
             'legado_medico_ids' => $legadoMedicoIds,
             'report_hash' => basename($workDir),
             'changes' => [
@@ -450,21 +464,42 @@ class LegadoIncrementalImporter
         $existente = $this->findPaciente($item, $medicoId);
         $signal = null;
         $matchBy = 'cpf_ou_codigo';
+        $needsReview = false;
 
         if ($existente === null) {
-            $porNome = $this->findPacientePorNome($item, $medicoId);
-            if ($porNome) {
-                $existente = $porNome;
-                $matchBy = 'nome_medico'.(! empty($item['data_nascimento']) ? '_dn' : '');
-                if (empty($item['cpf'])) {
+            $porNome = $this->findPacientePorNomeDetalhado($item);
+            if ($porNome !== null && $porNome['paciente'] instanceof Paciente) {
+                $existente = $porNome['paciente'];
+                $matchBy = $porNome['match_by'];
+                if ($porNome['ambiguo']) {
+                    $needsReview = true;
+                    $signal = [
+                        'tipo' => 'paciente_homonimo_ambiguo',
+                        'legado_id' => $item['legado_id'] ?? null,
+                        'nome' => $item['nome'] ?? null,
+                        'paciente_id' => $existente->id,
+                        'candidatos' => $porNome['homonimos'],
+                        'acao' => 'mesclado_no_mais_antigo',
+                    ];
+                } elseif (empty($item['cpf'])) {
                     $signal = [
                         'tipo' => 'paciente_merge_sem_cpf',
                         'legado_id' => $item['legado_id'] ?? null,
                         'nome' => $item['nome'] ?? null,
-                        'paciente_id' => $porNome->id,
+                        'paciente_id' => $existente->id,
                         'motivo' => $matchBy,
                     ];
                 }
+            } elseif ($porNome !== null && $porNome['homonimos'] > 0) {
+                // Existe alguém com o mesmo nome, mas nem nascimento nem telefone bateram:
+                // pode ser homônimo de verdade ou cadastro divergente. Vai criar — sinalizado.
+                $needsReview = true;
+                $signal = [
+                    'tipo' => 'paciente_novo_com_homonimo',
+                    'legado_id' => $item['legado_id'] ?? null,
+                    'nome' => $item['nome'] ?? null,
+                    'homonimos_no_clw3' => $porNome['homonimos'],
+                ];
             }
         }
 
@@ -483,33 +518,44 @@ class LegadoIncrementalImporter
             }
 
             $before = $this->pacienteSnapshot($existente);
+
+            // O vínculo é o objetivo da liberação por médico: garante ANTES de decidir o skip,
+            // senão paciente já completo no CLW3 nunca aparece para o médico liberado.
+            $vinculoNovo = $medicoId
+                ? $this->garantirVinculoDoImport($existente, $medicoId, $item)
+                : false;
+
             $diff = $this->mergePaciente($existente, $item, $skipCpf);
 
-            // Já importado e sem campos a preencher/alterar → não inflar stats/lista.
-            if ($diff === []) {
+            // Já importado, já vinculado e sem campos a preencher/alterar → não inflar stats/lista.
+            if ($diff === [] && ! $vinculoNovo) {
                 return [
                     'stat' => 'pacientes_skip',
                     'paciente_id' => $existente->id,
                     // Mantém só alertas de risco (ex.: CPF divergente); omite ruído de match.
                     'signal' => (($signal['tipo'] ?? null) === 'cpf_divergente') ? $signal : null,
+                    'needs_review' => $needsReview,
                     'change' => null,
                 ];
             }
 
-            if ($medicoId) {
-                $this->vinculoService->garantir($existente, $medicoId, [
-                    'codigo' => $item['codigo'] ?? null,
-                    'indicado_por' => $item['indicado_por'] ?? null,
-                    'anotacoes' => $item['anotacoes'] ?? null,
-                    'ativo' => (bool) ($item['ativo'] ?? true),
-                ], null, 'import');
+            if ($vinculoNovo) {
+                $diff[] = [
+                    'field' => 'vinculo_medico',
+                    'label' => 'Vínculo com o médico',
+                    'from' => null,
+                    'to' => 'criado',
+                    'op' => 'add',
+                ];
             }
+
             $after = $this->pacienteSnapshot($existente->fresh() ?? $existente);
 
             return [
                 'stat' => 'pacientes_merge',
                 'paciente_id' => $existente->id,
                 'signal' => $signal,
+                'needs_review' => $needsReview,
                 'change' => [
                     'id' => 'p-'.($item['legado_id'] ?? $existente->id),
                     'entity' => 'paciente',
@@ -555,6 +601,7 @@ class LegadoIncrementalImporter
         ];
 
         $paciente = Paciente::create($attrs);
+        $this->indexarCpf($paciente);
 
         foreach ($item['telefones_adicionais'] ?? [] as $tel) {
             PacienteTelefone::create([
@@ -566,12 +613,7 @@ class LegadoIncrementalImporter
         }
 
         if ($medicoId) {
-            $this->vinculoService->garantir($paciente, $medicoId, [
-                'codigo' => $item['codigo'] ?? null,
-                'indicado_por' => $item['indicado_por'] ?? null,
-                'anotacoes' => $item['anotacoes'] ?? null,
-                'ativo' => (bool) ($item['ativo'] ?? true),
-            ], null, 'import');
+            $this->garantirVinculoDoImport($paciente, $medicoId, $item);
         }
 
         $after = $this->pacienteSnapshot($paciente);
@@ -592,7 +634,8 @@ class LegadoIncrementalImporter
         return [
             'stat' => 'pacientes_novos',
             'paciente_id' => $paciente->id,
-            'signal' => null,
+            'signal' => $signal,
+            'needs_review' => $needsReview,
             'change' => [
                 'id' => 'p-'.($item['legado_id'] ?? $paciente->id),
                 'entity' => 'paciente',
@@ -601,14 +644,53 @@ class LegadoIncrementalImporter
                 'legado_id' => $item['legado_id'] ?? null,
                 'clw3_id' => $paciente->id,
                 'label' => (string) ($item['nome'] ?? 'Paciente'),
-                'subtitle' => 'Será criado no CLW3',
+                'subtitle' => $needsReview
+                    ? 'Será criado no CLW3 — já existe alguém com este nome, confira antes de aplicar'
+                    : 'Será criado no CLW3',
                 'match_by' => null,
                 'before' => [],
                 'after' => $after,
                 'diff' => $diff,
-                'warning' => null,
+                'warning' => $signal['tipo'] ?? null,
             ],
         ];
+    }
+
+    /**
+     * Garante o vínculo médico↔paciente sem pisar no que o médico escreveu no CLW3.
+     *
+     * Os campos do pivot (código, indicado por, anotações) são privados de cada médico: num
+     * vínculo que já existe o legado só preenche o que está vazio.
+     *
+     * @param  array<string, mixed>  $item
+     * @return bool se o vínculo foi criado agora
+     */
+    private function garantirVinculoDoImport(Paciente $paciente, int $medicoId, array $item): bool
+    {
+        $privados = [
+            'codigo' => $item['codigo'] ?? null,
+            'indicado_por' => $item['indicado_por'] ?? null,
+            'anotacoes' => $item['anotacoes'] ?? null,
+            'ativo' => (bool) ($item['ativo'] ?? true),
+        ];
+
+        $atual = MedicoPaciente::where('medico_id', $medicoId)
+            ->where('paciente_id', $paciente->id)
+            ->first();
+
+        if ($atual) {
+            foreach (['codigo', 'indicado_por', 'anotacoes'] as $campo) {
+                if (trim((string) $atual->{$campo}) !== '') {
+                    unset($privados[$campo]);
+                }
+            }
+            // `ativo` no CLW3 é decisão do médico, não do dump.
+            unset($privados['ativo']);
+        }
+
+        return $this->vinculoService
+            ->garantir($paciente, $medicoId, $privados, null, 'import')
+            ->wasRecentlyCreated;
     }
 
     /**
@@ -616,13 +698,14 @@ class LegadoIncrementalImporter
      */
     private function findPaciente(array $item, ?int $medicoId): ?Paciente
     {
-        $cpf = preg_replace('/\D+/', '', (string) ($item['cpf'] ?? '')) ?? '';
+        $cpf = $this->apenasDigitos($item['cpf'] ?? null);
         if (strlen($cpf) === 11) {
-            $hit = Paciente::all(['id', 'cpf'])->first(
-                fn (Paciente $p) => preg_replace('/\D+/', '', (string) $p->cpf) === $cpf
-            );
-            if ($hit) {
-                return Paciente::find($hit->id);
+            $id = $this->cpfIndex()[$cpf] ?? null;
+            if ($id) {
+                $hit = Paciente::find($id);
+                if ($hit) {
+                    return $hit;
+                }
             }
         }
 
@@ -645,27 +728,113 @@ class LegadoIncrementalImporter
     }
 
     /**
-     * @param  array<string, mixed>  $item
+     * Índice CPF→id carregado uma vez por execução (era um `Paciente::all()` por paciente do dump).
+     *
+     * @return array<string, int>
      */
-    private function findPacientePorNome(array $item, ?int $medicoId): ?Paciente
+    private function cpfIndex(): array
+    {
+        if (! $this->cpfIndexCarregado) {
+            $this->cpfIndex = [];
+            foreach (Paciente::query()->whereNotNull('cpf')->pluck('cpf', 'id') as $id => $cpf) {
+                $digits = $this->apenasDigitos($cpf);
+                if (strlen($digits) === 11 && ! isset($this->cpfIndex[$digits])) {
+                    $this->cpfIndex[$digits] = (int) $id;
+                }
+            }
+            $this->cpfIndexCarregado = true;
+        }
+
+        return $this->cpfIndex;
+    }
+
+    private function indexarCpf(Paciente $paciente): void
+    {
+        $digits = $this->apenasDigitos($paciente->cpf);
+        if (strlen($digits) === 11) {
+            $this->cpfIndex();
+            $this->cpfIndex[$digits] ??= (int) $paciente->id;
+        }
+    }
+
+    private function apenasDigitos(mixed $valor): string
+    {
+        return preg_replace('/\D+/', '', (string) ($valor ?? '')) ?? '';
+    }
+
+    /**
+     * Conciliação sem CPF. Não filtra por médico de propósito: na Opção 2 o paciente é único
+     * e costuma já existir vinculado a OUTRO médico (ou sem nenhum, vindo do oList).
+     *
+     * @param  array<string, mixed>  $item
+     * @return array{paciente:?Paciente,match_by:?string,ambiguo:bool,homonimos:int}|null
+     */
+    private function findPacientePorNomeDetalhado(array $item): ?array
     {
         $nome = trim((string) ($item['nome'] ?? ''));
         if ($nome === '') {
             return null;
         }
-        $q = Paciente::where('nome', $nome);
-        $dn = $this->sanitizarData($item['data_nascimento'] ?? null);
-        if ($dn) {
-            $q->whereDate('data_nascimento', $dn);
-        }
-        if ($medicoId) {
-            $q->where(function ($w) use ($medicoId) {
-                $w->where('medico_id', $medicoId)
-                    ->orWhereHas('medicos', fn ($m) => $m->where('medicos.id', $medicoId));
-            });
+
+        $homonimos = Paciente::where('nome', $nome)->orderBy('id')->get();
+        if ($homonimos->isEmpty()) {
+            return null;
         }
 
-        return $q->first();
+        $dn = $this->sanitizarData($item['data_nascimento'] ?? null);
+        if ($dn !== null) {
+            $porDn = $homonimos->filter(
+                fn (Paciente $p) => $this->dataComparavel($p->data_nascimento) === $dn
+            );
+            if ($porDn->isNotEmpty()) {
+                return [
+                    'paciente' => $porDn->first(),
+                    'match_by' => 'nome_dn',
+                    'ambiguo' => $porDn->count() > 1,
+                    'homonimos' => $homonimos->count(),
+                ];
+            }
+        }
+
+        // Nascimento ausente/divergente (o legado tem data lixo e digitação trocada):
+        // telefone + nome exato é sinal forte o bastante e não funde mãe/filha (nomes diferentes).
+        $tel = $this->apenasDigitos($item['celular'] ?? null);
+        if (strlen($tel) >= 10) {
+            $porTel = $homonimos->filter(function (Paciente $p) use ($tel) {
+                foreach ([$p->celular, $p->telefone1] as $numero) {
+                    if ($this->apenasDigitos($numero) === $tel) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+            if ($porTel->isNotEmpty()) {
+                return [
+                    'paciente' => $porTel->first(),
+                    'match_by' => 'nome_celular',
+                    'ambiguo' => $porTel->count() > 1,
+                    'homonimos' => $homonimos->count(),
+                ];
+            }
+        }
+
+        return [
+            'paciente' => null,
+            'match_by' => null,
+            'ambiguo' => false,
+            'homonimos' => $homonimos->count(),
+        ];
+    }
+
+    private function dataComparavel(mixed $valor): ?string
+    {
+        if ($valor instanceof \DateTimeInterface) {
+            return $valor->format('Y-m-d');
+        }
+        $str = trim((string) ($valor ?? ''));
+
+        return $str === '' ? null : substr($str, 0, 10);
     }
 
     /**
@@ -782,10 +951,45 @@ class LegadoIncrementalImporter
             'valor_frete' => (string) ($receita->valor_frete ?? '0'),
             'valor_total' => (string) ($receita->valor_total ?? '0'),
             'anotacoes' => $receita->anotacoes,
-            'itens_count' => (string) $receita->itens()->count(),
+            'itens_count' => (string) ($receita->exists ? $receita->itens()->count() : 0),
+            'itens_resumo' => $this->itensResumo($receita),
             'medico_id' => (string) $receita->medico_id,
             'paciente_id' => (string) $receita->paciente_id,
         ];
+    }
+
+    /**
+     * Conteúdo dos itens em texto — sem isso o diff só via `itens_count` e uma troca de
+     * produto/posologia passava como "sem mudança".
+     */
+    private function itensResumo(Receita $receita): ?string
+    {
+        if (! $receita->exists) {
+            return null;
+        }
+
+        $itens = ReceitaItem::with('produto:id,codigo')
+            ->where('receita_id', $receita->id)
+            ->orderBy('ordem')
+            ->orderBy('id')
+            ->get();
+
+        if ($itens->isEmpty()) {
+            return null;
+        }
+
+        return $itens->map(function (ReceitaItem $i) {
+            $codigo = $i->produto?->codigo ?: ('#'.$i->produto_id);
+            $local = trim((string) $i->local_uso);
+            $obs = trim((string) $i->anotacoes);
+
+            return $codigo
+                .' x'.(int) $i->quantidade
+                .' R$'.number_format((float) $i->valor_unitario, 2, ',', '')
+                .($local !== '' ? ' ['.$local.']' : '')
+                .($obs !== '' ? ' ('.$obs.')' : '')
+                .($i->imprimir ? '' : ' [não imprime]');
+        })->implode(' · ');
     }
 
     /**
@@ -851,6 +1055,8 @@ class LegadoIncrementalImporter
             'valor_frete' => 'Frete',
             'valor_total' => 'Total',
             'itens_count' => 'Qtd. itens',
+            'itens_resumo' => 'Itens',
+            'vinculo_medico' => 'Vínculo com o médico',
             'medico_id' => 'Médico ID',
             'paciente_id' => 'Paciente ID',
             default => $field,
@@ -882,10 +1088,14 @@ class LegadoIncrementalImporter
 
         if ($existente) {
             if ($existente->legado_id === null) {
-                $existente->legado_id = $legadoId;
-                $existente->numero_origem = $existente->numero_origem ?: ($item['numero_legado'] ?? null);
-                $existente->origem = $existente->origem ?: 'clw2_importada';
-                $existente->saveQuietly();
+                // Backfill de metadado: query builder cru (o Eloquent carimbaria `updated_at` e
+                // faria a receita parecer "editada no CLW3" nas próximas rodadas).
+                DB::table('receitas')->where('id', $existente->id)->update([
+                    'legado_id' => $legadoId,
+                    'numero_origem' => $existente->numero_origem ?: ($item['numero_legado'] ?? null),
+                    'origem' => $existente->origem ?: 'clw2_importada',
+                ]);
+                $existente->refresh();
             }
 
             $clw3Ts = $existente->updated_at ? Carbon::parse($existente->updated_at) : null;
@@ -1106,18 +1316,27 @@ class LegadoIncrementalImporter
         $legadoId = (int) $item['legado_id'];
         $status = (string) ($item['status'] ?? 'aberta');
 
+        $tag = "[legado:{$legadoId}|num:".($item['numero_legado'] ?? '').']';
+        $obs = trim((string) ($item['anotacoes'] ?? ''));
+
         if ($isNew) {
             $receita->numero = Receita::gerarNumero($pacienteId);
-            $anotacoes = trim((string) ($item['anotacoes'] ?? ''));
-            $anotacoes = trim($anotacoes."\n[legado:{$legadoId}|num:".($item['numero_legado'] ?? '').']');
-            $receita->anotacoes = $anotacoes;
+            $receita->anotacoes = trim($obs."\n".$tag);
         } else {
-            // Atualiza observações do legado sem duplicar a tag
-            $base = (string) ($receita->anotacoes ?? '');
-            $base = preg_replace('/\n?\[legado:\d+\|num:[^\]]*\]/', '', $base) ?? $base;
-            $obs = trim((string) ($item['anotacoes'] ?? ''));
-            $receita->anotacoes = trim($obs."\n[legado:{$legadoId}|num:".($item['numero_legado'] ?? '').']');
-            unset($base);
+            // As anotações da receita são as notas internas do médico no CLW3: não podem ser
+            // substituídas pelo dump. Preserva o texto e só acrescenta o que ainda não está lá.
+            $base = trim(preg_replace(
+                '/\n?\[legado:\d+\|num:[^\]]*\]/',
+                '',
+                (string) ($receita->anotacoes ?? '')
+            ) ?? '');
+
+            $partes = array_filter([
+                $base,
+                ($obs !== '' && ! str_contains($base, $obs)) ? $obs : '',
+            ], fn ($p) => $p !== '');
+
+            $receita->anotacoes = trim(implode("\n", $partes)."\n".$tag);
         }
 
         $receita->legado_id = $legadoId;
@@ -1134,14 +1353,30 @@ class LegadoIncrementalImporter
         $receita->valor_total = $item['valor_total'] ?? 0;
         $receita->status = $status === 'cancelada' ? 'cancelada' : $status;
         $receita->ativo = $status !== 'cancelada';
-        $receita->saveQuietly();
 
-        if (! $isNew) {
-            ReceitaItem::where('receita_id', $receita->id)->delete();
+        // Só grava se algo mudou: senão o refresh carimbava `updated_at` de receitas idênticas.
+        if ($isNew || $receita->isDirty()) {
+            $receita->saveQuietly();
         }
 
+        [$linhas, $semProduto] = $this->resolverLinhasItens($item, $mapeamentoCodigos, $produtoCache);
+        $this->sincronizarItens($receita, $linhas, $isNew);
+
+        return $semProduto;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, string>  $mapeamentoCodigos
+     * @param  \Illuminate\Support\Collection  $produtoCache
+     * @return array{0: list<array<string,mixed>>, 1: int}
+     */
+    private function resolverLinhasItens(array $item, array $mapeamentoCodigos, $produtoCache): array
+    {
+        $linhas = [];
         $semProduto = 0;
         $ordem = 0;
+
         foreach ($item['itens'] ?? [] as $ri) {
             $produto = LegadoProdutoResolver::findPorItemLegado(
                 $ri,
@@ -1162,44 +1397,93 @@ class LegadoIncrementalImporter
 
                 continue;
             }
+
             $ordem++;
-            $line = new ReceitaItem;
-            $line->receita_id = $receita->id;
-            $line->produto_id = $produto->id;
-            $line->local_uso = $ri['local_uso'] ?? null;
-            $line->anotacoes = $ri['anotacoes'] ?? null;
-            $line->quantidade = $ri['quantidade'] ?? 1;
-            $line->valor_unitario = $ri['valor_unitario'] ?? 0;
-            $line->valor_total = ($ri['quantidade'] ?? 1) * ($ri['valor_unitario'] ?? 0);
-            $line->data_aquisicao = $ri['data_aquisicao'] ?? null;
-            $line->imprimir = (bool) ($ri['imprimir'] ?? true);
-            $line->ordem = $ordem;
-            $line->grupo = 'recomendado';
-            $line->saveQuietly();
+            $quantidade = (int) ($ri['quantidade'] ?? 1);
+            $valorUnitario = (float) ($ri['valor_unitario'] ?? 0);
+
+            $linhas[] = [
+                'produto_id' => (int) $produto->id,
+                'local_uso' => $ri['local_uso'] ?? null,
+                'anotacoes' => $ri['anotacoes'] ?? null,
+                'quantidade' => $quantidade,
+                'valor_unitario' => $valorUnitario,
+                'valor_total' => $quantidade * $valorUnitario,
+                'data_aquisicao' => $ri['data_aquisicao'] ?? null,
+                'imprimir' => (bool) ($ri['imprimir'] ?? true),
+                'ordem' => $ordem,
+            ];
         }
 
-        return $semProduto;
+        return [$linhas, $semProduto];
     }
 
     /**
-     * @param  array<string, mixed>  $receitaItem
+     * Reconcilia os itens no lugar em vez de apagar e recriar.
+     *
+     * O DELETE cascateia em `receita_item_aquisicoes` (histórico de compra vindo do oList) e
+     * zerava `vendido`/`data_aquisicao` a cada refresh — inclusive quando nada tinha mudado.
+     *
+     * @param  list<array<string,mixed>>  $linhas
      */
-    private function findPacienteIdFromPriorImport(int $legadoPacienteId, array $receitaItem): ?int
+    private function sincronizarItens(Receita $receita, array $linhas, bool $isNew): void
     {
-        // Via receita já importada do mesmo paciente legado
-        $rec = Receita::where('anotacoes', 'like', '%[legado:%')
-            ->whereHas('paciente')
-            ->orderByDesc('id')
-            ->limit(50)
-            ->get();
-        // Fallback: CPF do paciente no item não vem — tenta pelo mapping de receitas do mesmo paciente no dump já no banco
-        unset($rec);
+        $existentes = $isNew
+            ? collect()
+            : ReceitaItem::where('receita_id', $receita->id)->orderBy('ordem')->orderBy('id')->get();
 
-        $cpf = null;
-        // last resort: look for any receita with same legado patient through... we don't store paciente legado_id
-        return null;
+        /** @var array<int, list<ReceitaItem>> $porProduto */
+        $porProduto = [];
+        foreach ($existentes as $atual) {
+            $porProduto[(int) $atual->produto_id][] = $atual;
+        }
+
+        $mantidos = [];
+        foreach ($linhas as $linha) {
+            $produtoId = $linha['produto_id'];
+            $alvo = ! empty($porProduto[$produtoId]) ? array_shift($porProduto[$produtoId]) : null;
+
+            if ($alvo === null) {
+                $alvo = new ReceitaItem;
+                $alvo->receita_id = $receita->id;
+                $alvo->produto_id = $produtoId;
+                $alvo->grupo = 'recomendado';
+            }
+
+            $alvo->local_uso = $linha['local_uso'];
+            $alvo->anotacoes = $linha['anotacoes'];
+            $alvo->quantidade = $linha['quantidade'];
+            $alvo->valor_unitario = $linha['valor_unitario'];
+            $alvo->valor_total = $linha['valor_total'];
+            $alvo->imprimir = $linha['imprimir'];
+            $alvo->ordem = $linha['ordem'];
+            $alvo->grupo = $alvo->grupo ?: 'recomendado';
+
+            // Nunca apagar aquisição registrada no CLW3 com um nulo do dump; `vendido` é do oList.
+            if (! empty($linha['data_aquisicao'])) {
+                $alvo->data_aquisicao = $linha['data_aquisicao'];
+            }
+
+            if (! $alvo->exists || $alvo->isDirty()) {
+                $alvo->saveQuietly();
+            }
+            $mantidos[] = (int) $alvo->id;
+        }
+
+        foreach ($porProduto as $sobras) {
+            foreach ($sobras as $sobra) {
+                if (! in_array((int) $sobra->id, $mantidos, true)) {
+                    // Quieto: os totais vêm do dump, não do recálculo do observer.
+                    $sobra->deleteQuietly();
+                }
+            }
+        }
     }
 
+    /**
+     * Só renumera quando há número repetido no mesmo paciente — renumerar por origem mexeria no
+     * `numero` de receitas já impressas sem necessidade.
+     */
     private function pacientePrecisaRenumerar(int $pacienteId): bool
     {
         $numeros = Receita::where('paciente_id', $pacienteId)->pluck('numero');
@@ -1210,12 +1494,6 @@ class LegadoIncrementalImporter
                 return true;
             }
             $seen[$key] = true;
-        }
-
-        // mistura origem
-        $origens = Receita::where('paciente_id', $pacienteId)->pluck('origem')->unique()->filter();
-        if ($origens->count() > 1) {
-            return true;
         }
 
         return false;
@@ -1233,17 +1511,29 @@ class LegadoIncrementalImporter
         }
     }
 
+    /**
+     * O dump tem data lixo (ex.: `9862-99-11`). Sem barrar aqui, o cast do Eloquent "rola" o mês
+     * inválido e grava outra data (`9870-03-11`) — que depois nunca casa com o próprio dump.
+     */
     private function sanitizarData(mixed $data): ?string
     {
         if ($data === null || $data === '') {
             return null;
         }
-        $data = (string) $data;
-        if (str_starts_with($data, '-') || str_starts_with($data, '0000-')) {
+        $data = trim((string) $data);
+        if (! preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $data, $m)) {
             return null;
         }
 
-        return $data;
+        [$ano, $mes, $dia] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        if ($ano < 1900 || $ano > (int) date('Y')) {
+            return null;
+        }
+        if (! checkdate($mes, $dia, $ano)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', $ano, $mes, $dia);
     }
 
     /**

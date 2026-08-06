@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Medico;
 use App\Models\Paciente;
+use App\Models\Produto;
 use App\Models\Receita;
+use App\Models\ReceitaItem;
 use App\Models\User;
 use App\Services\Migration\LegadoMedicoResolver;
 use App\Support\LegadoEmail;
@@ -220,13 +222,7 @@ class LegadoIncrementalImportTest extends TestCase
             'sexo' => 'F',
         ]);
 
-        $importer = app(\App\Services\Migration\LegadoIncrementalImporter::class);
-        $ref = new \ReflectionClass($importer);
-        $method = $ref->getMethod('upsertPaciente');
-        $method->setAccessible(true);
-
-        $result = $method->invoke(
-            $importer,
+        $result = $this->invocarImporter('upsertPaciente', [
             [
                 'legado_id' => 999001,
                 'legado_medico_id' => null,
@@ -235,11 +231,383 @@ class LegadoIncrementalImportTest extends TestCase
                 'sexo' => 'F',
                 'dta_ult_alteracao' => '2024-01-01 00:00:00',
             ],
-            []
-        );
+            [],
+        ]);
 
         $this->assertSame('pacientes_skip', $result['stat']);
         $this->assertNull($result['change'] ?? null);
         $this->assertSame($paciente->id, $result['paciente_id']);
+    }
+
+    /**
+     * @param  list<mixed>  $args
+     */
+    private function invocarImporter(string $metodo, array $args): mixed
+    {
+        $importer = app(\App\Services\Migration\LegadoIncrementalImporter::class);
+        $ref = new \ReflectionClass($importer);
+        $m = $ref->getMethod($metodo);
+        $m->setAccessible(true);
+
+        return $m->invokeArgs($importer, $args);
+    }
+
+    private function seedMedico(string $apelido, string $crm, string $cpf): Medico
+    {
+        return Medico::create([
+            'apelido' => $apelido,
+            'nome_legado' => $apelido,
+            'crm' => $crm,
+            'cpf' => $cpf,
+            'ativo' => true,
+        ]);
+    }
+
+    // ---------------------------------------------------------------------
+    // Regressões da revisão do job e026f895
+    // ---------------------------------------------------------------------
+
+    /** Sem diff de campos, o médico liberado ainda precisa passar a enxergar o paciente. */
+    public function test_paciente_sem_diff_ganha_vinculo_do_medico_liberado(): void
+    {
+        $medicoA = $this->seedMedico('Dr A', '111', '11111111111');
+        $medicoB = $this->seedMedico('Dr B', '222', '22222222222');
+
+        $paciente = Paciente::create([
+            'nome' => 'Fulana de Tal',
+            'cpf' => '12345678909',
+            'sexo' => 'F',
+            'celular' => '(11) 99999-0000',
+            'medico_id' => $medicoA->id,
+            'ativo' => true,
+        ]);
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 4242,
+                'legado_medico_id' => 77,
+                'nome' => 'Fulana de Tal',
+                'cpf' => '123.456.789-09',
+                'sexo' => 'F',
+                'celular' => '(11) 99999-0000',
+                'dta_ult_alteracao' => '2024-01-01 00:00:00',
+            ],
+            [77 => $medicoB->id],
+        ]);
+
+        $this->assertSame('pacientes_merge', $result['stat']);
+        $this->assertSame($paciente->id, $result['paciente_id']);
+        $this->assertDatabaseHas('medico_paciente', [
+            'medico_id' => $medicoB->id,
+            'paciente_id' => $paciente->id,
+        ]);
+
+        // Segunda passada: vínculo já existe e nada mudou → skip de verdade.
+        $again = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 4242,
+                'legado_medico_id' => 77,
+                'nome' => 'Fulana de Tal',
+                'cpf' => '123.456.789-09',
+                'sexo' => 'F',
+                'celular' => '(11) 99999-0000',
+                'dta_ult_alteracao' => '2024-01-01 00:00:00',
+            ],
+            [77 => $medicoB->id],
+        ]);
+        $this->assertSame('pacientes_skip', $again['stat']);
+    }
+
+    /** As notas privadas do médico no vínculo não podem ser trocadas pelas do dump. */
+    public function test_import_nao_sobrescreve_notas_privadas_do_vinculo(): void
+    {
+        $medico = $this->seedMedico('Dr H', '999', '99999999999');
+        $paciente = Paciente::create(['nome' => 'Fulana Vinculada', 'cpf' => '12345678909', 'ativo' => true]);
+
+        app(\App\Services\PacienteVinculoService::class)->garantir($paciente, $medico->id, [
+            'anotacoes' => 'Alergia a ácido — anotado no CLW3',
+            'codigo' => 'CLW3-1',
+        ], null, 'form');
+
+        $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 9003,
+                'legado_medico_id' => 504,
+                'nome' => 'Fulana Vinculada',
+                'cpf' => '123.456.789-09',
+                'anotacoes' => 'observação antiga do CLW2',
+                'codigo' => 'CW2-77',
+            ],
+            [504 => $medico->id],
+        ]);
+
+        $this->assertDatabaseHas('medico_paciente', [
+            'medico_id' => $medico->id,
+            'paciente_id' => $paciente->id,
+            'anotacoes' => 'Alergia a ácido — anotado no CLW3',
+            'codigo' => 'CLW3-1',
+        ]);
+    }
+
+    /** Paciente sem vínculo nenhum (veio do oList) tem de ser mesclado, não duplicado. */
+    public function test_paciente_de_outro_medico_casa_por_nome_e_nascimento(): void
+    {
+        $medico = $this->seedMedico('Dr C', '333', '33333333333');
+        $paciente = Paciente::create([
+            'nome' => 'Beatriz Helena de Figueiredo',
+            'data_nascimento' => '1966-04-27',
+            'cpf' => '09227800808',
+            'ativo' => true,
+        ]);
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 1504,
+                'legado_medico_id' => 504,
+                'nome' => 'Beatriz Helena de Figueiredo',
+                'data_nascimento' => '1966-04-27',
+                'cpf' => null,
+            ],
+            [504 => $medico->id],
+        ]);
+
+        $this->assertSame('pacientes_merge', $result['stat']);
+        $this->assertSame($paciente->id, $result['paciente_id']);
+        $this->assertSame(1, Paciente::where('nome', 'Beatriz Helena de Figueiredo')->count());
+    }
+
+    /** Data de nascimento lixo no dump não pode gerar cadastro paralelo. */
+    public function test_paciente_com_data_invalida_casa_por_celular(): void
+    {
+        $medico = $this->seedMedico('Dr D', '444', '44444444444');
+        $paciente = Paciente::create([
+            'nome' => 'Neiva Salete Menegatti',
+            'data_nascimento' => '9870-03-11',
+            'celular' => '(11) 99986-2598',
+            'ativo' => true,
+        ]);
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 727,
+                'legado_medico_id' => 504,
+                'nome' => 'Neiva Salete Menegatti',
+                'data_nascimento' => '9862-99-11',
+                'celular' => '(11) 99986-2598',
+                'cpf' => null,
+            ],
+            [504 => $medico->id],
+        ]);
+
+        $this->assertSame('pacientes_merge', $result['stat']);
+        $this->assertSame($paciente->id, $result['paciente_id']);
+    }
+
+    /** Homônimo sem nascimento nem telefone em comum continua virando cadastro novo — sinalizado. */
+    public function test_homonimo_sem_confirmacao_vira_novo_com_alerta(): void
+    {
+        $medico = $this->seedMedico('Dr E', '555', '55555555555');
+        Paciente::create([
+            'nome' => 'Maria Silva',
+            'data_nascimento' => '1980-01-01',
+            'celular' => '(11) 90000-0001',
+            'ativo' => true,
+        ]);
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 9001,
+                'legado_medico_id' => 504,
+                'nome' => 'Maria Silva',
+                'data_nascimento' => '1995-06-15',
+                'celular' => '(11) 90000-0002',
+            ],
+            [504 => $medico->id],
+        ]);
+
+        $this->assertSame('pacientes_novos', $result['stat']);
+        $this->assertTrue($result['needs_review']);
+        $this->assertSame('paciente_novo_com_homonimo', $result['signal']['tipo']);
+    }
+
+    public function test_data_invalida_do_legado_nao_e_gravada(): void
+    {
+        $medico = $this->seedMedico('Dr F', '666', '66666666666');
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 9002,
+                'legado_medico_id' => 504,
+                'nome' => 'Paciente Data Lixo',
+                'data_nascimento' => '9862-99-11',
+            ],
+            [504 => $medico->id],
+        ]);
+
+        $this->assertSame('pacientes_novos', $result['stat']);
+        $this->assertNull(Paciente::find($result['paciente_id'])->data_nascimento);
+    }
+
+    /** Receita idêntica ao dump não pode apagar/recriar item (cascata em receita_item_aquisicoes). */
+    public function test_receita_sem_mudanca_nao_reescreve_itens(): void
+    {
+        [$medico, $paciente, $receita, $item] = $this->seedReceitaImportada();
+
+        $result = $this->invocarImporter('upsertReceita', [
+            $this->itemLegadoReceita(['local_uso' => 'ROSTO']),
+            $paciente->id,
+            $medico->id,
+            [],
+            Produto::all()->keyBy('codigo'),
+        ]);
+
+        $this->assertSame('receitas_skip', $result['stat']);
+        $this->assertSame($item->id, ReceitaItem::where('receita_id', $receita->id)->first()->id);
+        $this->assertSame(
+            '2026-06-16 07:00:00',
+            $receita->fresh()->updated_at->format('Y-m-d H:i:s')
+        );
+    }
+
+    /** Quando muda de verdade, o item é atualizado no lugar: `vendido` e aquisição sobrevivem. */
+    public function test_receita_atualizada_preserva_vendido_e_aquisicao(): void
+    {
+        [$medico, $paciente, $receita, $item] = $this->seedReceitaImportada();
+        $item->forceFill(['vendido' => true, 'data_aquisicao' => '2026-05-01'])->saveQuietly();
+
+        $result = $this->invocarImporter('upsertReceita', [
+            $this->itemLegadoReceita(['local_uso' => 'PESCOÇO', 'quantidade' => 2]),
+            $paciente->id,
+            $medico->id,
+            [],
+            Produto::all()->keyBy('codigo'),
+        ]);
+
+        $this->assertSame('receitas_atualizadas', $result['stat']);
+
+        $depois = ReceitaItem::where('receita_id', $receita->id)->first();
+        $this->assertSame($item->id, $depois->id, 'item deve ser atualizado no lugar');
+        $this->assertTrue((bool) $depois->vendido);
+        $this->assertSame('2026-05-01', $depois->data_aquisicao->format('Y-m-d'));
+        $this->assertSame('PESCOÇO', $depois->local_uso);
+
+        $campos = collect($result['change']['diff'])->pluck('field')->all();
+        $this->assertContains('itens_resumo', $campos, 'a troca de item precisa aparecer no diff');
+    }
+
+    /** Anotações internas escritas no CLW3 não podem ser trocadas pelas do dump. */
+    public function test_refresh_preserva_anotacoes_internas_do_clw3(): void
+    {
+        [$medico, $paciente, $receita] = $this->seedReceitaImportada();
+        // updated_at explícito: o Eloquent carimbaria a data de hoje e a receita entraria como
+        // "editada no CLW3" (conflito), que não é o cenário deste teste.
+        Receita::where('id', $receita->id)->update([
+            'anotacoes' => "Paciente relatou ardência — reduzir concentração.\n[legado:5150|num:1]",
+            'updated_at' => '2026-06-16 07:00:00',
+        ]);
+
+        $this->invocarImporter('upsertReceita', [
+            $this->itemLegadoReceita(['local_uso' => 'PESCOÇO', 'anotacoes_receita' => 'obs do CLW2']),
+            $paciente->id,
+            $medico->id,
+            [],
+            Produto::all()->keyBy('codigo'),
+        ]);
+
+        $anotacoes = $receita->fresh()->anotacoes;
+        $this->assertStringContainsString('reduzir concentração', $anotacoes);
+        $this->assertStringContainsString('obs do CLW2', $anotacoes);
+        $this->assertSame(1, substr_count($anotacoes, '[legado:5150'));
+    }
+
+    public function test_apply_exige_dry_run_da_mesma_selecao(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $medico = $this->seedMedico('Dr G', '777', '77777777777');
+
+        $dumps = app(\App\Services\Migration\LegadoIncrementalImporter::class)->listSqlDumps();
+        if ($dumps === []) {
+            $this->markTestSkipped('Nenhum dump .sql disponível neste ambiente.');
+        }
+
+        $this->actingAs($admin)
+            ->post(route('tools.importacao-clw2.apply'), [
+                'sql_name' => $dumps[0]['name'],
+                'medico_ids' => [$medico->id],
+                'confirm' => true,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+    }
+
+    /**
+     * @return array{0: Medico, 1: Paciente, 2: Receita, 3: ReceitaItem}
+     */
+    private function seedReceitaImportada(): array
+    {
+        $medico = $this->seedMedico('Dr Receita', '888', '88888888888');
+        $paciente = Paciente::create(['nome' => 'Beltrana', 'medico_id' => $medico->id, 'ativo' => true]);
+        $produto = Produto::create(['codigo' => 'X1', 'nome' => 'X1', 'ativo' => true]);
+
+        $receita = Receita::create([
+            'paciente_id' => $paciente->id,
+            'medico_id' => $medico->id,
+            'data_receita' => '2026-01-10',
+            'numero' => $paciente->id.'-0001',
+            'status' => 'aberta',
+            'ativo' => true,
+            'legado_id' => 5150,
+            'numero_origem' => '1',
+            'origem' => 'clw2_importada',
+            'subtotal' => 10,
+            'valor_total' => 10,
+            'anotacoes' => '[legado:5150|num:1]',
+        ]);
+
+        $item = ReceitaItem::create([
+            'receita_id' => $receita->id,
+            'produto_id' => $produto->id,
+            'quantidade' => 1,
+            'valor_unitario' => 10,
+            'valor_total' => 10,
+            'local_uso' => 'ROSTO',
+            'ordem' => 1,
+            'grupo' => 'recomendado',
+        ]);
+
+        // Estado "importado e nunca editado no CLW3".
+        Receita::where('id', $receita->id)->update([
+            'created_at' => '2026-06-16 07:00:00',
+            'updated_at' => '2026-06-16 07:00:00',
+        ]);
+        $receita->refresh();
+
+        return [$medico, $paciente, $receita, $item];
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function itemLegadoReceita(array $overrides = []): array
+    {
+        return [
+            'legado_id' => 5150,
+            'numero_legado' => '1',
+            'data_receita' => '2026-01-10',
+            'status' => 'aberta',
+            // dump mais novo que o CLW3 → entra no caminho de refresh
+            'dta_ult_alteracao' => '2026-08-01 10:00:00',
+            'subtotal' => 10 * ($overrides['quantidade'] ?? 1),
+            'valor_total' => 10 * ($overrides['quantidade'] ?? 1),
+            'anotacoes' => $overrides['anotacoes_receita'] ?? null,
+            'itens' => [[
+                'codigo_produto_legado' => 'X1',
+                'codigo_produto_mapeado' => 'X1',
+                'quantidade' => $overrides['quantidade'] ?? 1,
+                'valor_unitario' => 10,
+                'local_uso' => $overrides['local_uso'] ?? 'ROSTO',
+            ]],
+        ];
     }
 }

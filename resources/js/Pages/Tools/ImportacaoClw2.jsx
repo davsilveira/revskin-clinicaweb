@@ -17,6 +17,7 @@ const STAT_LABELS = {
     receitas_novas: 'Receitas novas',
     receitas_atualizadas: 'Receitas a atualizar',
     receitas_skip: 'Receitas sem mudança',
+    receitas_sem_vinculo: 'Receitas ignoradas (sem paciente/médico)',
     receitas_conflito: 'Receitas em conflito',
     receitas_canceladas_espelhadas: 'Cancelamentos espelhados',
     itens_sem_produto: 'Itens sem produto',
@@ -31,6 +32,18 @@ const ACTION_STYLES = {
     cancelada: 'bg-orange-100 text-orange-900',
     conflito: 'bg-red-100 text-red-800',
 };
+
+const WARNING_LABELS = {
+    paciente_merge_sem_cpf: 'Casado sem CPF (por nome + nascimento/telefone) — confira se é a mesma pessoa',
+    paciente_novo_com_homonimo: 'Já existe alguém com este nome no CLW3 — confira antes de aplicar',
+    paciente_homonimo_ambiguo: 'Mais de um cadastro com este nome — será mesclado no mais antigo',
+    cpf_divergente: 'CPF do legado diverge do CLW3 — mantido o do CLW3',
+    conflito: 'Receita editada no CLW3 depois do import — dump ignorado',
+};
+
+function warningLabel(w) {
+    return WARNING_LABELS[w] || w;
+}
 
 function formatValue(v) {
     if (v === null || v === undefined || v === '') return '—';
@@ -243,13 +256,13 @@ export default function ImportacaoClw2({
                     </div>
                 )}
 
-                {report && <ImportReportPanel report={report} />}
+                {report && <ImportReportPanel report={report} selected={selected} />}
             </div>
         </DashboardLayout>
     );
 }
 
-function ImportReportPanel({ report }) {
+function ImportReportPanel({ report, selected = [] }) {
     const [tab, setTab] = useState('pacientes');
     const [listFilter, setListFilter] = useState('');
     const [actionFilter, setActionFilter] = useState('all');
@@ -376,6 +389,17 @@ function ImportReportPanel({ report }) {
             .map(([k, v]) => ({ key: k, label: STAT_LABELS[k] || k, value: v }));
     }, [report.stats]);
 
+    const mappings = Array.isArray(report.mappings) ? report.mappings : [];
+
+    // O Aplicar reexecuta a importação: se a seleção mudou depois do dry-run, o que está na tela
+    // não é o que seria aplicado (e o backend recusa).
+    const selecaoDivergente = useMemo(() => {
+        const doReport = [...(report.medico_ids || [])].map(Number).sort((a, b) => a - b);
+        const agora = [...selected].map(Number).sort((a, b) => a - b);
+        if (doReport.length === 0 || agora.length === 0) return false;
+        return JSON.stringify(doReport) !== JSON.stringify(agora);
+    }, [report.medico_ids, selected]);
+
     const skipStats = useMemo(() => {
         const s = report.stats || {};
         return [
@@ -406,6 +430,33 @@ function ImportReportPanel({ report }) {
                     <p className="text-xs text-gray-500">
                         Omitidos da lista (já no CLW3, sem mudança):{' '}
                         {skipStats.map((s) => `${s.value} ${s.label.toLowerCase()}`).join(' · ')}
+                    </p>
+                )}
+                {mappings.length > 0 && (
+                    <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs space-y-1">
+                        <p className="font-medium text-gray-600">Médicos deste report</p>
+                        {mappings.map((m, i) => (
+                            <p key={i} className={m.ok ? 'text-gray-700' : 'text-red-700'}>
+                                {m.ok
+                                    ? `✅ #${m.clw3_id} ${m.clw3_nome || ''} ↔ CLW2 #${m.legado_id} ${m.legado_nome || ''}`
+                                    : `❌ #${m.clw3_id || '?'} ${m.clw3_nome || ''} — ${m.erro || 'sem correspondência'}`}
+                                {m.ok && (
+                                    <span
+                                        className={`ml-1 ${
+                                            m.dump_match === 'nome' ? 'text-amber-700 font-medium' : 'text-gray-400'
+                                        }`}
+                                    >
+                                        (casou por {m.dump_match})
+                                        {m.dump_match === 'nome' ? ' ⚠ confira' : ''}
+                                    </span>
+                                )}
+                            </p>
+                        ))}
+                    </div>
+                )}
+                {selecaoDivergente && (
+                    <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        ⚠ Este report é de outra seleção de médicos. Rode o Dry-run de novo antes de aplicar.
                     </p>
                 )}
                 {!hash && (
@@ -516,7 +567,7 @@ function ImportReportPanel({ report }) {
                                                         {item.diff_count != null ? ` · ${item.diff_count} campo(s)` : ''}
                                                     </div>
                                                     {item.warning && (
-                                                        <div className="mt-1 text-xs text-amber-700">⚠ {item.warning}</div>
+                                                        <div className="mt-1 text-xs text-amber-700">⚠ {warningLabel(item.warning)}</div>
                                                     )}
                                                 </button>
                                             </li>
@@ -607,7 +658,7 @@ function DiffView({ change }) {
                 </p>
                 {change.warning && (
                     <p className="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                        ⚠ {change.warning}
+                        ⚠ {warningLabel(change.warning)}
                     </p>
                 )}
             </div>

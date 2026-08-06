@@ -148,6 +148,15 @@ class ImportacaoClw2Controller extends Controller
 
         $sqlPath = $this->resolveSql($importer, $validated['sql_name']);
 
+        // O Aplicar reexecuta a importação do zero — sem esta trava dava para revisar o dry-run
+        // de um médico e aplicar com outro selecionado.
+        if (! $this->dryRunConfereComSelecao($sqlPath, $validated['medico_ids'])) {
+            return back()->with(
+                'error',
+                'Rode o Dry-run desta mesma seleção de médicos antes de aplicar (o último report não confere).'
+            );
+        }
+
         try {
             @set_time_limit(300);
             $report = $importer->run($sqlPath, $validated['medico_ids'], false);
@@ -197,6 +206,36 @@ class ImportacaoClw2Controller extends Controller
         }
 
         abort(404, 'Alteração não encontrada neste report.');
+    }
+
+    /**
+     * O último report do dump precisa ser um dry-run da mesma seleção de médicos.
+     *
+     * @param  list<int|string>  $medicoIds
+     */
+    private function dryRunConfereComSelecao(string $sqlPath, array $medicoIds): bool
+    {
+        $hash = @md5_file($sqlPath);
+        if (! $hash) {
+            return false;
+        }
+
+        $path = storage_path('app/imports/'.$hash.'/report-latest.json');
+        if (! is_file($path)) {
+            return false;
+        }
+
+        $full = json_decode((string) file_get_contents($path), true);
+        if (! is_array($full) || ($full['dry_run'] ?? false) !== true) {
+            return false;
+        }
+
+        $doReport = array_map('intval', (array) ($full['medico_ids'] ?? []));
+        $selecionados = array_map('intval', $medicoIds);
+        sort($doReport);
+        sort($selecionados);
+
+        return $doReport !== [] && $doReport === $selecionados;
     }
 
     /**
@@ -257,6 +296,7 @@ class ImportacaoClw2Controller extends Controller
             'work_dir' => $full['work_dir'] ?? null,
             'generated_at' => $full['generated_at'] ?? null,
             'mappings' => $full['mappings'] ?? [],
+            'medico_ids' => array_map('intval', (array) ($full['medico_ids'] ?? [])),
             'stats' => $full['stats'] ?? [],
             'signals_count' => is_array($signals) ? count($signals) : 0,
             'pacientes_filtrados' => $full['pacientes_filtrados'] ?? null,
