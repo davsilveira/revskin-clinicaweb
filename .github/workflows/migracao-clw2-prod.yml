@@ -54,6 +54,8 @@ jobs:
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
           envs: IN_ETAPA,IN_MEDICOS,IN_IDS,IN_BUDGET,APP_DIR
+          # O SSH da Hostinger costuma estourar os 30s padrão de handshake vindo do runner.
+          timeout: "120s"
           command_timeout: "50m"
           script: |
             set -euo pipefail
