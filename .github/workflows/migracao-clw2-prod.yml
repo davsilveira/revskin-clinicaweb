@@ -1,0 +1,131 @@
+name: Migração CLW2 / limpeza (PRODUÇÃO)
+
+# Executa, em PRODUÇÃO via SSH, as etapas da subida da importação CLW2 e as limpezas
+# relacionadas. Uma etapa por execução, para dar para conferir a saída antes da seguinte.
+#
+# Ordem recomendada (job 946a5c52):
+#   migrate-status → backfill-legado-id → import-dry-run → import-apply
+#   → olist-dry-run → olist-import → emails-listar → emails-aplicar
+#   → limpeza-listar → limpeza-apagar
+#
+# `backfill-legado-id` é obrigatório ANTES de `import-apply`: sem `receitas.legado_id`
+# o importador não tem âncora e recria paciente a cada rodada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      etapa:
+        description: "Etapa a executar"
+        type: choice
+        required: true
+        options:
+          - migrate-status
+          - backfill-legado-id
+          - import-dry-run
+          - import-apply
+          - olist-dry-run
+          - olist-import
+          - emails-listar
+          - emails-aplicar
+          - limpeza-listar
+          - limpeza-apagar
+      medicos:
+        description: "Médicos (e-mail, CPF, CRM ou id CLW3, separados por vírgula) — etapas de import"
+        required: false
+        default: ""
+      ids:
+        description: "Ids de pacientes conferidos — etapa limpeza-apagar"
+        required: false
+        default: ""
+      budget:
+        description: "Budget de chamadas de API — etapas do oList"
+        required: false
+        default: "200"
+
+jobs:
+  executar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar etapa via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: IN_ETAPA,IN_MEDICOS,IN_IDS,IN_BUDGET,APP_DIR
+          command_timeout: "50m"
+          script: |
+            set -euo pipefail
+
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR  PHP=$PHP ($($PHP -r 'echo PHP_VERSION;'))"
+            echo "==> Etapa: $IN_ETAPA"
+            echo
+
+            DUMP="database/legado/bkp_cw2_20260806.sql"
+
+            case "$IN_ETAPA" in
+              migrate-status)
+                "$PHP" artisan migrate:status | tail -20
+                echo "--- dump versionado presente? ---"
+                ls -la "$DUMP" || echo "AUSENTE: $DUMP"
+                ;;
+
+              backfill-legado-id)
+                "$PHP" artisan migration:backfill-receita-legado-id --dry-run
+                echo "--- aplicando ---"
+                "$PHP" artisan migration:backfill-receita-legado-id --force
+                ;;
+
+              import-dry-run)
+                test -n "$IN_MEDICOS" || { echo "Informe 'medicos'."; exit 1; }
+                "$PHP" artisan migration:importar-legado-incremental \
+                  --sql="$DUMP" --medicos="$IN_MEDICOS" --dry-run
+                ;;
+
+              import-apply)
+                test -n "$IN_MEDICOS" || { echo "Informe 'medicos'."; exit 1; }
+                "$PHP" artisan migration:importar-legado-incremental \
+                  --sql="$DUMP" --medicos="$IN_MEDICOS" --force
+                ;;
+
+              olist-dry-run)
+                "$PHP" artisan tiny:importar-clientes --full --dry-run --paginas=2
+                ;;
+
+              olist-import)
+                "$PHP" artisan tiny:importar-clientes --full --budget="$IN_BUDGET"
+                ;;
+
+              emails-listar)
+                "$PHP" artisan pacientes:normalizar-emails-placeholder
+                ;;
+
+              emails-aplicar)
+                "$PHP" artisan pacientes:normalizar-emails-placeholder --apply
+                ;;
+
+              limpeza-listar)
+                "$PHP" artisan pacientes:remover-teste
+                ;;
+
+              limpeza-apagar)
+                test -n "$IN_IDS" || { echo "Informe 'ids' (lista conferida)."; exit 1; }
+                "$PHP" artisan pacientes:remover-teste --ids="$IN_IDS" --force
+                ;;
+
+              *)
+                echo "Etapa desconhecida: $IN_ETAPA"; exit 1 ;;
+            esac
+        env:
+          IN_ETAPA: ${{ inputs.etapa }}
+          IN_MEDICOS: ${{ inputs.medicos }}
+          IN_IDS: ${{ inputs.ids }}
+          IN_BUDGET: ${{ inputs.budget }}
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
