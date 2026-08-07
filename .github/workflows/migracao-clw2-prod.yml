@@ -21,6 +21,7 @@ on:
         options:
           - migrate-status
           - diag-medicos
+          - contagens
           - backfill-legado-id
           - import-dry-run
           - import-apply
@@ -78,6 +79,23 @@ jobs:
                 "$PHP" artisan migrate:status | tail -20
                 echo "--- dump versionado presente? ---"
                 ls -la "$DUMP" || echo "AUSENTE: $DUMP"
+                ;;
+
+              contagens)
+                # Invariantes de antes/depois — read-only.
+                "$PHP" artisan tinker --execute "
+                  \$q = fn(\$sql) => DB::selectOne(\$sql)->v;
+                  echo 'pacientes=', \$q('select count(*) v from pacientes'), PHP_EOL;
+                  echo 'receitas=', \$q('select count(*) v from receitas'), PHP_EOL;
+                  echo 'receita_itens=', \$q('select count(*) v from receita_itens'), PHP_EOL;
+                  echo 'aquisicoes=', \$q('select count(*) v from receita_item_aquisicoes'), PHP_EOL;
+                  echo 'aq_com_pedido_olist=', \$q('select count(*) v from receita_item_aquisicoes where tiny_pedido_id is not null'), PHP_EOL;
+                  echo 'medico_paciente=', \$q('select count(*) v from medico_paciente'), PHP_EOL;
+                  echo 'receitas_com_legado_id=', \$q('select count(*) v from receitas where legado_id is not null'), PHP_EOL;
+                  echo 'ORFAOS itens=', \$q('select count(*) v from receita_itens ri left join receitas r on r.id=ri.receita_id where r.id is null'), PHP_EOL;
+                  echo 'ORFAOS aquisicoes=', \$q('select count(*) v from receita_item_aquisicoes a left join receita_itens ri on ri.id=a.receita_item_id where ri.id is null'), PHP_EOL;
+                  echo 'ORFAOS receitas_sem_paciente=', \$q('select count(*) v from receitas r left join pacientes p on p.id=r.paciente_id where p.id is null'), PHP_EOL;
+                "
                 ;;
 
               diag-medicos)
