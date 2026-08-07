@@ -22,6 +22,7 @@ on:
           - migrate-status
           - diag-medicos
           - contagens
+          - diag-emails
           - backfill-legado-id
           - import-dry-run
           - import-apply
@@ -95,6 +96,41 @@ jobs:
                   echo 'ORFAOS itens=', \$q('select count(*) v from receita_itens ri left join receitas r on r.id=ri.receita_id where r.id is null'), PHP_EOL;
                   echo 'ORFAOS aquisicoes=', \$q('select count(*) v from receita_item_aquisicoes a left join receita_itens ri on ri.id=a.receita_item_id where ri.id is null'), PHP_EOL;
                   echo 'ORFAOS receitas_sem_paciente=', \$q('select count(*) v from receitas r left join pacientes p on p.id=r.paciente_id where p.id is null'), PHP_EOL;
+                "
+                ;;
+
+              diag-emails)
+                # Read-only: o placeholder @cadastraremail.rsk chegou em quem veio do oList sem e-mail?
+                "$PHP" artisan tinker --execute "
+                  \$q = fn(\$sql) => DB::selectOne(\$sql)->v;
+                  \$rsk = \"email1 like '%@cadastraremail.rsk'\";
+                  \$semEmail = \"(email1 is null or trim(email1) = '')\";
+                  \$comTel = \"(coalesce(celular,'') <> '' or coalesce(telefone1,'') <> '')\";
+                  echo '== BASE TODA ==', PHP_EOL;
+                  echo 'pacientes=', \$q('select count(*) v from pacientes'), PHP_EOL;
+                  echo 'com placeholder .rsk=', \$q(\"select count(*) v from pacientes where \$rsk\"), PHP_EOL;
+                  echo 'sem e-mail nenhum=', \$q(\"select count(*) v from pacientes where \$semEmail\"), PHP_EOL;
+                  echo '  destes, COM telefone=', \$q(\"select count(*) v from pacientes where \$semEmail and \$comTel\"), PHP_EOL;
+                  echo '  destes, sem telefone=', \$q(\"select count(*) v from pacientes where \$semEmail and not \$comTel\"), PHP_EOL;
+                  echo 'com e-mail de verdade=', \$q(\"select count(*) v from pacientes where not \$semEmail and not (\$rsk)\"), PHP_EOL;
+                  echo PHP_EOL, '== VINDOS DO OLIST (tiny_id preenchido) ==', PHP_EOL;
+                  \$tiny = \"tiny_id is not null\";
+                  echo 'pacientes=', \$q(\"select count(*) v from pacientes where \$tiny\"), PHP_EOL;
+                  echo 'com placeholder .rsk=', \$q(\"select count(*) v from pacientes where \$tiny and \$rsk\"), PHP_EOL;
+                  echo 'sem e-mail nenhum=', \$q(\"select count(*) v from pacientes where \$tiny and \$semEmail\"), PHP_EOL;
+                  echo '  destes, COM telefone (deveriam ter placeholder)=', \$q(\"select count(*) v from pacientes where \$tiny and \$semEmail and \$comTel\"), PHP_EOL;
+                  echo '  destes, sem telefone (correto ficar sem)=', \$q(\"select count(*) v from pacientes where \$tiny and \$semEmail and not \$comTel\"), PHP_EOL;
+                  echo 'com e-mail de verdade=', \$q(\"select count(*) v from pacientes where \$tiny and not \$semEmail and not (\$rsk)\"), PHP_EOL;
+                  echo PHP_EOL, '== CRIADOS HOJE ==', PHP_EOL;
+                  \$hoje = \"date(created_at) = curdate()\";
+                  echo 'pacientes=', \$q(\"select count(*) v from pacientes where \$hoje\"), PHP_EOL;
+                  echo 'com placeholder .rsk=', \$q(\"select count(*) v from pacientes where \$hoje and \$rsk\"), PHP_EOL;
+                  echo 'sem e-mail nenhum=', \$q(\"select count(*) v from pacientes where \$hoje and \$semEmail\"), PHP_EOL;
+                  echo '  destes, COM telefone=', \$q(\"select count(*) v from pacientes where \$hoje and \$semEmail and \$comTel\"), PHP_EOL;
+                  echo PHP_EOL, '== AMOSTRA: oList sem e-mail e COM telefone ==', PHP_EOL;
+                  foreach (DB::select(\"select id, nome, celular, telefone1, tiny_id from pacientes where \$tiny and \$semEmail and \$comTel order by id desc limit 10\") as \$p) {
+                    echo '#', \$p->id, ' | ', \$p->nome, ' | cel=', \$p->celular, ' | tel1=', \$p->telefone1, PHP_EOL;
+                  }
                 "
                 ;;
 
