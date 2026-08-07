@@ -399,7 +399,13 @@ class ToolsIntegrationJobsTest extends TestCase
         $job = new PullPacientesTinyJob;
 
         $uuids = [];
-        foreach (['2026-05-28 04:01:34', '2026-05-29 04:01:34'] as $failedAt) {
+        // Relativo à data de hoje: com data fixa o teste passou a falhar sozinho quando as
+        // falhas saíram da janela de 30 dias consultada abaixo.
+        $datasFalha = [
+            now()->subDays(3)->format('Y-m-d H:i:s'),
+            now()->subDays(2)->format('Y-m-d H:i:s'),
+        ];
+        foreach ($datasFalha as $failedAt) {
             $uuid = (string) str()->uuid();
             $uuids[] = $uuid;
             DB::table('failed_jobs')->insert([
