@@ -127,8 +127,10 @@ php artisan migration:importar-legado-incremental \
 # só depois, com a mesma seleção:
 php artisan migration:importar-legado-incremental --sql=... --medicos=... --force
 
-# 6) Carga de clientes do oList (retomável; ~25 req/min, roda quantas vezes precisar)
-php artisan tiny:importar-clientes --full --budget=200
+# 6) Carga de clientes do oList — roda inline (não precisa de queue worker), é retomável por
+#    checkpoint e o oList limita ~25 req/min: repita até acabar. Exige tiny_enabled ligado.
+php artisan tiny:importar-clientes --full --dry-run --paginas=2   # confere antes
+php artisan tiny:importar-clientes --full --budget=200            # repetir até terminar
 
 # 7) Normalizar os e-mails de marcação quebrados (~150 cadastros que hoje dão 422 ao salvar)
 php artisan pacientes:normalizar-emails-placeholder            # lista
