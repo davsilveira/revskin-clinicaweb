@@ -20,6 +20,7 @@ on:
         required: true
         options:
           - migrate-status
+          - diag-medicos
           - backfill-legado-id
           - import-dry-run
           - import-apply
@@ -77,6 +78,30 @@ jobs:
                 "$PHP" artisan migrate:status | tail -20
                 echo "--- dump versionado presente? ---"
                 ls -la "$DUMP" || echo "AUSENTE: $DUMP"
+                ;;
+
+              diag-medicos)
+                # Read-only: acha o Medico/User certo quando o token não resolve.
+                test -n "$IN_MEDICOS" || { echo "Informe 'medicos' (trecho do nome, separado por vírgula)."; exit 1; }
+                "$PHP" artisan tinker --execute "
+                  \$termos = array_filter(array_map('trim', explode(',', '$IN_MEDICOS')));
+                  foreach (\$termos as \$t) {
+                    echo PHP_EOL, '--- ', \$t, PHP_EOL;
+                    \$ms = App\\Models\\Medico::where('nome_legado','like','%'.\$t.'%')
+                      ->orWhere('apelido','like','%'.\$t.'%')->get();
+                    foreach (\$ms as \$m) {
+                      \$us = App\\Models\\User::where('medico_id',\$m->id)->pluck('email')->implode(', ');
+                      echo 'medico #', \$m->id, ' | crm=', \$m->crm, ' | cpf=', \$m->cpf,
+                           ' | email1=', \$m->email1, ' | ativo=', (int)\$m->ativo,
+                           ' | users: ', \$us, PHP_EOL;
+                    }
+                    if (\$ms->isEmpty()) { echo '(nenhum Medico com esse nome)', PHP_EOL; }
+                    \$byUser = App\\Models\\User::where('name','like','%'.\$t.'%')->get(['id','name','email','medico_id']);
+                    foreach (\$byUser as \$u) {
+                      echo 'user #', \$u->id, ' | ', \$u->name, ' | ', \$u->email, ' | medico_id=', \$u->medico_id, PHP_EOL;
+                    }
+                  }
+                "
                 ;;
 
               backfill-legado-id)
