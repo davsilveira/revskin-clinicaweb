@@ -20,6 +20,8 @@ on:
         required: true
         options:
           - migrate-status
+          - diag-medicos
+          - contagens
           - backfill-legado-id
           - import-dry-run
           - import-apply
@@ -54,6 +56,8 @@ jobs:
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
           envs: IN_ETAPA,IN_MEDICOS,IN_IDS,IN_BUDGET,APP_DIR
+          # O SSH da Hostinger costuma estourar os 30s padrão de handshake vindo do runner.
+          timeout: "120s"
           command_timeout: "50m"
           script: |
             set -euo pipefail
@@ -75,6 +79,53 @@ jobs:
                 "$PHP" artisan migrate:status | tail -20
                 echo "--- dump versionado presente? ---"
                 ls -la "$DUMP" || echo "AUSENTE: $DUMP"
+                ;;
+
+              contagens)
+                # Invariantes de antes/depois — read-only.
+                "$PHP" artisan tinker --execute "
+                  \$q = fn(\$sql) => DB::selectOne(\$sql)->v;
+                  echo 'pacientes=', \$q('select count(*) v from pacientes'), PHP_EOL;
+                  echo 'receitas=', \$q('select count(*) v from receitas'), PHP_EOL;
+                  echo 'receita_itens=', \$q('select count(*) v from receita_itens'), PHP_EOL;
+                  echo 'aquisicoes=', \$q('select count(*) v from receita_item_aquisicoes'), PHP_EOL;
+                  echo 'aq_com_pedido_olist=', \$q('select count(*) v from receita_item_aquisicoes where tiny_pedido_id is not null'), PHP_EOL;
+                  echo 'medico_paciente=', \$q('select count(*) v from medico_paciente'), PHP_EOL;
+                  echo 'receitas_com_legado_id=', \$q('select count(*) v from receitas where legado_id is not null'), PHP_EOL;
+                  echo 'ORFAOS itens=', \$q('select count(*) v from receita_itens ri left join receitas r on r.id=ri.receita_id where r.id is null'), PHP_EOL;
+                  echo 'ORFAOS aquisicoes=', \$q('select count(*) v from receita_item_aquisicoes a left join receita_itens ri on ri.id=a.receita_item_id where ri.id is null'), PHP_EOL;
+                  echo 'ORFAOS receitas_sem_paciente=', \$q('select count(*) v from receitas r left join pacientes p on p.id=r.paciente_id where p.id is null'), PHP_EOL;
+                "
+                ;;
+
+              diag-medicos)
+                # Read-only: acha o Medico/User certo quando o token não resolve.
+                test -n "$IN_MEDICOS" || { echo "Informe 'medicos' (trecho do nome, separado por vírgula)."; exit 1; }
+                "$PHP" artisan tinker --execute "
+                  \$termos = array_filter(array_map('trim', explode(',', '$IN_MEDICOS')));
+                  foreach (\$termos as \$t) {
+                    echo PHP_EOL, '--- ', \$t, PHP_EOL;
+                    \$ms = ctype_digit(\$t)
+                      ? App\\Models\\Medico::where('id', (int) \$t)->get()
+                      : App\\Models\\Medico::where('nome_legado','like','%'.\$t.'%')
+                          ->orWhere('apelido','like','%'.\$t.'%')->get();
+                    foreach (\$ms as \$m) {
+                      \$us = App\\Models\\User::where('medico_id',\$m->id)->pluck('email')->implode(', ');
+                      \$nr = App\\Models\\Receita::where('medico_id',\$m->id)->count();
+                      \$nv = DB::table('medico_paciente')->where('medico_id',\$m->id)->count();
+                      echo 'medico #', \$m->id, ' | ', (\$m->nome_legado ?: \$m->apelido),
+                           ' | crm=', \$m->crm, ' | cpf=', \$m->cpf,
+                           ' | email1=', \$m->email1, ' | ativo=', (int)\$m->ativo,
+                           ' | receitas=', \$nr, ' | vinculos=', \$nv,
+                           ' | users: ', \$us, PHP_EOL;
+                    }
+                    if (\$ms->isEmpty()) { echo '(nenhum Medico com esse nome)', PHP_EOL; }
+                    \$byUser = App\\Models\\User::where('name','like','%'.\$t.'%')->get(['id','name','email','medico_id']);
+                    foreach (\$byUser as \$u) {
+                      echo 'user #', \$u->id, ' | ', \$u->name, ' | ', \$u->email, ' | medico_id=', \$u->medico_id, PHP_EOL;
+                    }
+                  }
+                "
                 ;;
 
               backfill-legado-id)
