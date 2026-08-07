@@ -87,12 +87,18 @@ jobs:
                   \$termos = array_filter(array_map('trim', explode(',', '$IN_MEDICOS')));
                   foreach (\$termos as \$t) {
                     echo PHP_EOL, '--- ', \$t, PHP_EOL;
-                    \$ms = App\\Models\\Medico::where('nome_legado','like','%'.\$t.'%')
-                      ->orWhere('apelido','like','%'.\$t.'%')->get();
+                    \$ms = ctype_digit(\$t)
+                      ? App\\Models\\Medico::where('id', (int) \$t)->get()
+                      : App\\Models\\Medico::where('nome_legado','like','%'.\$t.'%')
+                          ->orWhere('apelido','like','%'.\$t.'%')->get();
                     foreach (\$ms as \$m) {
                       \$us = App\\Models\\User::where('medico_id',\$m->id)->pluck('email')->implode(', ');
-                      echo 'medico #', \$m->id, ' | crm=', \$m->crm, ' | cpf=', \$m->cpf,
+                      \$nr = App\\Models\\Receita::where('medico_id',\$m->id)->count();
+                      \$nv = DB::table('medico_paciente')->where('medico_id',\$m->id)->count();
+                      echo 'medico #', \$m->id, ' | ', (\$m->nome_legado ?: \$m->apelido),
+                           ' | crm=', \$m->crm, ' | cpf=', \$m->cpf,
                            ' | email1=', \$m->email1, ' | ativo=', (int)\$m->ativo,
+                           ' | receitas=', \$nr, ' | vinculos=', \$nv,
                            ' | users: ', \$us, PHP_EOL;
                     }
                     if (\$ms->isEmpty()) { echo '(nenhum Medico com esse nome)', PHP_EOL; }
