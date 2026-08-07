@@ -217,6 +217,58 @@ class LegadoIncrementalImportTest extends TestCase
         $this->assertSame('2026-06-16 07:56:03', $receita->fresh()->updated_at->format('Y-m-d H:i:s'));
     }
 
+    /**
+     * Regressão do job 946a5c52: paciente sem CPF, sem código, sem nascimento e sem celular era
+     * recriado a cada rodada, porque nenhuma heurística o reencontrava e havia homônimo no CLW3.
+     * A receita já importada (`legado_id`) é a âncora determinística.
+     */
+    public function test_paciente_sem_dado_conciliavel_casa_pela_receita_ja_importada(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        $paciente->update(['nome' => 'GUSTAVO RABELLO', 'cpf' => null, 'data_nascimento' => null, 'celular' => null]);
+
+        // Homônimo: é o que fazia a heurística desistir e criar um terceiro cadastro.
+        Paciente::create(['nome' => 'GUSTAVO RABELLO', 'medico_id' => $medico->id, 'ativo' => true]);
+
+        Receita::create([
+            'paciente_id' => $paciente->id,
+            'medico_id' => $medico->id,
+            'data_receita' => '2025-03-10',
+            'numero' => $paciente->id.'-0001',
+            'status' => 'finalizada',
+            'ativo' => true,
+            'legado_id' => 8801,
+            'origem' => 'clw2_importada',
+        ]);
+
+        $importer = app(\App\Services\Migration\LegadoIncrementalImporter::class);
+        $ref = new \ReflectionClass($importer);
+        $ancora = $ref->getMethod('carregarAncoraDeImportacaoAnterior');
+        $ancora->setAccessible(true);
+        $ancora->invoke($importer, [
+            ['legado_id' => 8801, 'legado_paciente_id' => 456, 'legado_medico_id' => 26],
+        ]);
+
+        $upsert = $ref->getMethod('upsertPaciente');
+        $upsert->setAccessible(true);
+        $result = $upsert->invokeArgs($importer, [
+            [
+                'legado_id' => 456,
+                'legado_medico_id' => null,
+                'nome' => 'GUSTAVO RABELLO',
+                'cpf' => null,
+                'data_nascimento' => null,
+                'celular' => null,
+                'dta_ult_alteracao' => '2024-01-01 00:00:00',
+            ],
+            [],
+        ]);
+
+        $this->assertNotSame('pacientes_novos', $result['stat']);
+        $this->assertSame($paciente->id, $result['paciente_id']);
+        $this->assertSame(2, Paciente::where('nome', 'GUSTAVO RABELLO')->count());
+    }
+
     public function test_upsert_paciente_skips_when_no_field_diff(): void
     {
         [$medico, $paciente] = $this->seedMedicoPaciente();

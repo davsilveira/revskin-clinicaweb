@@ -32,6 +32,19 @@ class LegadoIncrementalImporter
 
     private bool $cpfIndexCarregado = false;
 
+    /**
+     * Âncora de importações anteriores: id do paciente no CLW2 => id no CLW3, deduzido das
+     * receitas que já entraram (`receitas.legado_id`). É o único vínculo determinístico que
+     * existe para paciente — sem ele, cadastro sem CPF, sem código, sem nascimento e sem
+     * celular é recriado a cada rodada (ver job 946a5c52).
+     *
+     * @var array<int, int>
+     */
+    private array $pacienteIdPorLegadoPaciente = [];
+
+    /** Como o último findPaciente() casou — só para o rótulo do report. */
+    private string $ultimoMatchPaciente = 'cpf_ou_codigo';
+
     public function __construct(
         private readonly LegadoMedicoResolver $medicoResolver,
         private readonly PacienteVinculoService $vinculoService,
@@ -177,6 +190,8 @@ class LegadoIncrementalImporter
 
             return $mid !== null && in_array($mid, $legadoMedicoIds, true);
         }));
+
+        $this->carregarAncoraDeImportacaoAnterior($receitasFiltradas);
 
         $mapeamentoCodigos = LegadoCodigoProdutoMapeamento::fromMarkdownFile(
             LegadoCodigoProdutoMapeamento::defaultFilePath()
@@ -461,9 +476,10 @@ class LegadoIncrementalImporter
         $legadoMedicoId = isset($item['legado_medico_id']) ? (int) $item['legado_medico_id'] : null;
         $medicoId = $legadoMedicoId ? ($clw3ByLegadoMedico[$legadoMedicoId] ?? null) : null;
 
+        $this->ultimoMatchPaciente = 'cpf_ou_codigo';
         $existente = $this->findPaciente($item, $medicoId);
         $signal = null;
-        $matchBy = 'cpf_ou_codigo';
+        $matchBy = $this->ultimoMatchPaciente;
         $needsReview = false;
 
         if ($existente === null) {
@@ -698,6 +714,18 @@ class LegadoIncrementalImporter
      */
     private function findPaciente(array $item, ?int $medicoId): ?Paciente
     {
+        // Importação anterior do mesmo paciente CLW2 vence tudo: é determinística e evita que a
+        // rodada seguinte recrie quem a heurística de nome/nascimento/telefone não reencontra.
+        $legadoId = (int) ($item['legado_id'] ?? 0);
+        if ($legadoId > 0 && isset($this->pacienteIdPorLegadoPaciente[$legadoId])) {
+            $hit = Paciente::find($this->pacienteIdPorLegadoPaciente[$legadoId]);
+            if ($hit) {
+                $this->ultimoMatchPaciente = 'import_anterior';
+
+                return $hit;
+            }
+        }
+
         $cpf = $this->apenasDigitos($item['cpf'] ?? null);
         if (strlen($cpf) === 11) {
             $id = $this->cpfIndex()[$cpf] ?? null;
@@ -725,6 +753,58 @@ class LegadoIncrementalImporter
         }
 
         return null;
+    }
+
+    /**
+     * Monta `legado_paciente_id => paciente_id` a partir das receitas que já entraram no CLW3.
+     *
+     * O paciente não guarda o id do CLW2 em lugar nenhum, mas a receita guarda (`legado_id`), e
+     * todo paciente importado tem pelo menos uma receita — o filtro exige isso. Então a receita
+     * já importada é a prova de qual cadastro do CLW3 corresponde ao paciente do dump.
+     *
+     * Em produção depende de `receitas.legado_id` estar populado: rodar antes
+     * `migration:backfill-receita-legado-id --force` (a carga inicial só deixou a tag
+     * `[legado:ID|num:N]` nas anotações).
+     *
+     * @param  list<array<string, mixed>>  $receitasFiltradas
+     */
+    private function carregarAncoraDeImportacaoAnterior(array $receitasFiltradas): void
+    {
+        $this->pacienteIdPorLegadoPaciente = [];
+
+        $pacientePorReceitaLegado = [];
+        foreach ($receitasFiltradas as $r) {
+            $receitaLegadoId = (int) ($r['legado_id'] ?? 0);
+            $pacienteLegadoId = (int) ($r['legado_paciente_id'] ?? 0);
+            if ($receitaLegadoId > 0 && $pacienteLegadoId > 0) {
+                $pacientePorReceitaLegado[$receitaLegadoId] = $pacienteLegadoId;
+            }
+        }
+
+        if ($pacientePorReceitaLegado === []) {
+            return;
+        }
+
+        foreach (array_chunk(array_keys($pacientePorReceitaLegado), 1000) as $chunk) {
+            $rows = Receita::query()
+                ->whereIn('legado_id', $chunk)
+                ->whereNotNull('paciente_id')
+                ->get(['legado_id', 'paciente_id']);
+
+            foreach ($rows as $row) {
+                $pacienteLegadoId = $pacientePorReceitaLegado[(int) $row->legado_id] ?? null;
+                if ($pacienteLegadoId === null) {
+                    continue;
+                }
+                $pacienteId = (int) $row->paciente_id;
+                $atual = $this->pacienteIdPorLegadoPaciente[$pacienteLegadoId] ?? null;
+                // Receitas do mesmo paciente CLW2 podem ter caído em cadastros diferentes no CLW3
+                // (duplicatas antigas): fica com o mais antigo, igual ao merge por homônimo.
+                if ($atual === null || $pacienteId < $atual) {
+                    $this->pacienteIdPorLegadoPaciente[$pacienteLegadoId] = $pacienteId;
+                }
+            }
+        }
     }
 
     /**
