@@ -127,9 +127,13 @@ jobs:
                   echo 'com placeholder .rsk=', \$q(\"select count(*) v from pacientes where \$hoje and \$rsk\"), PHP_EOL;
                   echo 'sem e-mail nenhum=', \$q(\"select count(*) v from pacientes where \$hoje and \$semEmail\"), PHP_EOL;
                   echo '  destes, COM telefone=', \$q(\"select count(*) v from pacientes where \$hoje and \$semEmail and \$comTel\"), PHP_EOL;
-                  echo PHP_EOL, '== AMOSTRA: oList sem e-mail e COM telefone ==', PHP_EOL;
-                  foreach (DB::select(\"select id, nome, celular, telefone1, tiny_id from pacientes where \$tiny and \$semEmail and \$comTel order by id desc limit 10\") as \$p) {
-                    echo '#', \$p->id, ' | ', \$p->nome, ' | cel=', \$p->celular, ' | tel1=', \$p->telefone1, PHP_EOL;
+                  echo PHP_EOL, '== OS QUE TEM tiny_id, SEM E-MAIL E COM TELEFONE: de onde vieram? ==', PHP_EOL;
+                  foreach (DB::select(\"select p.id, p.nome, p.celular, p.telefone1, p.created_at, p.tiny_sync_at,
+                      (select count(*) from receitas r where r.paciente_id = p.id and r.origem = 'clw2_importada') as receitas_clw2
+                      from pacientes p where \$tiny and \$semEmail and \$comTel order by p.id desc\") as \$p) {
+                    echo '#', \$p->id, ' | ', \$p->nome, ' | cel=', \$p->celular, ' | tel1=', \$p->telefone1,
+                         ' | criado=', \$p->created_at, ' | sync_olist=', \$p->tiny_sync_at,
+                         ' | receitas_clw2=', \$p->receitas_clw2, PHP_EOL;
                   }
                 "
                 ;;
