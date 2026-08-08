@@ -180,7 +180,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                         <input
                             type="text"
-                            placeholder="Buscar por nome, CPF ou Nº registro…"
+                            placeholder="Buscar por nome, CPF, e-mail ou Nº registro…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full min-w-0 flex-1 px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"

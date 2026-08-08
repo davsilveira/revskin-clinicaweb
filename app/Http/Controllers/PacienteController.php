@@ -318,6 +318,7 @@ class PacienteController extends Controller
             ->orWhere('telefone1', 'like', "%{$search}%")
             ->orWhere('celular', 'like', "%{$search}%")
             ->orWhere('email1', 'like', "%{$search}%")
+            ->orWhere('email2', 'like', "%{$search}%")
             ->orWhereHas('telefones', fn ($tq) => $tq->where('numero', 'like', "%{$search}%"));
 
         $digits = preg_replace('/\D/', '', $search);
