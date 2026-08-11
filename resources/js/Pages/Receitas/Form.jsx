@@ -830,6 +830,16 @@ function ReceitaFormInner({
         onError: () => markUnsaved(),
     };
 
+    const firstInertiaErrorMessage = (errors) => {
+        if (!errors || typeof errors !== 'object') return null;
+        if (typeof errors === 'string') return errors;
+        for (const value of Object.values(errors)) {
+            if (typeof value === 'string' && value.trim()) return value;
+            if (Array.isArray(value) && value[0]) return String(value[0]);
+        }
+        return null;
+    };
+
     const handleSubmit = (e) => {
         e?.preventDefault();
         if (isEditing) {
@@ -851,6 +861,17 @@ function ReceitaFormInner({
         const receitaId = currentReceitaId || receita?.id;
         if (!receitaId) return;
 
+        const finalizarErrorHandler = (errors) => {
+            markUnsaved();
+            setToast({
+                message:
+                    firstInertiaErrorMessage(errors) ||
+                    'Não foi possível finalizar a receita. Verifique os dados e tente novamente.',
+                type: 'error',
+                key: Date.now(),
+            });
+        };
+
         if (isCallcenter) {
             router.post(
                 `/receitas/${receitaId}/finalizar`,
@@ -858,14 +879,15 @@ function ReceitaFormInner({
                 {
                     ...inertiaPersistReceitaOptions,
                     onSuccess: () => {
+                        setShowFinalizarModal(false);
                         bumpLastSaved();
                         setData('status', 'finalizada');
                         setViewMode(true);
                         setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
                     },
+                    onError: finalizarErrorHandler,
                 }
             );
-            setShowFinalizarModal(false);
             return;
         }
 
@@ -875,13 +897,14 @@ function ReceitaFormInner({
         }, {
             ...inertiaPersistReceitaOptions,
             onSuccess: () => {
+                setShowFinalizarModal(false);
                 bumpLastSaved();
                 setData('status', 'finalizada');
                 setViewMode(true);
                 setToast({ message: 'Receita finalizada com sucesso!', type: 'success' });
             },
+            onError: finalizarErrorHandler,
         });
-        setShowFinalizarModal(false);
     };
 
     const handleAbrirFinalizar = () => {

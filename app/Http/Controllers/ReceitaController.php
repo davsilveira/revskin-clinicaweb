@@ -463,8 +463,11 @@ class ReceitaController extends Controller
             'itens.*.valor_unitario' => 'required|numeric|min:0',
             'itens.*.imprimir' => 'boolean',
             'itens.*.grupo' => 'nullable|string|in:recomendado,opcional',
-            'itens.*.id' => 'nullable|integer|exists:receita_itens,id',
+            // Autosave/Finalizar podem enviar ids antigos até o cliente sincronizar (linhas são recriadas).
+            'itens.*.id' => 'nullable|integer',
         ], $user->isAdmin() ? ['medico_id' => 'required|exists:medicos,id'] : []));
+
+        $validated['itens'] = $this->remapIncomingReceitaItemIds($receita, $validated['itens']);
 
         ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
 
@@ -844,19 +847,7 @@ class ReceitaController extends Controller
         // Sync items if provided
         if (! empty($validated['itens'])) {
             if ($id) {
-                $orderedItens = $receita->itens()->orderBy('ordem')->get();
-                foreach ($validated['itens'] as $idx => &$itemRow) {
-                    $incomingId = (int) ($itemRow['id'] ?? 0);
-                    $idStillValid = $incomingId > 0 && $orderedItens->contains('id', $incomingId);
-                    if (! $idStillValid) {
-                        $atPosition = $orderedItens->get($idx);
-                        if ($atPosition && (int) ($itemRow['produto_id'] ?? 0) === (int) $atPosition->produto_id) {
-                            $itemRow['id'] = $atPosition->id;
-                        }
-                    }
-                }
-                unset($itemRow);
-
+                $validated['itens'] = $this->remapIncomingReceitaItemIds($receita, $validated['itens']);
                 ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
             } else {
                 ReceitaProdutoLegadoGuard::assertNovaReceitaSemProdutoLegado($validated['itens']);
@@ -1032,5 +1023,31 @@ class ReceitaController extends Controller
         ]);
 
         return $pdf->download("receita-{$receita->numero}.pdf");
+    }
+
+    /**
+     * Autosave (e o Finalizar do médico via PUT) recriam linhas: o cliente pode enviar ids
+     * antigos até receber a resposta. Remapeia pelo índice + produto_id quando o id não existe mais.
+     *
+     * @param  array<int, array<string, mixed>>  $itens
+     * @return array<int, array<string, mixed>>
+     */
+    private function remapIncomingReceitaItemIds(Receita $receita, array $itens): array
+    {
+        $orderedItens = $receita->itens()->orderBy('ordem')->get();
+
+        foreach ($itens as $idx => &$itemRow) {
+            $incomingId = (int) ($itemRow['id'] ?? 0);
+            $idStillValid = $incomingId > 0 && $orderedItens->contains('id', $incomingId);
+            if (! $idStillValid) {
+                $atPosition = $orderedItens->get($idx);
+                if ($atPosition && (int) ($itemRow['produto_id'] ?? 0) === (int) $atPosition->produto_id) {
+                    $itemRow['id'] = $atPosition->id;
+                }
+            }
+        }
+        unset($itemRow);
+
+        return $itens;
     }
 }
