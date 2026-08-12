@@ -193,14 +193,11 @@ class FusaoPacientes
                 continue;
             }
 
-            // E-mail de marcação (`<telefone>@cadastraremail.rsk`) não é e-mail: vale menos que o
-            // vazio e nunca substitui um endereço de verdade.
             if (in_array($campo, ['email1', 'email2'], true)) {
-                if (EmailPlaceholder::ehPlaceholder((string) $novo)) {
+                if (! $this->ehEmailDeVerdade((string) $novo)) {
                     continue;
                 }
-                $atual = $manter->{$campo};
-                if (filled($atual) && ! EmailPlaceholder::ehPlaceholder((string) $atual)) {
+                if ($this->ehEmailDeVerdade((string) $manter->{$campo})) {
                     continue;
                 }
                 $campos[$campo] = $novo;
@@ -216,6 +213,22 @@ class FusaoPacientes
         }
 
         return $campos;
+    }
+
+    /**
+     * Endereço que serve para falar com o paciente.
+     *
+     * Fora um e-mail de marcação (`<telefone>@cadastraremail.rsk`, que só sinaliza "falta e-mail"),
+     * o campo às vezes tem qualquer coisa: a Mariah Pedrosa está cadastrada com o próprio nome no
+     * lugar do e-mail. Nada disso pode segurar o endereço de verdade que vem do outro cadastro.
+     */
+    private function ehEmailDeVerdade(?string $email): bool
+    {
+        $e = trim((string) $email);
+
+        return $e !== ''
+            && filter_var($e, FILTER_VALIDATE_EMAIL) !== false
+            && ! EmailPlaceholder::ehPlaceholder($e);
     }
 
     private function digitos(?string $v): string

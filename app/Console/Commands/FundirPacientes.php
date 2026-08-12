@@ -42,6 +42,7 @@ class FundirPacientes extends Command
         $linhas = [];
         $erros = 0;
         $avisos = [];
+        $pivotsDeduplicados = 0;
 
         foreach ($pares as [$manterId, $apagarId]) {
             $r = $fusao->fundir(
@@ -63,6 +64,8 @@ class FundirPacientes extends Command
                 $avisos[] = "#{$apagarId}: {$aviso}";
             }
 
+            $pivotsDeduplicados += $r['vinculos_ja_existiam'];
+
             $linhas[] = [
                 $manterId,
                 $apagarId,
@@ -83,18 +86,26 @@ class FundirPacientes extends Command
             }
         }
 
+        // Quantas linhas cada contador PODE perder sem que nada tenha se perdido de verdade: um
+        // paciente por fusão, e um pivot por médico que já enxergava os dois cadastros.
+        $quedaPrevista = [
+            'pacientes' => count($linhas) - $erros,
+            'medico_paciente' => $pivotsDeduplicados,
+        ];
+
         $depois = $this->invariantes();
         $this->newLine();
         $this->line('Invariantes (antes → depois):');
         foreach ($antes as $chave => $valor) {
-            $mudou = $valor !== $depois[$chave];
-            $this->line(sprintf(
-                '  %-34s %8s → %-8s %s',
-                $chave,
-                $valor,
-                $depois[$chave],
-                $mudou ? ($this->esperado($chave) ? '(esperado)' : '⚠ INESPERADO') : ''
-            ));
+            $queda = $valor - $depois[$chave];
+            $ok = $queda === 0 || $queda === ($quedaPrevista[$chave] ?? 0);
+            $nota = '';
+            if ($queda !== 0) {
+                $nota = $ok
+                    ? ($chave === 'medico_paciente' ? '(pivot repetido removido)' : '(esperado)')
+                    : '⚠ INESPERADO';
+            }
+            $this->line(sprintf('  %-34s %8s → %-8s %s', $chave, $valor, $depois[$chave], $nota));
         }
 
         if ($erros > 0) {
@@ -110,12 +121,6 @@ class FundirPacientes extends Command
         }
 
         return 0;
-    }
-
-    /** Só a contagem de pacientes pode cair; o resto tem de ficar idêntico. */
-    private function esperado(string $chave): bool
-    {
-        return $chave === 'pacientes';
     }
 
     /** @return array<string, int> */

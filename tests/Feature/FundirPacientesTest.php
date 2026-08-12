@@ -117,6 +117,17 @@ class FundirPacientesTest extends TestCase
         $this->assertSame('real@exemplo.com', $fica->refresh()->email1);
     }
 
+    public function test_lixo_no_campo_de_email_nao_segura_o_endereco_de_verdade(): void
+    {
+        // A Mariah Pedrosa está cadastrada com o próprio nome no lugar do e-mail.
+        $fica = $this->paciente(['email1' => 'Mariah Pedrosa']);
+        $sai = $this->paciente(['email1' => 'miahop@hotmail.com']);
+
+        $this->fusao()->fundir($fica->id, $sai->id, aplicar: true);
+
+        $this->assertSame('miahop@hotmail.com', $fica->refresh()->email1);
+    }
+
     public function test_historico_exige_autorizacao_explicita(): void
     {
         $medico = Medico::create(['apelido' => 'Dra Teste']);
@@ -205,6 +216,23 @@ class FundirPacientesTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertNotNull(Paciente::find($sai->id));
+    }
+
+    public function test_comando_nao_alarma_com_pivot_repetido_removido(): void
+    {
+        $medico = Medico::create(['apelido' => 'Dra Teste']);
+        $fica = $this->paciente();
+        $sai = $this->paciente();
+        $fica->medicos()->attach($medico->id);
+        $sai->medicos()->attach($medico->id);
+
+        $this->artisan('pacientes:fundir', [
+            '--pares' => "{$fica->id}:{$sai->id}",
+            '--permitir-historico' => true,
+            '--force' => true,
+        ])
+            ->doesntExpectOutputToContain('INESPERADO')
+            ->assertExitCode(0);
     }
 
     public function test_comando_aplica_com_force(): void
