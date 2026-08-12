@@ -1,0 +1,87 @@
+name: Diag receita 17401-0008 (read-only)
+
+# Investigação pontual: item incluído no oList não somou valor na receita 17401-0008.
+# Somente leitura. Pode ser apagado depois.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Investigar receita 17401-0008 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP"
+
+            echo ""; echo "===== RECEITA 17401-0008 ====="
+            "$PHP" artisan tinker --execute="
+            \$r = App\Models\Receita::with(['paciente:id,nome','medico'])->where('numero','17401-0008')->first();
+            if (!\$r) { echo 'R|NOT_FOUND'.PHP_EOL; return; }
+            echo 'R|id='.\$r->id.'|numero='.\$r->numero.'|status='.\$r->status.'|tiny_pedido_id='.var_export(\$r->tiny_pedido_id,true).'|paciente='.(\$r->paciente->nome ?? '').'|subtotal='.\$r->subtotal.'|desc='.\$r->desconto_valor.'|frete='.\$r->valor_frete.'|caixa='.\$r->valor_caixa.'|total='.\$r->valor_total.'|created='.\$r->created_at.'|updated='.\$r->updated_at.PHP_EOL;
+            echo 'R|anot='.substr((string)\$r->anotacoes,0,200).PHP_EOL;
+            foreach (\$r->itens()->with(['produto','aquisicoes'])->orderBy('ordem')->get() as \$i) {
+              \$p = \$i->produto;
+              \$aqs = \$i->aquisicoes->map(function(\$a){ return \$a->data_aquisicao.'#tp='.\$a->tiny_pedido_id; })->implode(',');
+              echo 'RI|id='.\$i->id.'|ordem='.\$i->ordem.'|cod='.(\$p->codigo??'').'|nome='.substr((string)(\$p->nome??''),0,40).'|tiny_id='.(\$p->tiny_id??'').'|qtd='.\$i->quantidade.'|vu='.\$i->valor_unitario.'|vt='.\$i->valor_total.'|vendido='.(\$i->vendido?1:0).'|imprimir='.(\$i->imprimir?1:0).'|grupo='.\$i->grupo.'|created='.\$i->created_at.'|updated='.\$i->updated_at.'|aq=['.\$aqs.']'.PHP_EOL;
+            }
+            " 2>&1 | grep -aE '^(R|RI)\|' || true
+
+            echo ""; echo "===== PEDIDO NO OLIST/TINY (API, read-only) ====="
+            "$PHP" artisan tinker --execute="
+            \$r = App\Models\Receita::where('numero','17401-0008')->first();
+            if (!\$r || !\$r->tiny_pedido_id) { echo 'TP|SEM_PEDIDO'.PHP_EOL; return; }
+            \$c = new App\Services\TinyErpClient;
+            \$res = \$c->obterPedido((int) \$r->tiny_pedido_id);
+            echo 'TP|status='.\$res['status'].'|msg='.(\$res['message'] ?? '-').PHP_EOL;
+            \$d = \$res['data'] ?? [];
+            echo 'TP|numero='.var_export(\$d['numeroPedido'] ?? \$d['numero'] ?? null,true).'|situacao='.var_export(\$d['situacao'] ?? null,true).'|valor='.var_export(\$d['valor'] ?? \$d['totalPedido'] ?? null,true).'|dataPedido='.var_export(\$d['dataPedido'] ?? \$d['data_pedido'] ?? null,true).PHP_EOL;
+            foreach ((\$d['itens'] ?? []) as \$it) {
+              \$pr = \$it['produto'] ?? [];
+              echo 'TI|tiny_id='.var_export(\$pr['id'] ?? \$it['idProduto'] ?? null,true).'|sku='.var_export(\$pr['sku'] ?? \$pr['codigo'] ?? null,true).'|desc='.substr((string)(\$pr['descricao'] ?? \$it['descricao'] ?? ''),0,40).'|qtd='.var_export(\$it['quantidade'] ?? null,true).'|vu='.var_export(\$it['valorUnitario'] ?? \$it['valor_unitario'] ?? \$it['valor'] ?? null,true).PHP_EOL;
+            }
+            " 2>&1 | grep -aE '^(TP|TI)\|' || true
+
+            echo ""; echo "===== ITENS VENDIDOS MAS NAO IMPRESSOS (toda a base) ====="
+            "$PHP" artisan tinker --execute="
+            \$q = App\Models\ReceitaItem::where('vendido',1)->where('imprimir',0);
+            echo 'GLB|itens_vendido_sem_imprimir='.\$q->count().PHP_EOL;
+            foreach (\$q->with(['receita:id,numero,status,valor_total','produto:id,codigo,nome'])->orderByDesc('updated_at')->limit(40)->get() as \$i) {
+              echo 'GLB|item='.\$i->id.'|receita='.(\$i->receita->numero ?? '?').'|status='.(\$i->receita->status ?? '?').'|prod='.(\$i->produto->codigo ?? '?').'|vu='.\$i->valor_unitario.'|vt='.\$i->valor_total.'|upd='.\$i->updated_at.PHP_EOL;
+            }
+            \$a = App\Models\ReceitaItemAquisicao::query()->whereHas('receitaItem', function(\$q){ \$q->where('imprimir',0); })->count();
+            echo 'GLB|aquisicoes_de_itens_nao_impressos='.\$a.PHP_EOL;
+            " 2>&1 | grep -a '^GLB|' || true
+
+            echo ""; echo "===== LOGS do pedido/receita ====="
+            "$PHP" artisan tinker --execute="
+            \$r = App\Models\Receita::where('numero','17401-0008')->first();
+            echo 'GREP|'.(\$r->tiny_pedido_id ?? '-').'|'.(\$r->id ?? '-').PHP_EOL;
+            " 2>&1 | grep -a '^GREP|' | tail -1 > /tmp/grepids.txt || true
+            PEDIDO=$(cut -d'|' -f2 /tmp/grepids.txt 2>/dev/null)
+            RID=$(cut -d'|' -f3 /tmp/grepids.txt 2>/dev/null)
+            echo "PEDIDO=$PEDIDO RECEITA_ID=$RID"
+            if [ -n "${PEDIDO:-}" ]; then
+              grep -a "$PEDIDO" storage/logs/laravel.log 2>/dev/null | tail -60 || true
+            fi
+
+            echo ""; echo "===== Últimos merges Tiny (20) ====="
+            grep -a 'Merge de itens do pedido concluído' storage/logs/laravel.log 2>/dev/null | tail -20 || true
+
+            echo ""; echo "==> Fim diag 17401-0008."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
