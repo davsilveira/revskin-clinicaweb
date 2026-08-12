@@ -1,0 +1,153 @@
+name: Diag pacientes duplicados (PRODUÇÃO, read-only)
+
+# Censo de pacientes homônimos em produção, para o relatório do job 6a7b0022.
+# SOMENTE LEITURA: nenhuma escrita no banco, nenhuma chamada mutável de API.
+# O script é gravado em /tmp no servidor e apagado no fim.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Censo de duplicados via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP  $(date '+%F %T')"
+
+            # Cabeçalho com o APP_DIR interpolado; o corpo vai em heredoc "quoted" (sem expansão).
+            cat > /tmp/diag_dup.php <<PHPEOF
+            <?php
+            \$base = '$APP_DIR';
+            require \$base . '/vendor/autoload.php';
+            \$app = require_once \$base . '/bootstrap/app.php';
+            \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            PHPEOF
+
+            cat >> /tmp/diag_dup.php <<'PHPEOF'
+
+            use Illuminate\Support\Facades\DB;
+
+            function nrm(string $s): string {
+                $s = mb_strtoupper(trim($s));
+                $s = strtr($s, ['Á'=>'A','À'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','É'=>'E','È'=>'E','Ê'=>'E','Ë'=>'E','Í'=>'I','Ì'=>'I','Î'=>'I','Ï'=>'I','Ó'=>'O','Ò'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ú'=>'U','Ù'=>'U','Û'=>'U','Ü'=>'U','Ç'=>'C','Ñ'=>'N']);
+                $s = preg_replace('/[^A-Z0-9 ]/', ' ', $s);
+                return trim(preg_replace('/\s+/', ' ', $s));
+            }
+
+            $pac = DB::table('pacientes')->get();
+            $rec = DB::table('receitas')->select('paciente_id', DB::raw('COUNT(*) c'))->groupBy('paciente_id')->pluck('c','paciente_id');
+            $mp  = DB::table('medico_paciente')->select('paciente_id', DB::raw('COUNT(*) c'))->groupBy('paciente_id')->pluck('c','paciente_id');
+            $aq  = DB::table('receita_item_aquisicoes as a')
+                ->join('receita_itens as i','i.id','=','a.receita_item_id')
+                ->join('receitas as r','r.id','=','i.receita_id')
+                ->select('r.paciente_id', DB::raw('COUNT(*) c'))->groupBy('r.paciente_id')->pluck('c','paciente_id');
+
+            $g = [];
+            foreach ($pac as $p) { $g[nrm($p->nome)][] = $p; }
+            $dups = array_filter($g, fn($x) => count($x) > 1);
+
+            echo 'CNT|pacientes_total=' . count($pac) . PHP_EOL;
+            echo 'CNT|grupos_homonimos=' . count($dups) . PHP_EOL;
+            echo 'CNT|pacientes_em_grupo=' . array_sum(array_map('count', $dups)) . PHP_EOL;
+
+            $novo = fn($p) => (string) $p->created_at >= '2026-08-06 00:00';
+            $cascas = [];
+            foreach ($dups as $nome => $grp) {
+                foreach ($grp as $p) {
+                    if ($novo($p) && ($rec[$p->id] ?? 0) == 0 && ($mp[$p->id] ?? 0) == 0 && ($aq[$p->id] ?? 0) == 0) {
+                        $cascas[$p->id] = [$p, $nome, $grp];
+                    }
+                }
+            }
+            echo 'CNT|cascas_sem_uso=' . count($cascas) . PHP_EOL;
+
+            // Alguma casca ganhou uso desde o dump de 11/08? (= atendente já usou o cadastro novo)
+            $usadas = 0;
+            foreach ($dups as $nome => $grp) {
+                foreach ($grp as $p) {
+                    if ($novo($p) && (($rec[$p->id] ?? 0) > 0 || ($mp[$p->id] ?? 0) > 0)) {
+                        $usadas++;
+                        echo 'USADA|id=' . $p->id . '|nome=' . $p->nome . '|rec=' . ($rec[$p->id] ?? 0) . '|vinc=' . ($mp[$p->id] ?? 0) . '|upd=' . $p->updated_at . PHP_EOL;
+                    }
+                }
+            }
+            echo 'CNT|novos_ja_usados=' . $usadas . PHP_EOL;
+
+            foreach ($cascas as $id => [$p, $nome, $grp]) {
+                $velho = null;
+                foreach ($grp as $q) { if ($q->id != $p->id && ! $novo($q)) { $velho = $q; break; } }
+                echo 'CASCA|id=' . $p->id
+                    . '|nome=' . $p->nome
+                    . '|criado=' . $p->created_at
+                    . '|upd=' . $p->updated_at
+                    . '|tiny=' . ($p->tiny_id ?: '-')
+                    . '|nasc=' . ($p->data_nascimento ?: '-')
+                    . '|cpf=' . ($p->cpf ?: '-')
+                    . '|cel=' . ($p->celular ?: '-')
+                    . '|mail=' . ($p->email1 ?: '-')
+                    . '|rd=' . ($p->rd_contact_id ?: '-')
+                    . '|manter=' . ($velho->id ?? '?')
+                    . '|manter_rec=' . ($velho ? ($rec[$velho->id] ?? 0) : '?')
+                    . '|manter_tiny=' . ($velho->tiny_id ?? '-')
+                    . PHP_EOL;
+            }
+
+            // Duplicatas antigas com receita nos dois lados (precisam de MERGE, não de exclusão)
+            foreach ($dups as $nome => $grp) {
+                $temNovo = false;
+                foreach ($grp as $p) { if ($novo($p)) { $temNovo = true; } }
+                if ($temNovo) { continue; }
+                $comRec = array_filter($grp, fn($p) => ($rec[$p->id] ?? 0) > 0);
+                if (count($comRec) < 2) { continue; }
+                foreach ($grp as $p) {
+                    echo 'MERGE|grupo=' . $nome . '|id=' . $p->id . '|rec=' . ($rec[$p->id] ?? 0) . '|vinc=' . ($mp[$p->id] ?? 0) . '|aq=' . ($aq[$p->id] ?? 0)
+                        . '|nasc=' . ($p->data_nascimento ?: '-') . '|cpf=' . ($p->cpf ?: '-') . '|cel=' . ($p->celular ?: '-') . '|tiny=' . ($p->tiny_id ?: '-') . PHP_EOL;
+                }
+            }
+
+            // Giovana Naccarato em detalhe
+            foreach (DB::table('pacientes')->where('nome','like','%Naccarato%')->get() as $p) {
+                echo 'GIO|id=' . $p->id . '|nome=' . $p->nome . '|nasc=' . ($p->data_nascimento ?: '-') . '|cpf=' . ($p->cpf ?: '-')
+                    . '|cel=' . ($p->celular ?: '-') . '|mail=' . ($p->email1 ?: '-') . '|tiny=' . ($p->tiny_id ?: '-')
+                    . '|rec=' . ($rec[$p->id] ?? 0) . '|vinc=' . ($mp[$p->id] ?? 0) . '|aq=' . ($aq[$p->id] ?? 0) . '|criado=' . $p->created_at . PHP_EOL;
+                foreach (DB::table('receitas')->where('paciente_id', $p->id)->orderBy('data_receita')->get() as $r) {
+                    echo 'GIOR|pac=' . $p->id . '|rec=' . $r->id . '|num=' . $r->numero . '|data=' . $r->data_receita . '|status=' . $r->status . '|medico=' . $r->medico_id . '|legado=' . ($r->legado_id ?: '-') . PHP_EOL;
+                }
+            }
+            foreach (DB::table('medicos')->where('crm','283163')->get() as $m) {
+                $u = DB::table('users')->where('medico_id', $m->id)->first();
+                echo 'GIOM|id=' . $m->id . '|nome_legado=' . ($m->nome_legado ?: '(vazio)') . '|crm=' . $m->crm . '|cpf=' . ($m->cpf ?: '-')
+                    . '|ativo=' . $m->ativo
+                    . '|receitas=' . DB::table('receitas')->where('medico_id', $m->id)->count()
+                    . '|vinculos=' . DB::table('medico_paciente')->where('medico_id', $m->id)->count()
+                    . '|user=' . ($u->email ?? '-') . PHP_EOL;
+            }
+
+            // Integridade global
+            echo 'INT|itens_orfaos=' . DB::table('receita_itens as i')->leftJoin('receitas as r','r.id','=','i.receita_id')->whereNull('r.id')->count() . PHP_EOL;
+            echo 'INT|aquisicoes_orfas=' . DB::table('receita_item_aquisicoes as a')->leftJoin('receita_itens as i','i.id','=','a.receita_item_id')->whereNull('i.id')->count() . PHP_EOL;
+            echo 'INT|receitas_sem_paciente=' . DB::table('receitas as r')->leftJoin('pacientes as p','p.id','=','r.paciente_id')->whereNull('p.id')->count() . PHP_EOL;
+            echo 'INT|nasc_futuro=' . DB::table('pacientes')->whereNotNull('data_nascimento')->whereRaw('data_nascimento > CURDATE()')->count() . PHP_EOL;
+            echo 'INT|tiny_id_duplicado=' . DB::table('pacientes')->select('tiny_id')->whereNotNull('tiny_id')->groupBy('tiny_id')->havingRaw('COUNT(*) > 1')->get()->count() . PHP_EOL;
+            PHPEOF
+
+            "$PHP" /tmp/diag_dup.php 2>&1 | grep -aE '^(CNT|CASCA|MERGE|GIO|GIOR|GIOM|INT|USADA)\|' || true
+            rm -f /tmp/diag_dup.php
+            echo ""; echo "==> Fim do censo (read-only, nada foi escrito)."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
