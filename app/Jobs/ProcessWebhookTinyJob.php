@@ -163,8 +163,9 @@ class ProcessWebhookTinyJob implements ShouldQueue
         $dataAquisicao = now();
         $itensMarcados = 0;
         $linhasNovas = 0;
+        $itensReimpressos = 0;
 
-        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, $marcarVendido, &$itensMarcados, &$linhasNovas) {
+        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, $marcarVendido, &$itensMarcados, &$linhasNovas, &$itensReimpressos) {
             // Trava a receita para serializar merges concorrentes do mesmo pedido.
             $receita = Receita::whereKey($receita->id)->lockForUpdate()->first();
             if (! $receita) {
@@ -205,6 +206,21 @@ class ProcessWebhookTinyJob implements ShouldQueue
                 if ($marcarVendido) {
                     $attrs['vendido'] = true;
                 }
+
+                // O produto está no pedido do oList: ainda que tenha sido recomendado
+                // sem marcação (imprimir=0), ele foi comprado e precisa entrar no total
+                // da receita — calcularTotais() só soma itens com imprimir=1.
+                if (! $item->imprimir) {
+                    $attrs['imprimir'] = true;
+                    $itensReimpressos++;
+                    Log::info('Tiny ERP: Item do pedido estava desmarcado na receita, marcando imprimir', [
+                        'receita_id' => $receita->id,
+                        'receita_item_id' => $item->id,
+                        'produto_tiny_id' => $tid,
+                        'valor_unitario' => $vu,
+                    ]);
+                }
+
                 $item->update($attrs);
 
                 if ($marcarVendido) {
@@ -272,6 +288,7 @@ class ProcessWebhookTinyJob implements ShouldQueue
             'marcar_vendido' => $marcarVendido,
             'aquisicoes_ou_atualizacoes_contagem' => $itensMarcados,
             'linhas_novas_inseridas' => $linhasNovas,
+            'itens_marcados_imprimir' => $itensReimpressos,
         ]);
     }
 

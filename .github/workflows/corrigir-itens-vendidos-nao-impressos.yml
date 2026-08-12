@@ -1,0 +1,72 @@
+name: Corrigir itens vendidos no oList sem imprimir
+
+# Roda em prod o comando tiny:corrigir-itens-vendidos-nao-impressos.
+# Dry-run por padrão; grava só com modo=force.
+
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "dry-run (simula) | force (grava)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - force
+      receita:
+        description: "Opcional: restringe a uma receita (id ou número, ex. 17401-0008)"
+        required: false
+        default: ""
+
+jobs:
+  corrigir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar comando via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR,MODO,RECEITA
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP MODO=$MODO RECEITA=${RECEITA:-<todas>}"
+
+            ARGS=""
+            if [ "$MODO" = "force" ]; then ARGS="$ARGS --force"; fi
+            if [ -n "${RECEITA:-}" ]; then ARGS="$ARGS --receita=$RECEITA"; fi
+
+            "$PHP" artisan tiny:corrigir-itens-vendidos-nao-impressos $ARGS 2>&1 || true
+
+            echo ""; echo "===== Estado após execução (receitas com item vendido sem imprimir) ====="
+            "$PHP" artisan tinker --execute="
+            \$n = App\Models\ReceitaItem::where('vendido',1)->where('imprimir',0)->count();
+            echo 'POS|itens_vendido_sem_imprimir='.\$n.PHP_EOL;
+            " 2>&1 | grep -a '^POS|' || true
+
+            if [ -n "${RECEITA:-}" ]; then
+              echo ""; echo "===== Receita $RECEITA ====="
+              "$PHP" artisan tinker --execute="
+              \$r = App\Models\Receita::where('numero','$RECEITA')->orWhere('id','$RECEITA')->first();
+              if (!\$r) { echo 'POS|NOT_FOUND'.PHP_EOL; return; }
+              echo 'POS|id='.\$r->id.'|numero='.\$r->numero.'|subtotal='.\$r->subtotal.'|total='.\$r->valor_total.PHP_EOL;
+              foreach (\$r->itens()->with('produto')->orderBy('ordem')->get() as \$i) {
+                echo 'POS|item='.\$i->id.'|cod='.(\$i->produto->codigo ?? '?').'|vu='.\$i->valor_unitario.'|vt='.\$i->valor_total.'|vendido='.(\$i->vendido?1:0).'|imprimir='.(\$i->imprimir?1:0).PHP_EOL;
+              }
+              " 2>&1 | grep -a '^POS|' || true
+            fi
+
+            echo ""; echo "==> Fim."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
+          MODO: ${{ github.event.inputs.modo }}
+          RECEITA: ${{ github.event.inputs.receita }}
