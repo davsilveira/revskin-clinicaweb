@@ -1,0 +1,25 @@
+{
+  "base": "https://revski-main.ddev.site:33177",
+  "capturas": [
+    {
+      "termo": "giova",
+      "arquivo": "6a7b0022-01-busca-giova.png",
+      "linhas": 10
+    },
+    {
+      "termo": "kantowitz",
+      "arquivo": "6a7b0022-02-busca-kantowitz.png",
+      "linhas": 2
+    },
+    {
+      "termo": "jucineide",
+      "arquivo": "6a7b0022-03-busca-jucineide.png",
+      "linhas": 2
+    },
+    {
+      "termo": "roberta de andrade",
+      "arquivo": "6a7b0022-04-busca-roberta.png",
+      "linhas": 3
+    }
+  ]
+}
