@@ -1,0 +1,81 @@
+name: Fundir pacientes duplicados (PRODUÇÃO)
+
+# Junta os cadastros repetidos que a clínica confirmou serem a mesma pessoa.
+#
+# Dry-run por padrão: sem marcar "force" nada é gravado, e a saída mostra campo a campo o que
+# seria copiado. Com "force" o comando tira um mysqldump antes de encostar no banco.
+#
+# A lista de pares NÃO é adivinhada: cada `manter:apagar` abaixo saiu do lote de cascas do oList
+# (cadastro novo, sem receita e sem vínculo) ou de uma resposta explícita da clínica ao checklist
+# do job 16e92695. Alterar essa lista é alterar o que vai ser apagado — revise par a par.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Aplicar de fato (desmarcado = dry-run — NADA é gravado)"
+        type: boolean
+        required: false
+        default: false
+      pares:
+        description: "Pares manter:apagar separados por vírgula"
+        type: string
+        required: false
+        default: "16451:17846,16488:17743,16575:17701,16614:17812,16634:17845,16638:17705,16643:17631,16644:17725,16656:17652,16668:17720,16691:17643,16778:17645,16943:17649,17024:17698,17031:17685,17041:17684,17061:17829,17105:17677,17112:17833,17139:17624,17207:17766,17221:17848,17227:17695,17238:17816,17243:17627,17265:17622,17274:17641,17292:17818,17304:17687,17319:17676,17320:17754,17331:17838,17333:17601,17337:17709,17340:17776,17351:17784,17358:17640,17359:17673,17376:17769,17387:17724,17394:17702,17396:17655,17412:17758,17423:17773,17424:17734,17428:17663,17439:17716,17441:17670,17449:17868,17452:17607,17455:17707,17458:17748,17460:17735,17478:17775,17497:17858,17516:17602,17520:17629,17525:17770,17526:17803,17527:17636,17528:17762,17536:17659,17538:17688,17548:17811,17549:17610"
+      permitir_historico:
+        description: "Autorizar mover receitas/vínculos (só para a Parte 2 — o lote 1 não precisa)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  fundir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar pacientes:fundir via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: IN_FORCE,IN_PARES,IN_HIST,APP_DIR
+          command_timeout: "20m"
+          script: |
+            set -euo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP FORCE=$IN_FORCE"
+
+            ARGS="--pares=$IN_PARES"
+            if [ "$IN_HIST" = "true" ]; then ARGS="$ARGS --permitir-historico"; fi
+
+            if [ "$IN_FORCE" != "true" ]; then
+              echo "==> DRY-RUN"
+              "$PHP" artisan pacientes:fundir $ARGS
+              echo "==> Fim (nada foi gravado)."
+              exit 0
+            fi
+
+            # Backup antes de qualquer escrita. Sem dump, não funde.
+            env_val() { grep -E "^$1=" .env | head -1 | sed -E "s/^$1=//; s/^[\"']//; s/[\"']\$//"; }
+            DB_DATABASE=$(env_val DB_DATABASE)
+            DB_USERNAME=$(env_val DB_USERNAME)
+            DB_PASSWORD=$(env_val DB_PASSWORD)
+            DUMP="$HOME/backup-antes-fusao-$(date +%Y%m%d-%H%M%S).sql.gz"
+            mysqldump --single-transaction --quick --no-tablespaces \
+              -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" | gzip > "$DUMP"
+            test -s "$DUMP"
+            echo "==> Backup: $DUMP ($(du -h "$DUMP" | cut -f1))"
+
+            echo "==> APLICANDO"
+            "$PHP" artisan pacientes:fundir $ARGS --force
+            echo "==> Fim. Restaurar, se precisar: gunzip -c $DUMP | mysql -u<user> -p <db>"
+        env:
+          IN_FORCE: ${{ inputs.force }}
+          IN_PARES: ${{ inputs.pares }}
+          IN_HIST: ${{ inputs.permitir_historico }}
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin

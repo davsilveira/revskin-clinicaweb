@@ -91,10 +91,27 @@ class TinyContatoMapper
         }
         $trim = trim($value);
         try {
-            return Carbon::createFromFormat('d/m/Y', $trim, config('app.timezone'))->format('Y-m-d');
+            $data = Carbon::createFromFormat('d/m/Y', $trim, config('app.timezone'));
         } catch (\Throwable) {
             return null;
         }
+
+        // Ano de dois dígitos: `13/04/71` viraria o ano 71 depois de Cristo. Vale a régua de sempre —
+        // até o ano corrente é 20xx, daí para cima é 19xx.
+        if (preg_match('#^\d{1,2}/\d{1,2}/(\d{2})$#', $trim, $m)) {
+            $ano = (int) $m[1];
+            $data = $data->setYear($ano <= (int) now()->format('y') ? 2000 + $ano : 1900 + $ano);
+        }
+
+        // A base tem 66 cadastros com nascimento em 2054, 2091, até 9198 — tudo erro de digitação
+        // vindo do oList. Uma data impossível não é só feia: ela derruba o pareamento por
+        // nascimento+nome e faz o sync criar um cadastro repetido em cima de quem já existia. Sem
+        // data é melhor do que com data errada, porque aí valem CPF, telefone e e-mail.
+        if ($data->isFuture() || $data->year < 1900) {
+            return null;
+        }
+
+        return $data->format('Y-m-d');
     }
 
     /**

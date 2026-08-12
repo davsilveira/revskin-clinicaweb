@@ -8,6 +8,7 @@ use App\Services\TinyContatoMapper;
 use App\Services\TinyErpClient;
 use App\Support\EmailPlaceholder;
 use App\Support\NomePaciente;
+use App\Support\TelefonePaciente;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -645,20 +646,26 @@ class PullPacientesTinyJob implements ShouldQueue
             }
         }
 
-        $celular = preg_replace('/\D/', '', (string) ($contato['celular'] ?? $contato['fone'] ?? ''));
-        if (strlen($celular) >= 10) {
+        // Busca pelos 8 dígitos finais e confere DDD + nome em memória: é o que faz `(48) 9907-2096`
+        // do oList reencontrar o `(48) 99907-2096` daqui sem colar duas pessoas de estados
+        // diferentes. Ver App\Support\TelefonePaciente.
+        $celular = (string) ($contato['celular'] ?? $contato['fone'] ?? '');
+        $chaveFone = TelefonePaciente::chave($celular);
+        if ($chaveFone !== null) {
+            $ultimos8 = TelefonePaciente::ultimos8($celular);
             $porCelular = Paciente::query()
-                ->where(function ($q) use ($celular) {
+                ->where(function ($q) use ($ultimos8) {
                     foreach (['celular', 'telefone1'] as $coluna) {
-                        $q->orWhereRaw(
-                            "REPLACE(REPLACE(REPLACE(REPLACE(COALESCE({$coluna}, ''), '(', ''), ')', ''), '-', ''), ' ', '') = ?",
-                            [$celular]
-                        );
+                        $limpo = "REPLACE(REPLACE(REPLACE(REPLACE(COALESCE({$coluna}, ''), '(', ''), ')', ''), '-', ''), ' ', '')";
+                        // SUBSTR com posição negativa pega os últimos 8 no MySQL e no SQLite dos testes.
+                        $q->orWhereRaw("(SUBSTR({$limpo}, -8) = ? AND LENGTH({$limpo}) >= 10)", [$ultimos8]);
                     }
                 })
-                ->limit(20)
+                ->limit(30)
                 ->get()
-                ->first(fn (Paciente $p) => NomePaciente::compativeis($nome, (string) $p->nome));
+                ->first(fn (Paciente $p) => NomePaciente::compativeis($nome, (string) $p->nome)
+                    && (TelefonePaciente::iguais($celular, $p->celular)
+                        || TelefonePaciente::iguais($celular, $p->telefone1)));
 
             if ($porCelular) {
                 $this->motivoConciliacao = 'celular+nome';
