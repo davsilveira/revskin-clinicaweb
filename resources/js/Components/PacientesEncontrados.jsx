@@ -63,6 +63,11 @@ export default function PacientesEncontrados({
                                 {c.ja_vinculado && (
                                     <span className="ml-1.5 text-xs text-emerald-700">· seu paciente</span>
                                 )}
+                                {/* Ficha arquivada aparece aqui de propósito: era ela que sumia da
+                                    busca e virava paciente recadastrado. Selecionar reativa. */}
+                                {c.arquivado && (
+                                    <span className="ml-1.5 text-xs text-amber-700">· ficha arquivada</span>
+                                )}
                             </p>
                             <p className="truncate text-xs text-gray-500" title={linhaResumo(c)}>
                                 {linhaResumo(c) || 'Sem outros dados cadastrados'}

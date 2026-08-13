@@ -11,6 +11,7 @@ use App\Support\NomePaciente;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -1041,8 +1042,11 @@ class PacienteController extends Controller
             return $vazio;
         }
 
+        // Ficha arquivada ENTRA aqui (marcada, e depois das ativas). Esconder era o que fazia o
+        // sistema jurar "nenhum paciente encontrado" para quem tinha receita do mês passado, e o
+        // médico recadastrar a mesma pessoa (job f8b5e9c5). Este painel é o único lugar da tela
+        // que pode contar a verdade sem afrouxar a busca do dia a dia.
         $query = Paciente::query()
-            ->where('ativo', true)
             ->where(function (Builder $q) use ($tokens, $digitos) {
                 // "joao silva" precisa achar "João Pedro da Silva": todos os pedaços casam.
                 $q->where(function (Builder $nomeQ) use ($tokens) {
@@ -1066,8 +1070,8 @@ class PacienteController extends Controller
 
         // Busca limite+1: quando cabe tudo na página, o próprio resultado já dá o total e o
         // COUNT extra (uma varredura a mais por tecla digitada) some.
-        $pacientes = $query->orderBy('nome')->limit($limite + 1)->get([
-            'id', 'nome', 'cpf', 'outro_documento', 'data_nascimento', 'sexo',
+        $pacientes = $query->orderByDesc('ativo')->orderBy('nome')->limit($limite + 1)->get([
+            'id', 'nome', 'ativo', 'cpf', 'outro_documento', 'data_nascimento', 'sexo',
             'celular', 'telefone1', 'email1', 'cidade', 'uf', 'pais', 'tiny_id',
         ]);
 
@@ -1104,6 +1108,8 @@ class PacienteController extends Controller
             'pais' => $p->pais,
             'do_olist' => ! empty($p->tiny_id),
             'ja_vinculado' => in_array($p->id, $vinculadosAoMedico, true),
+            // Selecionar reativa (vincular()): quem escolhe a ficha é gente, não o dump.
+            'arquivado' => ! $p->ativo,
         ])->values();
 
         return response()->json([
@@ -1153,6 +1159,18 @@ class PacienteController extends Controller
             $user->id,
             'busca-nome',
         );
+
+        // Ficha arquivada escolhida na busca: quem clicou disse que a pessoa é paciente dele. Sem
+        // isto o vínculo volta ativo mas `pacientes.ativo=0` continua escondendo a ficha da busca —
+        // e o médico cai no mesmo "não existe" de antes.
+        if (! $paciente->ativo) {
+            $paciente->forceFill(['ativo' => true, 'updated_by_user_id' => $user->id])->save();
+            Log::info('Paciente arquivado reativado ao ser escolhido na busca por nome', [
+                'paciente_id' => $paciente->id,
+                'medico_id' => $medicoId,
+                'user_id' => $user->id,
+            ]);
+        }
 
         // Devolve o cadastro COMPLETO: quem chama entrega este objeto ao PatientDrawer, e um
         // paciente parcial faria o autosave do drawer gravar vazio sobre endereço/país/sexo.

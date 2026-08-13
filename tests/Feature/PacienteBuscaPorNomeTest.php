@@ -119,15 +119,23 @@ class PacienteBuscaPorNomeTest extends TestCase
         $this->assertTrue($resp->json('candidatos.0.ja_vinculado'));
     }
 
-    public function test_candidatos_ignora_inativos(): void
+    /**
+     * Antes este painel escondia ficha arquivada — e era isso que fazia o sistema responder
+     * "nenhum paciente encontrado" para quem tinha receita recente, levando o médico a
+     * recadastrar a mesma pessoa (job f8b5e9c5). Agora aparece marcada: a busca do dia a dia
+     * segue só com ativo, mas aqui a verdade é dita.
+     */
+    public function test_candidatos_mostra_inativos_marcados(): void
     {
         [$user] = $this->medicoComUser('bn5@revskin.com.br');
         $this->pacienteDoOlist(['ativo' => false]);
 
-        $this->actingAs($user)
+        $resp = $this->actingAs($user)
             ->getJson(route('pacientes.candidatos', ['nome' => 'João da Silva']))
-            ->assertOk()
-            ->assertJson(['total' => 0]);
+            ->assertOk();
+
+        $this->assertSame(1, $resp->json('total'));
+        $this->assertTrue($resp->json('candidatos.0.arquivado'));
     }
 
     public function test_vincular_cria_vinculo_com_o_medico_logado(): void

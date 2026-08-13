@@ -533,17 +533,19 @@ class LegadoIncrementalImporter
                 ];
             }
 
-            // Ficha ativa no CLW2 caindo numa ficha arquivada aqui: `ativo` não entra no merge
-            // (arquivar é decisão do CLW3), então o registro fica invisível na busca do médico
-            // carregando as receitas da ficha boa. Fica no report para dar rastro.
-            if ($signal === null && ($item['ativo'] ?? null) && ! $existente->ativo) {
+            // Ficha ativa no CLW2 caindo numa ficha arquivada aqui: a arquivada é a repetida que a
+            // clínica renomeou com `z-`/`zzz` no CLW2, e as receitas da ficha boa vêm todas para
+            // cá — o médico fica sem achar quem ele atendeu no mês passado (job f8b5e9c5).
+            // Aqui o dump manda: a linha ativa é a ficha viva da pessoa.
+            $reativar = ($item['ativo'] ?? null) && ! $existente->ativo;
+            if ($reativar) {
                 $signal = [
                     'tipo' => 'paciente_ativo_no_legado_arquivado_no_clw3',
                     'legado_id' => $item['legado_id'] ?? null,
                     'nome_legado' => $item['nome'] ?? null,
                     'paciente_id' => $existente->id,
                     'nome_clw3' => $existente->nome,
-                    'acao' => 'mantido_arquivado',
+                    'acao' => 'reativado',
                 ];
             }
 
@@ -552,10 +554,10 @@ class LegadoIncrementalImporter
             // O vínculo é o objetivo da liberação por médico: garante ANTES de decidir o skip,
             // senão paciente já completo no CLW3 nunca aparece para o médico liberado.
             $vinculoNovo = $medicoId
-                ? $this->garantirVinculoDoImport($existente, $medicoId, $item)
+                ? $this->garantirVinculoDoImport($existente, $medicoId, $item, $reativar)
                 : false;
 
-            $diff = $this->mergePaciente($existente, $item, $skipCpf);
+            $diff = $this->mergePaciente($existente, $item, $skipCpf, $reativar);
 
             // Já importado, já vinculado e sem campos a preencher/alterar → não inflar stats/lista.
             if ($diff === [] && ! $vinculoNovo) {
@@ -698,7 +700,7 @@ class LegadoIncrementalImporter
      * @param  array<string, mixed>  $item
      * @return bool se o vínculo foi criado agora
      */
-    private function garantirVinculoDoImport(Paciente $paciente, int $medicoId, array $item): bool
+    private function garantirVinculoDoImport(Paciente $paciente, int $medicoId, array $item, bool $reativar = false): bool
     {
         $privados = [
             'codigo' => $item['codigo'] ?? null,
@@ -717,8 +719,11 @@ class LegadoIncrementalImporter
                     unset($privados[$campo]);
                 }
             }
-            // `ativo` no CLW3 é decisão do médico, não do dump.
-            unset($privados['ativo']);
+            // `ativo` no CLW3 é decisão do médico, não do dump — exceto quando a ficha estava
+            // arquivada só por herança da carga e o CLW2 diz que a pessoa é paciente ativa.
+            if (! $reativar) {
+                unset($privados['ativo']);
+            }
         }
 
         return $this->vinculoService
@@ -938,12 +943,23 @@ class LegadoIncrementalImporter
      * @param  array<string, mixed>  $item
      * @return list<array{field:string,label:string,from:mixed,to:mixed,op:string}>
      */
-    private function mergePaciente(Paciente $paciente, array $item, bool $skipCpf): array
+    private function mergePaciente(Paciente $paciente, array $item, bool $skipCpf, bool $reativar = false): array
     {
         $legadoTs = $this->parseTs($item['dta_ult_alteracao'] ?? $item['dta_inclusao'] ?? null);
         $clw3Ts = $paciente->updated_at ? Carbon::parse($paciente->updated_at) : null;
         $legadoMaisNovo = $legadoTs && $clw3Ts ? $legadoTs->gt($clw3Ts) : (bool) $legadoTs;
         $diff = [];
+
+        if ($reativar) {
+            $diff[] = [
+                'field' => 'ativo',
+                'label' => self::fieldLabel('ativo'),
+                'from' => 'não',
+                'to' => 'sim',
+                'op' => 'change',
+            ];
+            $paciente->ativo = true;
+        }
 
         $fields = self::PACIENTE_SHARED_FIELDS;
         if (! $skipCpf) {
@@ -981,6 +997,10 @@ class LegadoIncrementalImporter
             $willSet = false;
             if ($field === 'cpf') {
                 $willSet = $atualVazio;
+            } elseif ($reativar && $field === 'nome') {
+                // O nome guardado é o da ficha repetida (`z-Fanilde…`); o da linha ativa é o que a
+                // médica reconhece. Aqui a data de alteração do dump não decide.
+                $willSet = $atualStr !== $valStr;
             } elseif ($legadoMaisNovo) {
                 $willSet = $atualStr !== $valStr;
             } elseif ($atualVazio) {

@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: ""
+      verificar_ids:
+        description: "Ids de pacientes para auditar visibilidade médico por médico (opcional)"
+        type: string
+        required: false
+        default: ""
 
 jobs:
   diag:
@@ -45,7 +50,7 @@ jobs:
           username: ${{ secrets.HOSTINGER_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
-          envs: APP_DIR,IN_TERMO,IN_CPF,IN_EMAIL,IN_RECEITAS
+          envs: APP_DIR,IN_TERMO,IN_CPF,IN_EMAIL,IN_RECEITAS,IN_VERIFICAR
           command_timeout: "10m"
           script: |
             set -uo pipefail
@@ -63,6 +68,7 @@ jobs:
             \$cpfIn = '$IN_CPF';
             \$emailMedico = '$IN_EMAIL';
             \$receitasArg = '$IN_RECEITAS';
+            \$verificarArg = '$IN_VERIFICAR';
             require \$base . '/vendor/autoload.php';
             \$app = require_once \$base . '/bootstrap/app.php';
             \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
@@ -205,6 +211,33 @@ jobs:
                     . '|criada=' . $r->created_at . '|upd=' . $r->updated_at . PHP_EOL;
             }
 
+            // ── 6. auditoria: cada ficha pedida está visível para quem prescreveu? ──
+            foreach (array_filter(array_map('intval', explode(',', $verificarArg))) as $pid) {
+                $p = DB::table('pacientes')->where('id', $pid)->first();
+                if (! $p) {
+                    echo 'VERIF|pac=' . $pid . '|NAO_ENCONTRADO' . PHP_EOL;
+                    continue;
+                }
+                $medicosRec = DB::table('receitas')->where('paciente_id', $pid)
+                    ->whereNotNull('medico_id')->distinct()->pluck('medico_id')->all();
+                foreach ($medicosRec as $mid) {
+                    $visivel = DB::table('pacientes')
+                        ->where('pacientes.id', $pid)
+                        ->where('pacientes.ativo', true)
+                        ->whereExists(function ($sq) use ($mid) {
+                            $sq->select(DB::raw(1))->from('medico_paciente')
+                                ->whereColumn('medico_paciente.paciente_id', 'pacientes.id')
+                                ->where('medico_paciente.medico_id', $mid)
+                                ->where('medico_paciente.ativo', true);
+                        })
+                        ->exists();
+                    $m = DB::table('medicos')->where('id', $mid)->first();
+                    echo 'VERIF|pac=' . $pid . '|nome=[' . $p->nome . ']|ativo=' . $p->ativo
+                        . '|medico=' . $mid . '/' . ($m->apelido ?? $m->nome_legado ?? '-')
+                        . '|visivel_na_busca=' . ($visivel ? 'SIM' : 'NAO') . PHP_EOL;
+                }
+            }
+
             echo 'RESUMO|pacientes=' . DB::table('pacientes')->count()
                 . '|ativo0=' . DB::table('pacientes')->where('ativo', 0)->count()
                 . '|ativo0_com_receita=' . count($inativos)
@@ -212,7 +245,7 @@ jobs:
                 . '|vinculos_inativos=' . DB::table('medico_paciente')->where('ativo', 0)->count() . PHP_EOL;
             PHPEOF
 
-            "$PHP" /tmp/diag_invis.php 2>&1 | grep -aE '^( *)(MEDICO|PAC|VINC|REC|BUSCA|INATIVO|DETREC|RESUMO)\|' || true
+            "$PHP" /tmp/diag_invis.php 2>&1 | grep -aE '^( *)(MEDICO|PAC|VINC|REC|BUSCA|INATIVO|DETREC|VERIF|RESUMO)\|' || true
             rm -f /tmp/diag_invis.php
             echo ""; echo "==> Fim (read-only, nada foi escrito)."
         env:
@@ -221,3 +254,4 @@ jobs:
           IN_CPF: ${{ inputs.cpf }}
           IN_EMAIL: ${{ inputs.email_medico }}
           IN_RECEITAS: ${{ inputs.receitas }}
+          IN_VERIFICAR: ${{ inputs.verificar_ids }}

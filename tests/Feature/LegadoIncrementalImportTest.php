@@ -351,10 +351,11 @@ class LegadoIncrementalImportTest extends TestCase
     }
 
     /**
-     * Ficha ativa no CLW2 que caiu numa ficha arquivada aqui: o merge mantém arquivado (é decisão
-     * do CLW3), mas isso tem de aparecer no report em vez de virar skip silencioso.
+     * Ficha ativa no CLW2 que caiu numa ficha arquivada aqui (a `z-` que a clínica marcou como
+     * repetida): a arquivada carrega as receitas da boa, então tem de voltar para a busca — com
+     * o nome da linha ativa, mesmo que o dump não seja "mais novo" que o cadastro daqui.
      */
-    public function test_paciente_ativo_no_legado_sinaliza_ficha_arquivada_no_clw3(): void
+    public function test_paciente_ativo_no_legado_reativa_ficha_arquivada_no_clw3(): void
     {
         [$medico, $paciente] = $this->seedMedicoPaciente();
         $paciente->update([
@@ -368,19 +369,56 @@ class LegadoIncrementalImportTest extends TestCase
         $result = $this->invocarImporter('upsertPaciente', [
             [
                 'legado_id' => 594,
-                'legado_medico_id' => null,
+                'legado_medico_id' => 26,
                 'nome' => 'Paciente Teste',
                 'cpf' => '123.456.789-09',
                 'sexo' => 'F',
                 'ativo' => true,
                 'dta_ult_alteracao' => '2024-01-01 00:00:00',
             ],
-            [],
+            [26 => $medico->id],
         ]);
 
-        $this->assertSame('pacientes_skip', $result['stat']);
+        $this->assertSame('pacientes_merge', $result['stat']);
         $this->assertSame('paciente_ativo_no_legado_arquivado_no_clw3', $result['signal']['tipo']);
-        $this->assertSame(594, $result['signal']['legado_id']);
+        $this->assertSame('reativado', $result['signal']['acao']);
+
+        $fresh = $paciente->fresh();
+        $this->assertTrue((bool) $fresh->ativo);
+        $this->assertSame('Paciente Teste', $fresh->nome);
+        $this->assertDatabaseHas('medico_paciente', [
+            'paciente_id' => $paciente->id,
+            'medico_id' => $medico->id,
+            'ativo' => 1,
+        ]);
+
+        $campos = array_column($result['change']['diff'], 'field');
+        $this->assertContains('ativo', $campos);
+        $this->assertContains('nome', $campos);
+    }
+
+    /**
+     * Contrapartida da reativação: ficha arquivada no CLW2 continua arquivada aqui — quem some da
+     * busca por decisão da clínica não volta sozinho.
+     */
+    public function test_paciente_inativo_no_legado_nao_reativa_ficha(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        $paciente->update(['cpf' => '12345678909', 'ativo' => false]);
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 573,
+                'legado_medico_id' => 26,
+                'nome' => 'Paciente Teste',
+                'cpf' => '123.456.789-09',
+                'ativo' => false,
+                'dta_ult_alteracao' => '2024-01-01 00:00:00',
+            ],
+            [26 => $medico->id],
+        ]);
+
+        $this->assertNull($result['signal']);
         $this->assertFalse((bool) $paciente->fresh()->ativo);
     }
 
