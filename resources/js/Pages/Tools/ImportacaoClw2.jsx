@@ -39,6 +39,8 @@ const WARNING_LABELS = {
     paciente_homonimo_ambiguo: 'Mais de um cadastro com este nome — será mesclado no mais antigo',
     cpf_divergente: 'CPF do legado diverge do CLW3 — mantido o do CLW3',
     conflito: 'Receita editada no CLW3 depois do import — dump ignorado',
+    paciente_arquivado: 'Ficha do paciente está arquivada no CLW3 — o médico não vai encontrá-la na busca',
+    vinculo_arquivado: 'Ficha arquivada para este médico — ele não vai encontrá-la na busca',
 };
 
 function warningLabel(w) {

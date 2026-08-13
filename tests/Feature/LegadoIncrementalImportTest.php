@@ -296,6 +296,95 @@ class LegadoIncrementalImportTest extends TestCase
     }
 
     /**
+     * Job f8b5e9c5: a receita de junho/2026 entrou numa ficha arquivada e o report não disse nada —
+     * a médica só descobriu no atendimento, procurando uma paciente que a busca jurava não existir.
+     */
+    public function test_receita_em_ficha_arquivada_avisa_no_report(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        $paciente->update(['ativo' => false]);
+
+        $result = $this->invocarImporter('upsertReceita', [
+            $this->itemLegadoReceita(),
+            $paciente->id,
+            $medico->id,
+            [],
+            collect(),
+        ]);
+
+        $this->assertSame('receitas_novas', $result['stat']);
+        $this->assertSame('paciente_arquivado', $result['change']['warning']);
+        $this->assertSame('receita_em_ficha_invisivel', $result['signal']['tipo']);
+        $this->assertSame($paciente->id, $result['signal']['paciente_id']);
+    }
+
+    public function test_receita_em_vinculo_arquivado_avisa_no_report(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        app(\App\Services\PacienteVinculoService::class)->garantir($paciente, $medico->id, ['ativo' => false]);
+
+        $result = $this->invocarImporter('upsertReceita', [
+            $this->itemLegadoReceita(),
+            $paciente->id,
+            $medico->id,
+            [],
+            collect(),
+        ]);
+
+        $this->assertSame('vinculo_arquivado', $result['change']['warning']);
+    }
+
+    public function test_receita_em_ficha_visivel_nao_gera_aviso(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+
+        $result = $this->invocarImporter('upsertReceita', [
+            $this->itemLegadoReceita(),
+            $paciente->id,
+            $medico->id,
+            [],
+            collect(),
+        ]);
+
+        $this->assertNull($result['change']['warning']);
+        $this->assertNull($result['signal']);
+    }
+
+    /**
+     * Ficha ativa no CLW2 que caiu numa ficha arquivada aqui: o merge mantém arquivado (é decisão
+     * do CLW3), mas isso tem de aparecer no report em vez de virar skip silencioso.
+     */
+    public function test_paciente_ativo_no_legado_sinaliza_ficha_arquivada_no_clw3(): void
+    {
+        [$medico, $paciente] = $this->seedMedicoPaciente();
+        $paciente->update([
+            'nome' => 'z-Paciente Teste',
+            'cpf' => '12345678909',
+            'sexo' => 'F',
+            'ativo' => false,
+        ]);
+        app(\App\Services\PacienteVinculoService::class)->garantir($paciente, $medico->id, ['ativo' => false]);
+
+        $result = $this->invocarImporter('upsertPaciente', [
+            [
+                'legado_id' => 594,
+                'legado_medico_id' => null,
+                'nome' => 'Paciente Teste',
+                'cpf' => '123.456.789-09',
+                'sexo' => 'F',
+                'ativo' => true,
+                'dta_ult_alteracao' => '2024-01-01 00:00:00',
+            ],
+            [],
+        ]);
+
+        $this->assertSame('pacientes_skip', $result['stat']);
+        $this->assertSame('paciente_ativo_no_legado_arquivado_no_clw3', $result['signal']['tipo']);
+        $this->assertSame(594, $result['signal']['legado_id']);
+        $this->assertFalse((bool) $paciente->fresh()->ativo);
+    }
+
+    /**
      * @param  list<mixed>  $args
      */
     private function invocarImporter(string $metodo, array $args): mixed

@@ -533,6 +533,20 @@ class LegadoIncrementalImporter
                 ];
             }
 
+            // Ficha ativa no CLW2 caindo numa ficha arquivada aqui: `ativo` não entra no merge
+            // (arquivar é decisão do CLW3), então o registro fica invisível na busca do médico
+            // carregando as receitas da ficha boa. Fica no report para dar rastro.
+            if ($signal === null && ($item['ativo'] ?? null) && ! $existente->ativo) {
+                $signal = [
+                    'tipo' => 'paciente_ativo_no_legado_arquivado_no_clw3',
+                    'legado_id' => $item['legado_id'] ?? null,
+                    'nome_legado' => $item['nome'] ?? null,
+                    'paciente_id' => $existente->id,
+                    'nome_clw3' => $existente->nome,
+                    'acao' => 'mantido_arquivado',
+                ];
+            }
+
             $before = $this->pacienteSnapshot($existente);
 
             // O vínculo é o objetivo da liberação por médico: garante ANTES de decidir o skip,
@@ -548,8 +562,11 @@ class LegadoIncrementalImporter
                 return [
                     'stat' => 'pacientes_skip',
                     'paciente_id' => $existente->id,
-                    // Mantém só alertas de risco (ex.: CPF divergente); omite ruído de match.
-                    'signal' => (($signal['tipo'] ?? null) === 'cpf_divergente') ? $signal : null,
+                    // Mantém só alertas de risco (CPF divergente, ficha arquivada); omite ruído de match.
+                    'signal' => in_array($signal['tipo'] ?? null, [
+                        'cpf_divergente',
+                        'paciente_ativo_no_legado_arquivado_no_clw3',
+                    ], true) ? $signal : null,
                     'needs_review' => $needsReview,
                     'change' => null,
                 ];
@@ -1166,6 +1183,12 @@ class LegadoIncrementalImporter
             .(! empty($item['numero_legado']) ? ' (nº '.$item['numero_legado'].')' : '')
             .' · '.($item['data_receita'] ?? 'sem data');
 
+        // A receita pode estar entrando numa ficha que o médico não acha na busca (ver job
+        // f8b5e9c5: no CLW2 a clínica desativava a ficha repetida e criava outra, e o merge por
+        // CPF fica com a desativada). Sem este aviso a importação passa muda e o médico só
+        // descobre na hora de atender.
+        $avisoFicha = $this->avisoFichaInvisivel($pacienteId, $medicoId);
+
         if ($existente) {
             if ($existente->legado_id === null) {
                 // Backfill de metadado: query builder cru (o Eloquent carimbaria `updated_at` e
@@ -1297,12 +1320,14 @@ class LegadoIncrementalImporter
 
             return [
                 'stat' => $status === 'cancelada' ? 'receitas_canceladas_espelhadas' : 'receitas_atualizadas',
-                'signal' => [
-                    'tipo' => 'receita_atualizada_do_legado',
-                    'receita_id' => $existente->id,
-                    'legado_id' => $legadoId,
-                    'motivo' => $tocadaNoClw3 ? 'legado_mais_novo' : 'clw3_somente_import',
-                ],
+                'signal' => $avisoFicha
+                    ? $this->sinalFichaInvisivel($legadoId, $pacienteId, $medicoId, $avisoFicha)
+                    : [
+                        'tipo' => 'receita_atualizada_do_legado',
+                        'receita_id' => $existente->id,
+                        'legado_id' => $legadoId,
+                        'motivo' => $tocadaNoClw3 ? 'legado_mais_novo' : 'clw3_somente_import',
+                    ],
                 'itens_sem_produto' => $semProduto,
                 'change' => $this->receitaChange(
                     $action,
@@ -1312,7 +1337,8 @@ class LegadoIncrementalImporter
                     $existente->id,
                     $before,
                     $after,
-                    $tocadaNoClw3 ? 'Legado mais recente' : 'Dump legado mais novo que o CLW3'
+                    $tocadaNoClw3 ? 'Legado mais recente' : 'Dump legado mais novo que o CLW3',
+                    $avisoFicha
                 ),
             ];
         }
@@ -1333,7 +1359,9 @@ class LegadoIncrementalImporter
 
         return [
             'stat' => 'receitas_novas',
-            'signal' => null,
+            'signal' => $avisoFicha
+                ? $this->sinalFichaInvisivel($legadoId, $pacienteId, $medicoId, $avisoFicha)
+                : null,
             'itens_sem_produto' => $semProduto,
             'change' => $this->receitaChange(
                 'nova',
@@ -1343,7 +1371,8 @@ class LegadoIncrementalImporter
                 $receita->id,
                 [],
                 $after,
-                'Será criada no CLW3'
+                'Será criada no CLW3',
+                $avisoFicha
             ),
         ];
     }
@@ -1361,7 +1390,8 @@ class LegadoIncrementalImporter
         ?int $clw3Id,
         array $before,
         array $after,
-        ?string $subtitle = null
+        ?string $subtitle = null,
+        ?string $warning = null
     ): array {
         return [
             'id' => 'r-'.$legadoId,
@@ -1375,7 +1405,42 @@ class LegadoIncrementalImporter
             'before' => $before,
             'after' => $after,
             'diff' => $this->snapshotDiff($before, $after),
-            'warning' => $action === 'conflito' ? 'conflito' : null,
+            'warning' => $action === 'conflito' ? 'conflito' : $warning,
+        ];
+    }
+
+    /**
+     * A ficha de destino é invisível para o médico que prescreveu? São os dois filtros da busca:
+     * `pacientes.ativo` (esconde de todos) e `medico_paciente.ativo` (esconde dele).
+     */
+    private function avisoFichaInvisivel(int $pacienteId, int $medicoId): ?string
+    {
+        $ativo = DB::table('pacientes')->where('id', $pacienteId)->value('ativo');
+        if ($ativo !== null && ! $ativo) {
+            return 'paciente_arquivado';
+        }
+
+        $vinculo = DB::table('medico_paciente')
+            ->where('paciente_id', $pacienteId)
+            ->where('medico_id', $medicoId)
+            ->value('ativo');
+
+        // Vínculo inexistente não é aviso: o import cria um ativo logo em seguida.
+        return ($vinculo !== null && ! $vinculo) ? 'vinculo_arquivado' : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sinalFichaInvisivel(int $legadoReceitaId, int $pacienteId, int $medicoId, string $motivo): array
+    {
+        return [
+            'tipo' => 'receita_em_ficha_invisivel',
+            'legado_receita_id' => $legadoReceitaId,
+            'paciente_id' => $pacienteId,
+            'medico_id' => $medicoId,
+            'motivo' => $motivo,
+            'acao' => 'importada_mesmo_assim',
         ];
     }
 
