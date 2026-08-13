@@ -1,0 +1,98 @@
+name: Diag payload de contato do oList (PRODUÇÃO, read-only)
+
+# Responde duas perguntas do job 494c6de8:
+#   1. quais campos a LISTA de contatos do oList devolve (é ela que o pull usa para quem já tem
+#      tiny_id — se não vier data de nascimento, correção feita no oList nunca chega aqui);
+#   2. o contato de um paciente com nascimento impossível já está corrigido lá.
+#
+# SOMENTE LEITURA: `contatos.pesquisa.php` e `contato.obter.php` são consultas.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tiny_ids:
+        description: "Contatos do oList a inspecionar (separados por vírgula)"
+        type: string
+        required: false
+        default: "753533176,757945652,759011004,758409507"
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sonda via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR,IN_IDS
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP  $(date '+%F %T')"
+
+            cat > /tmp/diag_payload.php <<PHPEOF
+            <?php
+            \$base = '$APP_DIR';
+            \$idsArg = '$IN_IDS';
+            require \$base . '/vendor/autoload.php';
+            \$app = require_once \$base . '/bootstrap/app.php';
+            \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            PHPEOF
+
+            cat >> /tmp/diag_payload.php <<'PHPEOF'
+
+            use App\Services\TinyErpClient;
+            use Illuminate\Support\Facades\DB;
+
+            $client = app(TinyErpClient::class);
+
+            // 1. O que a LISTA devolve por contato.
+            $lista = $client->listarContatos([
+                'dataMinimaAtualizacao' => now()->subDays(3)->format('d/m/Y'),
+                'pagina' => 1,
+            ]);
+            echo 'LISTA|status=' . ($lista['status'] ?? '?') . PHP_EOL;
+            $itens = $lista['data']['itens'] ?? [];
+            echo 'LISTA|qtd=' . count($itens) . PHP_EOL;
+            if ($itens !== []) {
+                echo 'LISTA|campos=' . implode(',', array_keys($itens[0])) . PHP_EOL;
+                echo 'LISTA|tem_data_nascimento=' . (array_key_exists('data_nascimento', $itens[0]) || array_key_exists('dataNascimento', $itens[0]) ? 'SIM' : 'NAO') . PHP_EOL;
+                echo 'LISTA|tem_data_atualizacao=' . (array_key_exists('data_atualizacao', $itens[0]) || array_key_exists('dataAtualizacao', $itens[0]) ? 'SIM' : 'NAO') . PHP_EOL;
+                echo 'LISTA|tem_celular=' . (array_key_exists('celular', $itens[0]) ? 'SIM' : 'NAO') . PHP_EOL;
+                echo 'LISTA|amostra=' . json_encode($itens[0], JSON_UNESCAPED_UNICODE) . PHP_EOL;
+            }
+
+            // 2. O DETALHE de contatos que aqui estão com nascimento impossível.
+            foreach (array_filter(array_map('trim', explode(',', $idsArg))) as $tinyId) {
+                $r = $client->obterContato((int) $tinyId);
+                if (($r['status'] ?? '') !== 'success' || ! is_array($r['data'] ?? null)) {
+                    echo 'DET|tiny=' . $tinyId . '|erro=' . ($r['message'] ?? 'sem dados') . PHP_EOL;
+                    continue;
+                }
+                $c = $r['data'];
+                $local = DB::table('pacientes')->where('tiny_id', (string) $tinyId)->first();
+                echo 'DET|tiny=' . $tinyId
+                    . '|olist_nome=' . ($c['nome'] ?? '-')
+                    . '|olist_nasc=' . ($c['data_nascimento'] ?? $c['dataNascimento'] ?? '(ausente)')
+                    . '|olist_celular=' . ($c['celular'] ?? '(ausente)')
+                    . '|aqui_nome=' . ($local->nome ?? '-')
+                    . '|aqui_nasc=' . ($local->data_nascimento ?? '-')
+                    . '|aqui_sync=' . ($local->tiny_sync_at ?? '-')
+                    . PHP_EOL;
+            }
+            PHPEOF
+
+            "$PHP" /tmp/diag_payload.php 2>&1 | grep -aE '^(LISTA|DET)\|' || true
+            rm -f /tmp/diag_payload.php
+            echo ""; echo "==> Fim (read-only, nada foi escrito)."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
+          IN_IDS: ${{ inputs.tiny_ids }}
