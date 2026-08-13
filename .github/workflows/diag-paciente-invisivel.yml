@@ -1,0 +1,191 @@
+name: Diag paciente invisível na busca (PRODUÇÃO, read-only)
+
+# Caso da Dra Sullege (job f8b5e9c5): a paciente "Fanilde Pirro Viana Paquer" tem receita
+# finalizada em 11/06/2026 (16742-0008) mas o Assistente de Receita responde "Nenhum paciente
+# encontrado" para a médica. Este diag levanta:
+#   1. os cadastros que casam com o nome/CPF, com vínculos e receitas;
+#   2. a simulação da consulta de /api/pacientes/search para o médico informado, afrouxando um
+#      filtro por vez (mostra QUAL filtro esconde o cadastro);
+#   3. o censo de todo paciente ativo=0 que ainda tem receita — o mesmo defeito em outras fichas.
+#
+# SOMENTE LEITURA.
+
+on:
+  workflow_dispatch:
+    inputs:
+      termo:
+        description: "Termo digitado pela médica na busca"
+        type: string
+        required: false
+        default: "Fanilde Pirro Viana Paquer"
+      cpf:
+        description: "CPF da paciente (só dígitos ou formatado)"
+        type: string
+        required: false
+        default: "850.146.051-68"
+      email_medico:
+        description: "E-mail do usuário médico que não acha a paciente"
+        type: string
+        required: false
+        default: "sullege@revskin.com.br"
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Levantamento via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR,IN_TERMO,IN_CPF,IN_EMAIL
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP  $(date '+%F %T')"
+
+            cat > /tmp/diag_invis.php <<PHPEOF
+            <?php
+            \$base = '$APP_DIR';
+            \$termo = '$IN_TERMO';
+            \$cpfIn = '$IN_CPF';
+            \$emailMedico = '$IN_EMAIL';
+            require \$base . '/vendor/autoload.php';
+            \$app = require_once \$base . '/bootstrap/app.php';
+            \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            PHPEOF
+
+            cat >> /tmp/diag_invis.php <<'PHPEOF'
+
+            use Illuminate\Support\Facades\DB;
+
+            $cpfDigitos = preg_replace('/\D/', '', $cpfIn);
+
+            // ── 1. quem é o médico ──
+            $user = DB::table('users')->where('email', $emailMedico)->first();
+            $medicoId = $user->medico_id ?? null;
+            echo 'MEDICO|user=' . ($user->id ?? '-') . '|name=' . ($user->name ?? '-')
+                . '|role=' . ($user->role ?? '-') . '|medico_id=' . ($medicoId ?: '-')
+                . '|clinica=' . ($user->clinica_id ?? '-') . PHP_EOL;
+
+            // ── 2. cadastros que casam com o nome ou o CPF (sem nenhum filtro de visibilidade) ──
+            $pacientes = DB::table('pacientes')
+                ->where(function ($q) use ($termo, $cpfDigitos) {
+                    $q->where('nome', 'like', '%' . $termo . '%');
+                    foreach (preg_split('/\s+/', trim($termo)) as $tok) {
+                        if (mb_strlen($tok) >= 4) {
+                            $q->orWhere('nome', 'like', '%' . $tok . '%');
+                        }
+                    }
+                    if (strlen($cpfDigitos) >= 8) {
+                        $q->orWhereRaw("REPLACE(REPLACE(REPLACE(COALESCE(cpf,''),'.',''),'-',''),' ','') = ?", [$cpfDigitos]);
+                    }
+                })
+                ->orderBy('id')
+                ->get();
+
+            foreach ($pacientes as $p) {
+                echo 'PAC|id=' . $p->id . '|nome=[' . $p->nome . ']|ativo=' . $p->ativo
+                    . '|cpf=' . ($p->cpf ?: '-') . '|nasc=' . ($p->data_nascimento ?: '-')
+                    . '|cel=' . ($p->celular ?: '-') . '|mail=' . ($p->email1 ?: '-')
+                    . '|tiny=' . ($p->tiny_id ?: '-') . '|medico_fk=' . ($p->medico_id ?: '-')
+                    . '|criado=' . $p->created_at . '|upd=' . $p->updated_at . PHP_EOL;
+
+                foreach (DB::table('medico_paciente')->where('paciente_id', $p->id)->get() as $v) {
+                    $m = DB::table('medicos')->where('id', $v->medico_id)->first();
+                    echo '  VINC|pac=' . $p->id . '|medico=' . $v->medico_id
+                        . '|nome_legado=' . ($m->nome_legado ?? '-')
+                        . '|ativo=' . $v->ativo . '|origem=' . ($v->origem ?? '-')
+                        . '|criado=' . $v->created_at . '|upd=' . $v->updated_at . PHP_EOL;
+                }
+
+                foreach (DB::table('receitas')->where('paciente_id', $p->id)->orderBy('data_receita')->get() as $r) {
+                    echo '  REC|pac=' . $p->id . '|rec=' . $r->id . '|num=' . $r->numero
+                        . '|data=' . $r->data_receita . '|status=' . $r->status
+                        . '|medico=' . $r->medico_id . '|total=' . $r->valor_total
+                        . '|legado=' . ($r->legado_id ?: '-') . PHP_EOL;
+                }
+            }
+
+            // ── 3. simulação da busca do Assistente de Receita, afrouxando um filtro por vez ──
+            $base = function () use ($termo) {
+                return DB::table('pacientes')->where(function ($q) use ($termo) {
+                    $q->where('nome', 'like', '%' . $termo . '%')
+                        ->orWhere('cpf', 'like', '%' . $termo . '%')
+                        ->orWhere('codigo', 'like', '%' . $termo . '%')
+                        ->orWhere('celular', 'like', '%' . $termo . '%')
+                        ->orWhere('email1', 'like', '%' . $termo . '%');
+                });
+            };
+
+            $comoNoApp = (clone $base())
+                ->where('ativo', true)
+                ->whereExists(function ($sq) use ($medicoId) {
+                    $sq->select(DB::raw(1))->from('medico_paciente')
+                        ->whereColumn('medico_paciente.paciente_id', 'pacientes.id')
+                        ->where('medico_paciente.medico_id', $medicoId)
+                        ->where('medico_paciente.ativo', true);
+                })->count();
+
+            $semPacienteAtivo = (clone $base())
+                ->whereExists(function ($sq) use ($medicoId) {
+                    $sq->select(DB::raw(1))->from('medico_paciente')
+                        ->whereColumn('medico_paciente.paciente_id', 'pacientes.id')
+                        ->where('medico_paciente.medico_id', $medicoId)
+                        ->where('medico_paciente.ativo', true);
+                })->count();
+
+            $semVinculoAtivo = (clone $base())
+                ->where('ativo', true)
+                ->whereExists(function ($sq) use ($medicoId) {
+                    $sq->select(DB::raw(1))->from('medico_paciente')
+                        ->whereColumn('medico_paciente.paciente_id', 'pacientes.id')
+                        ->where('medico_paciente.medico_id', $medicoId);
+                })->count();
+
+            echo 'BUSCA|termo=[' . $termo . ']|medico=' . ($medicoId ?: '-')
+                . '|como_no_app=' . $comoNoApp
+                . '|sem_filtro_paciente_ativo=' . $semPacienteAtivo
+                . '|sem_filtro_vinculo_ativo=' . $semVinculoAtivo
+                . '|so_texto=' . (clone $base())->count() . PHP_EOL;
+
+            // ── 4. censo: todo paciente ativo=0 que ainda tem receita ──
+            $inativos = DB::table('pacientes as p')
+                ->join('receitas as r', 'r.paciente_id', '=', 'p.id')
+                ->where('p.ativo', 0)
+                ->groupBy('p.id', 'p.nome', 'p.cpf')
+                ->select('p.id', 'p.nome', 'p.cpf', DB::raw('count(r.id) as recs'), DB::raw('max(r.data_receita) as ultima'))
+                ->orderByDesc('ultima')
+                ->get();
+
+            foreach ($inativos as $p) {
+                $medicosRec = DB::table('receitas')->where('paciente_id', $p->id)->distinct()->pluck('medico_id')->filter()->values()->all();
+                $vAtivos = DB::table('medico_paciente')->where('paciente_id', $p->id)->where('ativo', 1)->count();
+                $vInativos = DB::table('medico_paciente')->where('paciente_id', $p->id)->where('ativo', 0)->count();
+                echo 'INATIVO|id=' . $p->id . '|nome=[' . $p->nome . ']|cpf=' . ($p->cpf ?: '-')
+                    . '|receitas=' . $p->recs . '|ultima=' . $p->ultima
+                    . '|medicos_das_receitas=' . implode(',', $medicosRec)
+                    . '|vinc_ativos=' . $vAtivos . '|vinc_inativos=' . $vInativos . PHP_EOL;
+            }
+            echo 'RESUMO|pacientes=' . DB::table('pacientes')->count()
+                . '|ativo0=' . DB::table('pacientes')->where('ativo', 0)->count()
+                . '|ativo0_com_receita=' . count($inativos)
+                . '|vinculos=' . DB::table('medico_paciente')->count()
+                . '|vinculos_inativos=' . DB::table('medico_paciente')->where('ativo', 0)->count() . PHP_EOL;
+            PHPEOF
+
+            "$PHP" /tmp/diag_invis.php 2>&1 | grep -aE '^( *)(MEDICO|PAC|VINC|REC|BUSCA|INATIVO|RESUMO)\|' || true
+            rm -f /tmp/diag_invis.php
+            echo ""; echo "==> Fim (read-only, nada foi escrito)."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
+          IN_TERMO: ${{ inputs.termo }}
+          IN_CPF: ${{ inputs.cpf }}
+          IN_EMAIL: ${{ inputs.email_medico }}
