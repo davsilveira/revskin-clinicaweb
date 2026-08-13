@@ -83,6 +83,22 @@ class PacienteArquivadoVisivelNaBuscaTest extends TestCase
         $this->assertSame($ativa->id, $resp->json('candidatos.0.id'));
     }
 
+    /**
+     * O painel do Assistente esconde quem "já é seu paciente". Enquanto vínculo arquivado contava
+     * como vinculado, a ficha era escondida do painel também — o médico via "nenhum paciente
+     * encontrado" com a ficha logo ali.
+     */
+    public function test_vinculo_arquivado_nao_conta_como_ja_vinculado(): void
+    {
+        [$user, , $paciente] = $this->cenarioFichaArquivada();
+
+        $resp = $this->actingAs($user)->getJson('/api/pacientes/candidatos?nome=Fanilde');
+
+        $resp->assertOk();
+        $linha = collect($resp->json('candidatos'))->firstWhere('id', $paciente->id);
+        $this->assertFalse($linha['ja_vinculado']);
+    }
+
     public function test_selecionar_ficha_arquivada_reativa_e_devolve_a_busca(): void
     {
         [$user, $medico, $paciente] = $this->cenarioFichaArquivada();

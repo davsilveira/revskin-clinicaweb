@@ -1087,8 +1087,12 @@ class PacienteController extends Controller
 
         $vinculadosAoMedico = [];
         if ($medicoId && $pacientes->isNotEmpty()) {
+            // Vínculo ARQUIVADO não é "já é seu paciente": a ficha não aparece na busca dele, e
+            // tratá-la como vinculada era o que escondia a linha do painel (o médico via
+            // "nenhum paciente encontrado" com a ficha logo ali).
             $vinculadosAoMedico = \App\Models\MedicoPaciente::where('medico_id', $medicoId)
                 ->whereIn('paciente_id', $pacientes->pluck('id'))
+                ->where('ativo', true)
                 ->pluck('paciente_id')
                 ->all();
         }
