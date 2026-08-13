@@ -1,0 +1,130 @@
+name: Diag pós-limpeza do oList (PRODUÇÃO, read-only)
+
+# Confere o que sobrou depois de a clínica corrigir as datas de nascimento, apagar os contatos
+# repetidos e remover os cadastros de teste do lado do oList (job 494c6de8).
+#
+# SOMENTE LEITURA: nenhuma escrita no banco, nenhuma chamada mutável de API.
+# O script é gravado em /tmp no servidor e apagado no fim.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Levantamento via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP  $(date '+%F %T')"
+
+            cat > /tmp/diag_pos.php <<PHPEOF
+            <?php
+            \$base = '$APP_DIR';
+            require \$base . '/vendor/autoload.php';
+            \$app = require_once \$base . '/bootstrap/app.php';
+            \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            PHPEOF
+
+            cat >> /tmp/diag_pos.php <<'PHPEOF'
+
+            use Illuminate\Support\Facades\DB;
+
+            $rec = DB::table('receitas')->select('paciente_id', DB::raw('COUNT(*) c'))->groupBy('paciente_id')->pluck('c','paciente_id');
+            $mp  = DB::table('medico_paciente')->select('paciente_id', DB::raw('COUNT(*) c'))->groupBy('paciente_id')->pluck('c','paciente_id');
+
+            echo 'CNT|pacientes=' . DB::table('pacientes')->count() . PHP_EOL;
+            echo 'CNT|receitas=' . DB::table('receitas')->count() . PHP_EOL;
+
+            // 1. O pull está rodando? Até onde ele já leu?
+            $since = DB::table('settings')->where('key','tiny_contatos_pull_since')->value('value');
+            echo 'PULL|since=' . ($since ?: '-') . PHP_EOL;
+            echo 'PULL|max_tiny_sync_at=' . (DB::table('pacientes')->max('tiny_sync_at') ?: '-') . PHP_EOL;
+            echo 'PULL|atualizados_24h=' . DB::table('pacientes')->where('tiny_sync_at','>=', now()->subDay())->count() . PHP_EOL;
+
+            // 2. As datas impossíveis sumiram?
+            $ruins = DB::table('pacientes')->whereNotNull('data_nascimento')
+                ->where(function($q){ $q->whereRaw('data_nascimento > CURDATE()')->orWhere('data_nascimento','<','1900-01-01'); })
+                ->orderBy('nome')->get(['id','nome','data_nascimento','tiny_id','tiny_sync_at']);
+            echo 'CNT|nasc_impossivel=' . $ruins->count() . PHP_EOL;
+            foreach ($ruins as $p) {
+                echo 'NASC|id=' . $p->id . '|nome=' . $p->nome . '|nasc=' . $p->data_nascimento
+                    . '|tiny=' . ($p->tiny_id ?: '-') . '|sync=' . ($p->tiny_sync_at ?: '-') . PHP_EOL;
+            }
+
+            // 3. Cadastros de teste que a clínica disse não existirem no oList
+            $teste = DB::table('pacientes')
+                ->where(function($q){ $q->where('nome','like','zz%')->orWhere('nome','like','aaa%'); })
+                ->orderBy('nome')->get(['id','nome','data_nascimento','celular','tiny_id','created_at']);
+            echo 'CNT|teste=' . $teste->count() . PHP_EOL;
+            foreach ($teste as $p) {
+                $aq = DB::table('receita_item_aquisicoes as a')
+                    ->join('receita_itens as i','i.id','=','a.receita_item_id')
+                    ->join('receitas as r','r.id','=','i.receita_id')
+                    ->where('r.paciente_id',$p->id)->count();
+                $ped = DB::table('receitas')->where('paciente_id',$p->id)->whereNotNull('tiny_pedido_id')->count();
+                echo 'TESTE|id=' . $p->id . '|nome=' . $p->nome . '|tiny=' . ($p->tiny_id ?: '-')
+                    . '|rec=' . ($rec[$p->id] ?? 0) . '|vinc=' . ($mp[$p->id] ?? 0) . '|aq=' . $aq . '|pedidos=' . $ped . PHP_EOL;
+            }
+
+            // 4. O nome daqui bate com o do oList? (o pull sobrescreve o nome quando o contato é
+            //    editado lá; os que a clínica citou servem de amostra)
+            foreach (['%VAZ%','%RODRIGUES BORBA%','%ALINE RODRIGUES%','%NEVES%','%GANDOLPHO%','%SOUSA%','%SOUZA%'] as $like) {
+                foreach (DB::table('pacientes')->where('nome','like',$like)->whereNotNull('tiny_id')->get(['id','nome','tiny_id','tiny_sync_at','tiny_updated_at']) as $p) {
+                    echo 'NOME|id=' . $p->id . '|nome=' . $p->nome . '|tiny=' . $p->tiny_id
+                        . '|sync=' . ($p->tiny_sync_at ?: '-') . '|tiny_upd=' . ($p->tiny_updated_at ?: '-') . PHP_EOL;
+                }
+            }
+
+            // 5. Apareceu cadastro novo depois da limpeza da clínica? (= duplicata voltando)
+            $novos = DB::table('pacientes')->where('created_at','>=','2026-08-12 19:00:00')->orderBy('id')->get();
+            echo 'CNT|criados_apos_limpeza=' . $novos->count() . PHP_EOL;
+            foreach ($novos as $p) {
+                echo 'NOVO|id=' . $p->id . '|nome=' . $p->nome . '|tiny=' . ($p->tiny_id ?: '-')
+                    . '|nasc=' . ($p->data_nascimento ?: '-') . '|cel=' . ($p->celular ?: '-')
+                    . '|rec=' . ($rec[$p->id] ?? 0) . '|criado=' . $p->created_at . PHP_EOL;
+            }
+
+            // 6. Homônimos que sobraram
+            $g = [];
+            foreach (DB::table('pacientes')->get(['id','nome','data_nascimento','celular','cpf','tiny_id']) as $p) {
+                $g[mb_strtolower(trim($p->nome))][] = $p;
+            }
+            $dups = array_filter($g, fn($x) => count($x) > 1);
+            echo 'CNT|grupos_homonimos=' . count($dups) . PHP_EOL;
+            foreach ($dups as $nome => $grp) {
+                foreach ($grp as $p) {
+                    echo 'DUP|grupo=' . $nome . '|id=' . $p->id . '|nasc=' . ($p->data_nascimento ?: '-')
+                        . '|cel=' . ($p->celular ?: '-') . '|cpf=' . ($p->cpf ?: '-') . '|tiny=' . ($p->tiny_id ?: '-')
+                        . '|rec=' . ($rec[$p->id] ?? 0) . PHP_EOL;
+                }
+            }
+
+            // 7. Integridade
+            echo 'INT|receitas_sem_paciente=' . DB::table('receitas as r')->leftJoin('pacientes as p','p.id','=','r.paciente_id')->whereNull('p.id')->count() . PHP_EOL;
+            echo 'INT|itens_orfaos=' . DB::table('receita_itens as i')->leftJoin('receitas as r','r.id','=','i.receita_id')->whereNull('r.id')->count() . PHP_EOL;
+            echo 'INT|aquisicoes_orfas=' . DB::table('receita_item_aquisicoes as a')->leftJoin('receita_itens as i','i.id','=','a.receita_item_id')->whereNull('i.id')->count() . PHP_EOL;
+            echo 'INT|tiny_id_duplicado=' . DB::table('pacientes')->select('tiny_id')->whereNotNull('tiny_id')->groupBy('tiny_id')->havingRaw('COUNT(*) > 1')->get()->count() . PHP_EOL;
+
+            // 8. Jobs de integração falhos nas últimas 24h
+            echo 'INT|failed_jobs=' . DB::table('failed_jobs')->where('failed_at','>=', now()->subDay())->count() . PHP_EOL;
+            PHPEOF
+
+            "$PHP" /tmp/diag_pos.php 2>&1 | grep -aE '^(CNT|PULL|NASC|TESTE|NOME|NOVO|DUP|INT)\|' || true
+            rm -f /tmp/diag_pos.php
+            echo ""; echo "==> Fim (read-only, nada foi escrito)."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
