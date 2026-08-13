@@ -54,6 +54,10 @@ jobs:
             echo 'PULL|since=' . ($since ?: '-') . PHP_EOL;
             echo 'PULL|max_tiny_sync_at=' . (DB::table('pacientes')->max('tiny_sync_at') ?: '-') . PHP_EOL;
             echo 'PULL|atualizados_24h=' . DB::table('pacientes')->where('tiny_sync_at','>=', now()->subDay())->count() . PHP_EOL;
+            // Ficha completa lida pelo próprio pull: prova que a correção do job 494c6de8 está de pé.
+            echo 'PULL|com_detalhe_lido=' . DB::table('pacientes')->whereNotNull('tiny_detalhe_sync_at')->count() . PHP_EOL;
+            echo 'PULL|detalhe_lido_1h=' . DB::table('pacientes')->where('tiny_detalhe_sync_at','>=', now()->subHour())->count() . PHP_EOL;
+            echo 'PULL|max_detalhe=' . (DB::table('pacientes')->max('tiny_detalhe_sync_at') ?: '-') . PHP_EOL;
 
             // 2. As datas impossíveis sumiram?
             $ruins = DB::table('pacientes')->whereNotNull('data_nascimento')
