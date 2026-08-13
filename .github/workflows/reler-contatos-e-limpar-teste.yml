@@ -1,0 +1,96 @@
+name: Reler contatos do oList / remover cadastros de teste (PRODUÇÃO)
+
+# Duas faxinas do job 494c6de8, cada uma opcional e com simulação por padrão:
+#
+#   1. reler_nascimento — puxa do oList a ficha completa de quem está com data de nascimento
+#      impossível. A clínica já corrigiu as datas lá; a lista de contatos não traz esse campo, então
+#      só a leitura completa traz a correção para cá.
+#   2. remover_teste — apaga os cadastros de teste que a clínica confirmou não existirem no oList.
+#      Exige a lista de ids conferida à mão; o comando nunca adivinha.
+#
+# Sem "force" nada é gravado.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Aplicar de fato (desmarcado = simulação — NADA é gravado)"
+        type: boolean
+        required: false
+        default: false
+      reler_nascimento:
+        description: "Reler no oList quem tem nascimento impossível"
+        type: boolean
+        required: false
+        default: true
+      remover_teste:
+        description: "Remover os cadastros de teste da lista abaixo"
+        type: boolean
+        required: false
+        default: false
+      ids_teste:
+        description: "Ids dos cadastros de teste (conferidos à mão)"
+        type: string
+        required: false
+        default: "16859,16419,16420,16408,16410,16913,16540,16541,17107,16959,16407,16738,16646,16610,16648,16611,16789,16612,16640,16617,16636,16641,16747,17507,16842,16737,16957,16402,16404,17508,17509,16750,16403,16405"
+
+jobs:
+  faxina:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: IN_FORCE,IN_RELER,IN_REMOVER,IN_IDS,APP_DIR
+          command_timeout: "30m"
+          script: |
+            set -euo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP FORCE=$IN_FORCE RELER=$IN_RELER REMOVER=$IN_REMOVER"
+
+            if [ "$IN_FORCE" = "true" ] && [ "$IN_REMOVER" = "true" ]; then
+              # Reler só grava campo de cadastro; remover apaga receita em cascata. Backup antes.
+              env_val() { grep -E "^$1=" .env | head -1 | sed -E "s/^$1=//; s/^[\"']//; s/[\"']\$//"; }
+              DUMP="$HOME/backup-antes-limpeza-$(date +%Y%m%d-%H%M%S).sql.gz"
+              mysqldump --single-transaction --quick --no-tablespaces \
+                -u"$(env_val DB_USERNAME)" -p"$(env_val DB_PASSWORD)" "$(env_val DB_DATABASE)" | gzip > "$DUMP"
+              test -s "$DUMP"
+              echo "==> Backup: $DUMP ($(du -h "$DUMP" | cut -f1))"
+            fi
+
+            if [ "$IN_RELER" = "true" ]; then
+              echo ""; echo "=== 1. Reler no oList quem tem nascimento impossível ==="
+              if [ "$IN_FORCE" = "true" ]; then
+                "$PHP" artisan tiny:reler-contatos --nascimento-impossivel --force
+              else
+                "$PHP" artisan tiny:reler-contatos --nascimento-impossivel
+              fi
+            fi
+
+            if [ "$IN_REMOVER" = "true" ]; then
+              echo ""; echo "=== 2. Remover cadastros de teste ==="
+              # Sem --ignorar-alertas de propósito: o comando trava se alguma aquisição tiver
+              # pedido no oList ou se a receita de um paciente de verdade tiver saído de uma
+              # destas. Se travar, é para olhar, não para forçar.
+              if [ "$IN_FORCE" = "true" ]; then
+                "$PHP" artisan pacientes:remover-teste --ids="$IN_IDS" --force
+              else
+                "$PHP" artisan pacientes:remover-teste --ids="$IN_IDS"
+              fi
+            fi
+
+            echo ""; echo "==> Fim."
+        env:
+          IN_FORCE: ${{ inputs.force }}
+          IN_RELER: ${{ inputs.reler_nascimento }}
+          IN_REMOVER: ${{ inputs.remover_teste }}
+          IN_IDS: ${{ inputs.ids_teste }}
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
