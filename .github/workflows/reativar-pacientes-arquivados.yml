@@ -1,0 +1,83 @@
+name: Reativar pacientes arquivados (PRODUÇÃO)
+
+# Devolve à busca do médico cadastros que ficaram `ativo=0` na carga do CLW2 mesmo estando ativos
+# no CLW2 (caso da Dra Sullege, job f8b5e9c5). Sem `ids` o comando só LISTA os candidatos —
+# somente leitura. Com `ids` + `force=true` reativa o cadastro, os vínculos dos médicos que têm
+# receita com ele e (se pedido) limpa o marcador `z-`/`zzz` do nome.
+#
+# Nunca desativa nada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "Ids de pacientes a reativar (vazio = só listar candidatos)"
+        type: string
+        required: false
+        default: ""
+      limpar_prefixo:
+        description: "Limpar marcador de repetido do nome (z-, zzz…)"
+        type: boolean
+        required: false
+        default: true
+      force:
+        description: "Aplicar de fato (sem isto, simula)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  reativar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar pacientes:reativar via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR,IN_IDS,IN_PREFIXO,IN_FORCE
+          command_timeout: "15m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP  $(date '+%F %T')"
+
+            ARGS=""
+            if [ -n "$IN_IDS" ]; then ARGS="$ARGS --ids=$IN_IDS"; fi
+            if [ "$IN_PREFIXO" = "true" ]; then ARGS="$ARGS --limpar-prefixo"; fi
+
+            if [ -z "$IN_IDS" ] || [ "$IN_FORCE" != "true" ]; then
+              "$PHP" artisan pacientes:reativar $ARGS 2>&1
+              echo ""; echo "==> Fim (nada foi gravado)."
+              exit 0
+            fi
+
+            # Backup antes de qualquer escrita, igual à fusão de duplicados.
+            env_val() { grep -E "^$1=" .env | head -1 | sed -E "s/^$1=//; s/^[\"']//; s/[\"']\$//"; }
+            DB_DATABASE=$(env_val DB_DATABASE)
+            DB_USERNAME=$(env_val DB_USERNAME)
+            DB_PASSWORD=$(env_val DB_PASSWORD)
+            DUMP="$HOME/backup-antes-reativar-$(date +%Y%m%d-%H%M%S).sql.gz"
+            mysqldump --single-transaction --quick --no-tablespaces \
+              -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" | gzip > "$DUMP"
+            test -s "$DUMP"
+            echo "==> Backup: $DUMP ($(du -h "$DUMP" | cut -f1))"
+
+            echo "==> Simulação"
+            "$PHP" artisan pacientes:reativar $ARGS 2>&1
+            echo "==> APLICANDO"
+            "$PHP" artisan pacientes:reativar $ARGS --force 2>&1
+            echo "==> Restaurar, se precisar: gunzip -c $DUMP | mysql -u<user> -p <db>"
+
+            echo ""; echo "==> Fim."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
+          IN_IDS: ${{ inputs.ids }}
+          IN_PREFIXO: ${{ inputs.limpar_prefixo }}
+          IN_FORCE: ${{ inputs.force }}
