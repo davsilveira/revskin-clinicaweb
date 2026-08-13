@@ -1,0 +1,98 @@
+name: Diag Gerson e Angela (PRODUÇÃO, read-only)
+
+# Dados dos 4 cadastros que a clínica autorizou fundir (job cd3adfd4), para escolher qual fica:
+# o critério combinado é a receita mais recente, depois mais receitas, depois o id menor.
+#
+# SOMENTE LEITURA.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "Ids de pacientes a inspecionar"
+        type: string
+        required: false
+        default: "16727,16972,17222,17389"
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Levantamento via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: APP_DIR,IN_IDS
+          command_timeout: "10m"
+          script: |
+            set -uo pipefail
+            if [ -x /opt/alt/php84/usr/bin/php ]; then PHP=/opt/alt/php84/usr/bin/php;
+            elif [ -x /usr/bin/php84 ]; then PHP=/usr/bin/php84;
+            elif [ -x /usr/bin/php ]; then PHP=/usr/bin/php;
+            else PHP=php; fi
+            cd "$APP_DIR"
+            echo "==> APP_DIR=$APP_DIR PHP=$PHP  $(date '+%F %T')"
+
+            cat > /tmp/diag_ga.php <<PHPEOF
+            <?php
+            \$base = '$APP_DIR';
+            \$idsArg = '$IN_IDS';
+            require \$base . '/vendor/autoload.php';
+            \$app = require_once \$base . '/bootstrap/app.php';
+            \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            PHPEOF
+
+            cat >> /tmp/diag_ga.php <<'PHPEOF'
+
+            use Illuminate\Support\Facades\DB;
+
+            $ids = array_filter(array_map('intval', explode(',', $idsArg)));
+
+            foreach (DB::table('pacientes')->whereIn('id', $ids)->orderBy('nome')->orderBy('id')->get() as $p) {
+                echo 'PAC|id=' . $p->id . '|nome=' . $p->nome
+                    . '|nasc=' . ($p->data_nascimento ?: '-') . '|cpf=' . ($p->cpf ?: '-')
+                    . '|cel=' . ($p->celular ?: '-') . '|tel1=' . ($p->telefone1 ?: '-')
+                    . '|mail1=' . ($p->email1 ?: '-') . '|mail2=' . ($p->email2 ?: '-')
+                    . '|end=' . ($p->endereco ?: '-') . ',' . ($p->numero ?: '-') . ',' . ($p->cidade ?: '-') . '/' . ($p->uf ?: '-')
+                    . '|cep=' . ($p->cep ?: '-')
+                    . '|sexo=' . ($p->sexo ?: '-') . '|codigo=' . ($p->codigo ?: '-')
+                    . '|tiny=' . ($p->tiny_id ?: '-') . '|rd=' . ($p->rd_contact_id ?: '-')
+                    . '|criado=' . $p->created_at . '|upd=' . $p->updated_at
+                    . '|ativo=' . $p->ativo
+                    . PHP_EOL;
+
+                foreach (DB::table('receitas')->where('paciente_id', $p->id)->orderBy('data_receita')->get() as $r) {
+                    $itens = DB::table('receita_itens')->where('receita_id', $r->id)->count();
+                    $aq = DB::table('receita_item_aquisicoes as a')
+                        ->join('receita_itens as i', 'i.id', '=', 'a.receita_item_id')
+                        ->where('i.receita_id', $r->id)->count();
+                    $aqPedido = DB::table('receita_item_aquisicoes as a')
+                        ->join('receita_itens as i', 'i.id', '=', 'a.receita_item_id')
+                        ->where('i.receita_id', $r->id)->whereNotNull('a.tiny_pedido_id')->count();
+                    echo 'REC|pac=' . $p->id . '|rec=' . $r->id . '|num=' . $r->numero
+                        . '|data=' . $r->data_receita . '|status=' . $r->status
+                        . '|medico=' . $r->medico_id . '|itens=' . $itens
+                        . '|aquisicoes=' . $aq . '|com_pedido_olist=' . $aqPedido
+                        . '|legado=' . ($r->legado_id ?: '-') . '|criada=' . $r->created_at . PHP_EOL;
+                }
+
+                foreach (DB::table('medico_paciente')->where('paciente_id', $p->id)->get() as $v) {
+                    echo 'VINC|pac=' . $p->id . '|medico=' . $v->medico_id . PHP_EOL;
+                }
+
+                echo 'EXTRA|pac=' . $p->id
+                    . '|telefones=' . DB::table('paciente_telefones')->where('paciente_id', $p->id)->count()
+                    . '|atendimentos=' . DB::table('atendimentos_callcenter')->where('paciente_id', $p->id)->count()
+                    . PHP_EOL;
+            }
+            PHPEOF
+
+            "$PHP" /tmp/diag_ga.php 2>&1 | grep -aE '^(PAC|REC|VINC|EXTRA)\|' || true
+            rm -f /tmp/diag_ga.php
+            echo ""; echo "==> Fim (read-only, nada foi escrito)."
+        env:
+          APP_DIR: ${{ vars.HOSTINGER_REMOTE_PATH }}/revskin
+          IN_IDS: ${{ inputs.ids }}
