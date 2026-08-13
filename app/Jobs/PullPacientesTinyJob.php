@@ -42,6 +42,9 @@ class PullPacientesTinyJob implements ShouldQueue
 
     private const BACKFILL_CHECKPOINT_KEY = 'tiny_contatos_backfill_checkpoint';
 
+    /** De quantas em quantas horas a ficha completa de um contato conhecido é relida. */
+    private const DETALHE_TTL_HORAS_PADRAO = 6;
+
     /**
      * Contadores da última execução (lidos pelo comando de import).
      *
@@ -196,18 +199,19 @@ class PullPacientesTinyJob implements ShouldQueue
                 $contato = null;
                 $fromListOnly = false;
 
-                if ($pacienteExistente !== null) {
-                    // Já conhecido pelo tiny_id: a lista basta para atualizar (economiza 1 chamada).
+                if ($pacienteExistente !== null && ! $this->precisaLerFichaCompleta($pacienteExistente)) {
+                    // Já conhecido e lido faz pouco tempo: a lista basta (economiza 1 chamada).
                     $contato = $item;
                     $fromListOnly = true;
-                } elseif (! $importNew) {
+                } elseif ($pacienteExistente === null && ! $importNew) {
                     $this->stats['ignorados']++;
 
                     continue;
                 } else {
-                    // Contato novo por aqui: a lista NÃO traz celular, data de nascimento,
-                    // sexo nem tipos_contato — exatamente os dados que diferenciam homônimos
-                    // na busca por nome. Vale a chamada extra.
+                    // A lista NÃO traz celular, data de nascimento, sexo nem tipos_contato — ela
+                    // devolve id, nome, cpf_cnpj, e-mail, fone e endereço, e mais nada. Para
+                    // contato novo esses campos são o que separa homônimos; para contato conhecido
+                    // são justamente os que a clínica corrige no oList e que nunca chegariam aqui.
                     $obter = $client->obterContato($tinyId);
                     if ($this->shouldPauseRun($obter, $client, $pagina, $marcador, $runStart)) {
                         return;
@@ -418,6 +422,10 @@ class PullPacientesTinyJob implements ShouldQueue
 
         if ($paciente) {
             if (! $fromListOnly && $tinyDt && $paciente->tiny_updated_at && $tinyDt->lte($paciente->tiny_updated_at)) {
+                // Nada mudou no oList desde a última leitura. Ainda assim registra que a ficha
+                // completa foi lida agora, senão a próxima rodada gastaria a chamada de novo.
+                $this->salvar(fn () => $paciente->forceFill(['tiny_detalhe_sync_at' => Carbon::now()])->saveQuietly());
+
                 return 'skipped';
             }
 
@@ -433,6 +441,9 @@ class PullPacientesTinyJob implements ShouldQueue
             $this->resolverEmailImportado($attrs, $contato, $paciente);
             $attrs['tiny_sync_at'] = Carbon::now();
             $attrs['tiny_updated_at'] = $tinyDt ?? Carbon::now();
+            if (! $fromListOnly) {
+                $attrs['tiny_detalhe_sync_at'] = Carbon::now();
+            }
 
             $this->salvar(fn () => $paciente->update($attrs));
 
@@ -689,6 +700,30 @@ class PullPacientesTinyJob implements ShouldQueue
         }
 
         return null;
+    }
+
+    /**
+     * Vale gastar uma chamada de `contato.obter` num paciente que já conhecemos?
+     *
+     * A lista do oList devolve nome, e-mail, fone e endereço — **não** devolve data de nascimento,
+     * celular nem sexo. Enquanto o pull se contentou com a lista, correção feita no oList nesses
+     * três campos nunca chegava aqui: em 13/08/2026 a clínica corrigiu 69 datas de nascimento, o
+     * nome de cada uma sincronizou na mesma rodada e a data continuou errada na ClinicaWeb.
+     *
+     * Ler a ficha completa toda rodada não dá: o filtro do oList é por DIA, então um contato
+     * alterado hoje volta na lista a cada 10 minutos por dois dias. Daí a validade — cada contato
+     * conhecido custa no máximo uma chamada por período, e a correção aparece aqui em algumas horas.
+     */
+    private function precisaLerFichaCompleta(Paciente $paciente): bool
+    {
+        $horas = (int) Setting::get('tiny_contato_detalhe_ttl_horas', self::DETALHE_TTL_HORAS_PADRAO);
+
+        if ($horas <= 0) {
+            return true;
+        }
+
+        return $paciente->tiny_detalhe_sync_at === null
+            || $paciente->tiny_detalhe_sync_at->lt(Carbon::now()->subHours($horas));
     }
 
     /**

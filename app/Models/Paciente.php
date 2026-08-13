@@ -42,6 +42,7 @@ class Paciente extends Model
         'medico_id',
         'tiny_id',
         'tiny_sync_at',
+        'tiny_detalhe_sync_at',
         'tiny_updated_at',
         'rd_organization_id',
         'rd_contact_id',
@@ -54,6 +55,7 @@ class Paciente extends Model
             'data_nascimento' => 'date',
             'ativo' => 'boolean',
             'tiny_sync_at' => 'datetime',
+            'tiny_detalhe_sync_at' => 'datetime',
             'tiny_updated_at' => 'datetime',
         ];
     }

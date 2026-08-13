@@ -38,12 +38,13 @@ class PullPacientesTinyJobTest extends TestCase
     }
 
     #[Test]
-    public function existing_patient_is_updated_without_obter_contato(): void
+    public function existing_patient_read_recently_is_updated_without_obter_contato(): void
     {
         Paciente::create([
             'nome' => 'Paciente Existente',
             'tiny_id' => '101',
             'cpf' => '123.456.789-01',
+            'tiny_detalhe_sync_at' => now()->subMinutes(10),
         ]);
 
         Http::fake([
@@ -60,6 +61,39 @@ class PullPacientesTinyJobTest extends TestCase
         $paciente = Paciente::where('tiny_id', '101')->first();
         $this->assertSame('Paciente Atualizado Tiny', $paciente->nome);
         $this->assertNotNull($paciente->tiny_sync_at);
+    }
+
+    #[Test]
+    public function existing_patient_with_stale_detail_reads_the_full_contact(): void
+    {
+        // A lista do oList não devolve data de nascimento: sem a leitura completa, correção feita
+        // lá nesse campo nunca chegaria aqui.
+        Paciente::create([
+            'nome' => 'Paciente Existente',
+            'tiny_id' => '101',
+            'cpf' => '123.456.789-01',
+            'data_nascimento' => '2074-03-28',
+            'tiny_detalhe_sync_at' => now()->subDay(),
+        ]);
+
+        Http::fake([
+            'api.tiny.com.br/api2/contatos.pesquisa.php' => Http::response($this->pesquisaResponse([
+                $this->contatoListItem(101, 'Paciente Existente', '123.456.789-01'),
+            ])),
+            'api.tiny.com.br/api2/contato.obter.php' => Http::response($this->obterResponse(array_merge(
+                $this->contatoListItem(101, 'Paciente Existente', '123.456.789-01'),
+                ['data_nascimento' => '28/03/1974', 'celular' => '(21) 98648-0101'],
+            ))),
+        ]);
+
+        (new PullPacientesTinyJob)->handle();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'contato.obter.php'));
+
+        $paciente = Paciente::where('tiny_id', '101')->first();
+        $this->assertSame('1974-03-28', $paciente->data_nascimento->format('Y-m-d'));
+        $this->assertSame('(21) 98648-0101', $paciente->celular);
+        $this->assertNotNull($paciente->tiny_detalhe_sync_at);
     }
 
     #[Test]
