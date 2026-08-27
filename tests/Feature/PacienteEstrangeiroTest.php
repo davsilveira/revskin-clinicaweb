@@ -44,6 +44,8 @@ class PacienteEstrangeiroTest extends TestCase
             'email1' => 'john@example.com',
             'pais' => 'Estados Unidos',
             'outro_documento' => 'X1234567',
+            'cidade' => 'Miami',
+            'uf' => 'Florida',
         ], $override);
     }
 
@@ -79,6 +81,8 @@ class PacienteEstrangeiroTest extends TestCase
                 'outro_documento' => null,
                 'email1' => 'maria@example.com',
                 'celular' => '(11) 99999-9999',
+                'cidade' => 'Campinas',
+                'uf' => 'SP',
             ]))
             ->assertStatus(422)
             ->assertJsonValidationErrors('cpf');
@@ -98,6 +102,8 @@ class PacienteEstrangeiroTest extends TestCase
                 'cpf' => self::CPF_VALIDO,
                 'email1' => 'maria2@example.com',
                 'celular' => '(11) 99999-9999',
+                'cidade' => 'Campinas',
+                'uf' => 'SP',
             ]))
             ->assertOk();
 
@@ -112,6 +118,8 @@ class PacienteEstrangeiroTest extends TestCase
             ->postJson(route('pacientes.store'), $this->payload([
                 'pais' => 'Brasil',
                 'cpf' => '111.111.111-11',
+                'cidade' => 'Campinas',
+                'uf' => 'SP',
             ]))
             ->assertStatus(422)
             ->assertJsonValidationErrors('cpf');
@@ -190,10 +198,12 @@ class PacienteEstrangeiroTest extends TestCase
     {
         [$user] = $this->medicoComUser('ufbr@revskin.com.br');
 
-        $this->actingAs($user)->postJson(route('pacientes.store'), $this->payload([
-            'pais' => 'Brasil',
-            'uf' => 'California',
-        ]))->assertStatus(422)->assertJsonValidationErrors('uf');
+        $this->actingAs($user)
+            ->postJson(route('pacientes.store'), $this->payload([
+                'pais' => 'Brasil',
+                'cidade' => 'Campinas',
+                'uf' => 'California',
+            ]))->assertStatus(422)->assertJsonValidationErrors('uf');
     }
 
     public function test_lookup_encontra_por_documento_e_por_email(): void
@@ -249,6 +259,7 @@ class PacienteEstrangeiroTest extends TestCase
         $this->assertSame('', $dados['endereco']['cidade']);
         $this->assertSame('', $dados['endereco']['uf']);
         $this->assertSame('123 Main St', $dados['endereco']['endereco']);
+        $this->assertSame([['tipo' => 'Cliente']], $dados['tiposContato']);
 
         // Paciente sem CPF deixa de ser descartado antes da chamada.
         $obrigatorios = new \ReflectionMethod($job, 'validarCamposObrigatorios');
@@ -276,5 +287,6 @@ class PacienteEstrangeiroTest extends TestCase
         $this->assertArrayNotHasKey('pais', $dados);
         $this->assertSame('Curitiba', $dados['endereco']['cidade']);
         $this->assertSame('PR', $dados['endereco']['uf']);
+        $this->assertSame([['tipo' => 'Cliente']], $dados['tiposContato']);
     }
 }

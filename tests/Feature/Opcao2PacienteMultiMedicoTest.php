@@ -45,6 +45,9 @@ class Opcao2PacienteMultiMedicoTest extends TestCase
             'cpf' => self::CPF_A,
             'celular' => '(11) 99999-9999',
             'email1' => 'joao@example.com',
+            'cidade' => 'Campinas',
+            'uf' => 'SP',
+            'pais' => 'Brasil',
         ], $override);
     }
 

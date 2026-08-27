@@ -107,7 +107,15 @@ class SyncClienteTinyJobTest extends TestCase
 
         (new SyncClienteTinyJob($paciente))->handle();
 
-        Http::assertSent(fn ($request) => str_contains($request->url(), 'contato.incluir.php'));
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), 'contato.incluir.php')) {
+                return false;
+            }
+            $contato = json_decode((string) ($request->data()['contato'] ?? ''), true);
+            $tipos = $contato['contatos'][0]['contato']['tipos_contato'] ?? null;
+
+            return $tipos === [['tipo' => 'Cliente']];
+        });
 
         $paciente->refresh();
         $this->assertSame('900123', $paciente->tiny_id);

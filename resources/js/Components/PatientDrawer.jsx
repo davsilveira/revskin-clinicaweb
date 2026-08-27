@@ -371,6 +371,19 @@ export default function PatientDrawer({
     const cpfObrigatorio = isBrazil && !cadastroExistenteSemCpf;
     const cpfFaltando = cpfObrigatorio && cpfVazio(data.cpf);
 
+    /**
+     * Cidade/estado obrigatórios no cadastro novo. Cadastro já salvo sem os dois
+     * (legado / oList) não trava edição nem autosave — mesma exceção do CPF.
+     */
+    const cadastroExistenteSemCidadeUf = Boolean(
+        (paciente && !String(paciente.cidade || '').trim() && !String(paciente.uf || '').trim())
+        || (pacienteExistente && !String(pacienteExistente.cidade || '').trim() && !String(pacienteExistente.uf || '').trim())
+    );
+    const cidadeUfObrigatorio = !cadastroExistenteSemCidadeUf;
+    const cidadeUfFaltando = cidadeUfObrigatorio && (
+        !String(data.cidade || '').trim() || !String(data.uf || '').trim()
+    );
+
     const persistedPacienteId = currentPacienteId ?? paciente?.id ?? null;
     const medicoLocked = Boolean(persistedPacienteId && data.medico_id);
 
@@ -391,6 +404,7 @@ export default function PatientDrawer({
         // devolveria 422 a cada 2 s enquanto o campo estivesse pela metade).
         if (emailPreenchidoInvalido(data.email1)) return Promise.resolve();
         if (cpfPreenchidoInvalido(data.cpf) || cpfFaltando) return Promise.resolve();
+        if (cidadeUfFaltando) return Promise.resolve();
 
         return runExclusive(async () => {
             const telefonesValidos = data.telefones.filter((t) => t.numero && t.numero.trim());
@@ -454,7 +468,7 @@ export default function PatientDrawer({
 
             return result;
         });
-    }, [data, currentPacienteId, medicoRequired, showMedico, enableAutoSave, paciente, runExclusive, csrfForRequests, cpfFaltando]);
+    }, [data, currentPacienteId, medicoRequired, showMedico, enableAutoSave, paciente, runExclusive, csrfForRequests, cpfFaltando, cidadeUfFaltando]);
 
     const canAutoSave = useCallback(() => {
         if (!enableAutoSave || !isOpen || !paciente) {
@@ -465,9 +479,10 @@ export default function PatientDrawer({
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
         if (emailPreenchidoInvalido(data.email1)) return false;
         if (cpfPreenchidoInvalido(data.cpf) || cpfFaltando) return false;
+        if (cidadeUfFaltando) return false;
         if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico, paciente, cpfFaltando]);
+    }, [enableAutoSave, isOpen, data, medicoRequired, showMedico, paciente, cpfFaltando, cidadeUfFaltando]);
 
     const {
         lastSaved,
@@ -539,6 +554,16 @@ export default function PatientDrawer({
                 if (emailPreenchidoInvalido(data.email1)) {
                     newErrors.email1 = 'Informe um e-mail válido.';
                     hasErrors = true;
+                }
+                if (cidadeUfObrigatorio) {
+                    if (!String(data.cidade || '').trim()) {
+                        newErrors.cidade = 'A cidade é obrigatória.';
+                        hasErrors = true;
+                    }
+                    if (!String(data.uf || '').trim()) {
+                        newErrors.uf = 'O estado é obrigatório.';
+                        hasErrors = true;
+                    }
                 }
                 if (medicoRequired && showMedico && !data.medico_id) {
                     newErrors.medico_id = 'Selecione o médico responsável.';
@@ -669,7 +694,7 @@ export default function PatientDrawer({
                 isManualPersistRef.current = false;
             }
         });
-    }, [data, paciente, medicoRequired, showMedico, onSave, cancelAutoSave, runExclusive, csrfForRequests, cpfFaltando, pacienteExistente]);
+    }, [data, paciente, medicoRequired, showMedico, onSave, cancelAutoSave, runExclusive, csrfForRequests, cpfFaltando, cidadeUfObrigatorio, pacienteExistente]);
 
     const saveBeforeClose = useCallback(async () => persistPatient(), [persistPatient]);
 
@@ -705,12 +730,13 @@ export default function PatientDrawer({
         if (!isOpen) return false;
         if (!data.nome || data.nome.trim().length < 2) return false;
         if (cpfPreenchidoInvalido(data.cpf) || cpfFaltando) return false;
+        if (cidadeUfFaltando) return false;
         if (!data.data_nascimento) return false;
         if (!data.celular || data.celular.replace(/\D/g, '').length < 10) return false;
         if (emailPreenchidoInvalido(data.email1)) return false;
         if (medicoRequired && showMedico && !data.medico_id) return false;
         return true;
-    }, [isOpen, data, medicoRequired, showMedico, cpfFaltando]);
+    }, [isOpen, data, medicoRequired, showMedico, cpfFaltando, cidadeUfFaltando]);
 
     const {
         requestClose,
@@ -1281,7 +1307,12 @@ export default function PatientDrawer({
                                 <Input
                                     label="Cidade"
                                     value={data.cidade}
-                                    onChange={(e) => setData('cidade', e.target.value)}
+                                    onChange={(e) => {
+                                        setData('cidade', e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, cidade: null }));
+                                    }}
+                                    error={fieldErrors.cidade || errors.cidade}
+                                    required={cidadeUfObrigatorio}
                                     {...NO_AUTOFILL}
                                     name="revskin_paciente_cidade"
                                 />
@@ -1291,11 +1322,16 @@ export default function PatientDrawer({
                                     <Select
                                         label="UF"
                                         value={data.uf}
-                                        onChange={(e) => setData('uf', e.target.value)}
+                                        onChange={(e) => {
+                                            setData('uf', e.target.value);
+                                            setFieldErrors((prev) => ({ ...prev, uf: null }));
+                                        }}
                                         options={[
                                             { value: '', label: 'UF' },
                                             ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({ value: uf, label: uf }))
                                         ]}
+                                        error={fieldErrors.uf || errors.uf}
+                                        required={cidadeUfObrigatorio}
                                         {...NO_AUTOFILL}
                                         name="revskin_paciente_uf"
                                     />
@@ -1303,7 +1339,12 @@ export default function PatientDrawer({
                                     <Input
                                         label="Estado/Província"
                                         value={data.uf}
-                                        onChange={(e) => setData('uf', e.target.value)}
+                                        onChange={(e) => {
+                                            setData('uf', e.target.value);
+                                            setFieldErrors((prev) => ({ ...prev, uf: null }));
+                                        }}
+                                        error={fieldErrors.uf || errors.uf}
+                                        required={cidadeUfObrigatorio}
                                         {...NO_AUTOFILL}
                                         name="revskin_paciente_uf"
                                     />

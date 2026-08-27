@@ -12,10 +12,10 @@ use App\Models\Receita;
 use App\Models\ReceitaItem;
 use App\Models\Setting;
 use App\Models\User;
-use App\Support\ReceitaProdutoLegadoGuard;
 use App\Services\RdNegociacaoSync;
 use App\Services\ReceitaOlistCancelabilidade;
 use App\Services\TinyPedidoSync;
+use App\Support\ReceitaProdutoLegadoGuard;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -885,7 +885,8 @@ class ReceitaController extends Controller
     }
 
     /**
-     * Atualiza apenas anotações por linha (internas) em receita já finalizada — não dispara integrações.
+     * Atualiza anotações internas da receita e/ou por linha em receita já finalizada —
+     * não dispara integrações.
      */
     public function patchItensAnotacoes(Request $request, Receita $receita): JsonResponse
     {
@@ -902,12 +903,13 @@ class ReceitaController extends Controller
 
         if ($receita->status !== 'finalizada') {
             return response()->json([
-                'message' => 'Só é permitido editar anotações internas por produto em receitas finalizadas.',
+                'message' => 'Só é permitido editar anotações internas em receitas finalizadas.',
             ], 422);
         }
 
         $validated = $request->validate([
-            'itens' => 'required|array|min:1',
+            'anotacoes' => 'nullable|string',
+            'itens' => 'nullable|array',
             'itens.*.id' => [
                 'required',
                 'integer',
@@ -916,7 +918,17 @@ class ReceitaController extends Controller
             'itens.*.anotacoes' => 'nullable|string',
         ]);
 
-        foreach ($validated['itens'] as $row) {
+        if (! $request->exists('anotacoes') && empty($validated['itens'])) {
+            return response()->json([
+                'message' => 'Informe as anotações internas da receita ou por produto.',
+            ], 422);
+        }
+
+        if ($request->exists('anotacoes')) {
+            $receita->update(['anotacoes' => $validated['anotacoes'] ?? null]);
+        }
+
+        foreach ($validated['itens'] ?? [] as $row) {
             ReceitaItem::query()
                 ->where('receita_id', $receita->id)
                 ->where('id', $row['id'])

@@ -450,6 +450,8 @@ class PacienteBuscaPorNomeTest extends TestCase
             'celular' => '+1 305 555 0199',
             'email1' => 'foreign@example.com',
             'pais' => 'Estados Unidos',
+            'cidade' => 'Miami',
+            'uf' => 'Florida',
         ])->assertOk();
 
         $this->assertDatabaseHas('pacientes', ['email1' => 'foreign@example.com', 'cpf' => null]);

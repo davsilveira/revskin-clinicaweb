@@ -951,6 +951,15 @@ class TinyErpClient
         if (! empty($data['pais'])) {
             $contato['pais'] = $data['pais'];
         }
+
+        $tipos = $data['tiposContato'] ?? $data['tipos_contato'] ?? [['tipo' => 'Cliente']];
+        if (is_array($tipos) && $tipos !== []) {
+            $contato['tipos_contato'] = array_values(array_map(
+                fn ($t) => ['tipo' => is_array($t) ? (string) ($t['tipo'] ?? 'Cliente') : (string) $t],
+                $tipos
+            ));
+        }
+
         if (! empty($data['endereco']) && is_array($data['endereco'])) {
             // Campos vazios ficam de fora: o contato.incluir valida `cidade` contra a tabela
             // de municípios brasileiros e recusa qualquer cidade estrangeira

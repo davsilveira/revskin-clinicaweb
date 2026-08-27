@@ -153,6 +153,43 @@ class ReceitaItensAnotacoesPatchTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_admin_pode_atualizar_anotacoes_internas_da_receita_finalizada(): void
+    {
+        [$receita] = $this->seedReceitaFinalizadaComItem();
+        $receita->update(['anotacoes' => 'Nota antiga']);
+        $this->actingAs($this->admin());
+
+        $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
+            'anotacoes' => 'Ajuste climático — paciente em Campinas',
+        ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertSame('Ajuste climático — paciente em Campinas', $receita->fresh()->anotacoes);
+    }
+
+    public function test_medico_dono_pode_atualizar_anotacoes_internas_e_por_produto(): void
+    {
+        [$receita, $item, $medico] = $this->seedReceitaFinalizadaComItem();
+        $user = User::create([
+            'name' => 'Med Patch Internas',
+            'email' => 'med-patch-internas@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'medico',
+            'medico_id' => $medico->id,
+            'is_active' => true,
+        ]);
+        $this->actingAs($user);
+
+        $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
+            'anotacoes' => 'Interna do médico',
+            'itens' => [['id' => $item->id, 'anotacoes' => 'Linha atualizada']],
+        ])->assertOk();
+
+        $this->assertSame('Interna do médico', $receita->fresh()->anotacoes);
+        $this->assertSame('Linha atualizada', $item->fresh()->anotacoes);
+    }
+
     public function test_autosave_em_receita_finalizada_retorna_422(): void
     {
         [$receita, , $medico, $paciente] = $this->seedReceitaFinalizadaComItem();

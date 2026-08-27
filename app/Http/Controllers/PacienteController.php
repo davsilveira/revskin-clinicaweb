@@ -207,6 +207,10 @@ class PacienteController extends Controller
 
     public const MSG_CPF_OBRIGATORIO = 'O CPF é obrigatório para pacientes no Brasil.';
 
+    public const MSG_CIDADE_OBRIGATORIA = 'A cidade é obrigatória.';
+
+    public const MSG_UF_OBRIGATORIA = 'O estado é obrigatório.';
+
     /**
      * Feedback do cliente: no Brasil o CPF é obrigatório; fora do Brasil o documento é opcional.
      *
@@ -230,6 +234,55 @@ class PacienteController extends Controller
 
         // Cadastro já salvo sem CPF: segue editável/vinculável sem CPF.
         return ! ($existente !== null && trim((string) $existente->cpf) === '');
+    }
+
+    /**
+     * Cidade e estado obrigatórios no cadastro novo (pedido do Dr. LF: saber onde o
+     * paciente mora na hora da receita). Cadastro já salvo sem cidade/UF (legado e
+     * oList) continua editável — o autosave do drawer não pode 422 a cada 2 s.
+     *
+     * @return array<string, list<string>>
+     */
+    private function errosCidadeUfObrigatorio(array $validated, ?Paciente $existente = null): array
+    {
+        $cidade = trim((string) ($validated['cidade'] ?? ''));
+        $uf = trim((string) ($validated['uf'] ?? ''));
+
+        if ($existente !== null) {
+            $jaSemCidade = trim((string) ($existente->cidade ?? '')) === '';
+            $jaSemUf = trim((string) ($existente->uf ?? '')) === '';
+            if ($jaSemCidade && $jaSemUf) {
+                return [];
+            }
+        }
+
+        $errors = [];
+        if ($cidade === '') {
+            $errors['cidade'] = [self::MSG_CIDADE_OBRIGATORIA];
+        }
+        if ($uf === '') {
+            $errors['uf'] = [self::MSG_UF_OBRIGATORIA];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $errors
+     */
+    private function jsonOrBackForFieldErrors(Request $request, array $errors)
+    {
+        $first = reset($errors)[0] ?? 'Dados inválidos.';
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json(['message' => $first, 'errors' => $errors], 422);
+        }
+
+        $flat = [];
+        foreach ($errors as $field => $messages) {
+            $flat[$field] = $messages[0];
+        }
+
+        return back()->withErrors($flat)->withInput();
     }
 
     public const MSG_EXISTENTE_NAO_CORRESPONDE = 'O cadastro selecionado não corresponde ao nome informado. Refaça a busca pelo nome do paciente.';
@@ -523,6 +576,10 @@ class PacienteController extends Controller
             return $this->jsonOrBackForFieldError($request, 'cpf', self::MSG_CPF_OBRIGATORIO);
         }
 
+        if ($cidadeUfErrors = $this->errosCidadeUfObrigatorio($validated, $existente)) {
+            return $this->jsonOrBackForFieldErrors($request, $cidadeUfErrors);
+        }
+
         // CPF opcional fora do Brasil, mas quando informado tem de ser um CPF de verdade.
         if (! $this->validateCpfDigits($validated['cpf'] ?? null)) {
             return $this->jsonOrBackForFieldError($request, 'cpf', 'CPF inválido. Por favor, verifique os números digitados.');
@@ -724,6 +781,10 @@ class PacienteController extends Controller
 
         if ($this->faltaCpfObrigatorio($validated, $paciente)) {
             return $this->jsonOrBackForFieldError($request, 'cpf', self::MSG_CPF_OBRIGATORIO);
+        }
+
+        if ($cidadeUfErrors = $this->errosCidadeUfObrigatorio($validated, $paciente)) {
+            return $this->jsonOrBackForFieldErrors($request, $cidadeUfErrors);
         }
 
         // CPF opcional fora do Brasil, mas quando informado tem de ser um CPF de verdade.
@@ -1425,6 +1486,16 @@ class PacienteController extends Controller
                 'error' => self::MSG_CPF_OBRIGATORIO,
                 'message' => self::MSG_CPF_OBRIGATORIO,
                 'errors' => ['cpf' => [self::MSG_CPF_OBRIGATORIO]],
+            ], 422);
+        }
+
+        if ($cidadeUfErrors = $this->errosCidadeUfObrigatorio($validated, $existente)) {
+            $first = reset($cidadeUfErrors)[0];
+
+            return response()->json([
+                'error' => $first,
+                'message' => $first,
+                'errors' => $cidadeUfErrors,
             ], 422);
         }
 

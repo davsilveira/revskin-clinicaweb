@@ -279,6 +279,13 @@ export default function AssistenteReceitaIndex({
             errors.email1 = 'Informe um e-mail válido';
         }
 
+        if (!String(novoPaciente.cidade || '').trim()) {
+            errors.cidade = 'A cidade é obrigatória';
+        }
+        if (!String(novoPaciente.uf || '').trim()) {
+            errors.uf = 'O estado é obrigatório';
+        }
+
         setFieldErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -749,23 +756,38 @@ export default function AssistenteReceitaIndex({
                                                 />
                                             </div>
                                             <div className="md:col-span-4">
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Cidade <span className="text-red-500">*</span>
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={novoPaciente.cidade}
-                                                    onChange={(e) => updateNovoPaciente('cidade', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    onChange={(e) => {
+                                                        updateNovoPaciente('cidade', e.target.value);
+                                                        setFieldErrors((prev) => ({ ...prev, cidade: null }));
+                                                    }}
+                                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                        fieldErrors.cidade ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                                    }`}
                                                 />
+                                                {fieldErrors.cidade && (
+                                                    <p className="mt-1 text-sm text-red-600">{fieldErrors.cidade}</p>
+                                                )}
                                             </div>
                                             <div className="md:col-span-2">
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    {novoPacienteBrasil ? 'UF' : 'Estado/Província'}
+                                                    {novoPacienteBrasil ? 'UF' : 'Estado/Província'} <span className="text-red-500">*</span>
                                                 </label>
                                                 {novoPacienteBrasil ? (
                                                     <select
                                                         value={novoPaciente.uf}
-                                                        onChange={(e) => updateNovoPaciente('uf', e.target.value)}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                        onChange={(e) => {
+                                                            updateNovoPaciente('uf', e.target.value);
+                                                            setFieldErrors((prev) => ({ ...prev, uf: null }));
+                                                        }}
+                                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                            fieldErrors.uf ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                                        }`}
                                                     >
                                                         <option value="">UF</option>
                                                         {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
@@ -776,9 +798,17 @@ export default function AssistenteReceitaIndex({
                                                     <input
                                                         type="text"
                                                         value={novoPaciente.uf}
-                                                        onChange={(e) => updateNovoPaciente('uf', e.target.value)}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                        onChange={(e) => {
+                                                            updateNovoPaciente('uf', e.target.value);
+                                                            setFieldErrors((prev) => ({ ...prev, uf: null }));
+                                                        }}
+                                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                                            fieldErrors.uf ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                                        }`}
                                                     />
+                                                )}
+                                                {fieldErrors.uf && (
+                                                    <p className="mt-1 text-sm text-red-600">{fieldErrors.uf}</p>
                                                 )}
                                             </div>
                                         </div>

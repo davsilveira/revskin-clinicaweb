@@ -44,6 +44,8 @@ class PacienteEmailOpcionalTest extends TestCase
             'celular' => '(21) 99999-8888',
             'cpf' => self::CPF_VALIDO,
             'pais' => 'Brasil',
+            'cidade' => 'Campinas',
+            'uf' => 'SP',
         ], $override);
     }
 
@@ -199,6 +201,8 @@ class PacienteEmailOpcionalTest extends TestCase
                 'celular' => '(21) 96666-5555',
                 'cpf' => self::CPF_VALIDO,
                 'pais' => 'Brasil',
+                'cidade' => 'Campinas',
+                'uf' => 'SP',
             ])
             ->assertOk();
 

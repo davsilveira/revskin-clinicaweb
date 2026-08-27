@@ -165,6 +165,8 @@ class SyncClienteTinyJob implements ShouldQueue
             // 'E' = Estrangeiro na tabela de tipo_pessoa do oList/Tiny (F/J/E).
             'tipoPessoa' => $brasil ? 'F' : 'E',
             'cpfCnpj' => $cpf,
+            // Sem isso o oList cria o contato como "Outro". Paciente do CLW3 é Cliente.
+            'tiposContato' => [['tipo' => 'Cliente']],
         ];
 
         if (! $brasil && $this->paciente->pais) {
