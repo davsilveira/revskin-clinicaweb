@@ -1,6 +1,6 @@
 # Deploy Revskin na Hostinger
 
-**URL de produção:** https://clinicaweb.revskin.com.br
+**URL de produção:** https://plataforma.revskin.com.br
 
 ---
 
@@ -56,7 +56,7 @@ Depois: criar o `.env` em `public_html/revskin/.env` no servidor, configurar per
 Os arquivos JS/CSS precisam ser gerados **na sua máquina**. No terminal, na pasta do projeto:
 
 ```bash
-APP_URL=https://clinicaweb.revskin.com.br npm run build
+APP_URL=https://plataforma.revskin.com.br npm run build
 ```
 
 Isso gera os arquivos em **`public/build/`** (manifest + JS/CSS). Você **precisa** subir essa pasta `public/build/` para o servidor.
@@ -163,7 +163,7 @@ APP_ENV=production
 APP_KEY=base64:xxxx   # gere com php artisan key:generate e cole aqui
 APP_DEBUG=false
 APP_TIMEZONE=America/Sao_Paulo
-APP_URL=https://clinicaweb.revskin.com.br
+APP_URL=https://plataforma.revskin.com.br
 APP_LOCALE=pt_BR
 APP_FALLBACK_LOCALE=en
 
@@ -319,7 +319,7 @@ Na Hostinger (shared hosting) não há processo worker contínuo. O cron executa
 
 | Variable | Valor |
 |----------|-------|
-| `HOSTINGER_REMOTE_PATH` | Caminho absoluto do `public_html` no servidor, ex.: `/home/u368085046/domains/clinicaweb.revskin.com.br/public_html` |
+| `HOSTINGER_REMOTE_PATH` | Caminho absoluto do `public_html` no servidor, ex.: `/home/u368085046/domains/plataforma.revskin.com.br/public_html` |
 
 Adicione a **chave pública** correspondente em Hostinger → **Avançado → SSH Access**.
 
@@ -328,7 +328,7 @@ Adicione a **chave pública** correspondente em Hostinger → **Avançado → SS
 Arquivo: [`.github/workflows/deploy-hostinger.yml`](.github/workflows/deploy-hostinger.yml)
 
 1. `composer install --no-dev`
-2. `npm run build` com `APP_URL=https://clinicaweb.revskin.com.br`
+2. `npm run build` com `APP_URL=https://plataforma.revskin.com.br`
 3. `php artisan deploy:package --no-build` (estrutura `public_html/` + `revskin/`)
 4. **rsync** para o servidor, excluindo `revskin/storage/` e `revskin/.env`
 5. [`scripts/hostinger-post-deploy.sh`](scripts/hostinger-post-deploy.sh): migrate, cache, symlink `public_html/storage`
@@ -346,7 +346,7 @@ O `.env` fica em **`public_html/revskin/.env`** e **nunca** vai para o Git.
 Via SSH:
 
 ```bash
-cd ~/domains/clinicaweb.revskin.com.br/public_html/revskin
+cd ~/domains/plataforma.revskin.com.br/public_html/revskin
 cp .env.example .env
 nano .env
 ```
@@ -366,7 +366,7 @@ APP_ENV=production
 APP_KEY=base64:...
 APP_DEBUG=false
 APP_TIMEZONE=America/Sao_Paulo
-APP_URL=https://clinicaweb.revskin.com.br
+APP_URL=https://plataforma.revskin.com.br
 APP_LOCALE=pt_BR
 APP_FALLBACK_LOCALE=en
 
@@ -434,7 +434,7 @@ Assets Vite (`/build/...`) não precisam de symlink — o `deploy:package` copia
 Pós-deploy manual (se necessário):
 
 ```bash
-bash ~/domains/clinicaweb.revskin.com.br/public_html/revskin/scripts/hostinger-post-deploy.sh
+bash ~/domains/plataforma.revskin.com.br/public_html/revskin/scripts/hostinger-post-deploy.sh
 ```
 
 ---
@@ -467,3 +467,107 @@ bash ~/domains/clinicaweb.revskin.com.br/public_html/revskin/scripts/hostinger-p
 - [ ] Cron configurado (§6).
 
 Depois disso, acesse `https://seudominio.com` e teste login e uma tela que use fila/agendamento para validar o cron.
+
+---
+
+## 9. Troca de domínio (ex.: `clinicaweb` → `plataforma`)
+
+O domínio de produção passou de `clinicaweb.revskin.com.br` para **`plataforma.revskin.com.br`**
+(hPanel → Sites → ⋮ → **Alterar o domínio do site**).
+
+**Onde o DNS vive:** `revskin.com.br` está **registrado no registro.br**, mas os nameservers
+(`ns1.dns-parking.com` / `ns2.dns-parking.com`) apontam para a **Hostinger**. A zona (A, CNAME,
+MX, TXT) e o site se gerenciam no **hPanel** (Websites → Advanced → DNS Zone Editor, ou
+Domains → `revskin.com.br` → DNS / Nameservers). Não é Cloudflare — não mexe em
+"Alterar servidores DNS" no registro.br para criar o subdomínio; o hPanel cria o A sozinho.
+
+A aplicação **não tem o domínio embutido em lugar nenhum**: rotas e links são gerados por
+`route()`/`url()` a partir de `APP_URL`, `SESSION_DOMAIN=null` (cookie host-only), o `.htaccess`
+não filtra `HTTP_HOST` e a tabela `settings` não guarda URL própria. Ou seja, trocar o domínio é
+**configuração**, não código. O que precisa ser acertado:
+
+### 9.1 No repositório (já feito)
+
+| Onde | O quê |
+|------|-------|
+| `.github/workflows/deploy-hostinger.yml` | `env.APP_URL` usado no `npm run build` |
+| `scripts/enviar-dump-legado.sh` | fallback de `REMOTE_PATH` |
+| `app/Console/Commands/DeployPackageCommand.php` | URL default impressa no `LEIA-ME.txt` |
+| `config/deploy.local.example` / `config/deploy.local.php` | `app_url` do pacote manual |
+| `DEPLOY_HOSTINGER.md` | este documento |
+
+### 9.2 Fora do repositório (manual — **sem isso o site quebra**)
+
+1. **hPanel → alterar o domínio.** A pasta do site é renomeada de
+   `~/domains/clinicaweb.revskin.com.br/` para `~/domains/plataforma.revskin.com.br/`.
+   Confirme por SSH (`ls ~/domains`) antes de seguir.
+2. **Limpar o cache do Laravel — ANTES de tudo.** ⚠️ **Foi o que derrubou o site em 26/09/2026.**
+   O `bootstrap/cache/config.php` guarda **caminhos absolutos** (20 deles): `view.compiled`,
+   `view.paths`, `logging…path`, `filesystems`, sessões, etc. Depois que a pasta é renomeada,
+   todos apontam para um diretório que não existe mais. O sintoma é cruel:
+
+   > **HTTP 500 em tudo, e nada aparece no `storage/logs/laravel.log`** — porque o log também
+   > está sendo escrito no caminho antigo. O erro real é `View [app] not found`, e ele vai parar
+   > em `~/domains/<domínio-ANTIGO>/public_html/revskin/storage/logs/laravel.log`, que o Laravel
+   > recria só para isso. Parece problema de servidor/LiteSpeed, mas é a aplicação.
+
+   Dica para confirmar em 5 s: `grep -c '<domínio-antigo>' bootstrap/cache/config.php` — se der
+   diferente de zero, é isso. Resposta com header `vary: X-Inertia` e cookie `revskin_session`
+   também denuncia que o 500 é do Laravel, não de uma camada antes.
+
+   Correção (é o que o script de pós-deploy já faz):
+
+   ```bash
+   cd ~/domains/plataforma.revskin.com.br/public_html/revskin
+   /opt/alt/php84/usr/bin/php artisan optimize:clear
+   bash scripts/hostinger-post-deploy.sh
+   ```
+3. **Symlink `public_html/storage`.** Ele é absoluto e continua apontando para a pasta antiga
+   depois da renomeação → assinaturas dos médicos com 404. O `hostinger-post-deploy.sh` refaz.
+
+4. **GitHub → Settings → Secrets and variables → Actions → Variables →
+   `HOSTINGER_REMOTE_PATH`**: trocar para
+   `/home/u368085046/domains/plataforma.revskin.com.br/public_html`.
+   Todos os workflows (deploy e os de diagnóstico) usam essa variable — é um ponto só.
+   **Se esquecer, o rsync recria a pasta antiga e o deploy "passa" sem publicar nada.**
+5. **`.env` no servidor** (`public_html/revskin/.env`): `APP_URL=https://plataforma.revskin.com.br`.
+   Depois: `php artisan config:cache` (ou rode o `hostinger-post-deploy.sh`).
+6. **Cron jobs** (hPanel → Avançado → Cron Jobs): as duas linhas (`schedule:run` e `queue:work`)
+   têm o caminho absoluto com o domínio antigo. **Reescreva as duas** — senão fila e agendamento
+   morrem silenciosamente (sync do Tiny, exportações, webhooks).
+7. **SSL**: emitir certificado para o novo domínio (hPanel → Segurança → SSL). Até lá o acesso
+   dá erro de certificado.
+8. **Tiny ERP** (painel do app/integração):
+   - *redirect URI* do OAuth2 → `https://plataforma.revskin.com.br/integracoes/tiny/callback`
+     (precisa bater **exatamente**, senão a reautorização falha com `invalid_redirect_uri`);
+   - *webhook* de pedido → `https://plataforma.revskin.com.br/api/webhooks/tiny/pedido-finalizado`.
+9. **RD Station CRM**: webhook → `https://plataforma.revskin.com.br/api/webhooks/rd/crm-deal-updated`.
+10. **Redirecionamento do domínio antigo** (opcional, recomendado): manter
+   `clinicaweb.revskin.com.br` como subdomínio com redirect 301 para o novo, por causa de links
+   antigos em e-mails/favoritos dos médicos.
+
+### 9.3 O que **não** é afetado
+
+- **E-mails `@revskin.com.br`**: ficam no site `revskin.com.br` (entrada separada no painel), não
+  no site que está sendo renomeado. O aviso da Hostinger sobre "e-mails perdidos" vale para caixas
+  `@clinicaweb.revskin.com.br` — o `MAIL_FROM_ADDRESS` de produção é `noreply@revskin.com.br`.
+- **Banco de dados e arquivos**: não são tocados pela troca (a Hostinger renomeia a pasta).
+- **Sessões e logins**: como `SESSION_DOMAIN=null`, o cookie é host-only — os usuários
+  simplesmente logam de novo no domínio novo.
+- **Backups**: a Hostinger avisa que os backups existentes do site são perdidos.
+  **Faça um backup manual (arquivos + dump do MySQL) antes de clicar em "Alterar".**
+
+### 9.4 Checklist
+
+- [ ] Backup manual de arquivos + dump do banco.
+- [ ] Domínio alterado no hPanel; pasta `~/domains/plataforma.revskin.com.br/` confirmada por SSH.
+- [ ] **`artisan optimize:clear` + `hostinger-post-deploy.sh`** (caminhos absolutos no cache — 500 sem log).
+- [ ] Symlink `public_html/storage` refeito para a pasta nova (`ls -la public_html/storage`).
+- [ ] `HOSTINGER_REMOTE_PATH` atualizado no GitHub **e conferido** com `gh variable list`.
+- [ ] `APP_URL` do `.env` de produção atualizado + `config:cache`.
+- [ ] Cron jobs reescritos com o caminho novo.
+- [ ] SSL emitido para o novo domínio.
+- [ ] Tiny: redirect URI + webhook atualizados (e reautorizado o OAuth).
+- [ ] RD Station: webhook atualizado.
+- [ ] Redirect 301 do domínio antigo configurado.
+- [ ] Deploy de validação (push em `main`) publicando na pasta nova; login, `/build/` e `/storage/` OK.

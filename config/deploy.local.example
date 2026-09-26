@@ -8,7 +8,7 @@
  */
 
 return [
-    'app_url' => 'https://clinicaweb.revskin.com.br',
+    'app_url' => 'https://plataforma.revskin.com.br',
 
     // Opcional: se preenchido, o comando gera schema.sql (MySQL) para importar na Hostinger.
     // Pode ser um MySQL local ou de staging; as migrations rodam nesse banco e o dump é gerado.

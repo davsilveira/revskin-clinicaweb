@@ -24,7 +24,7 @@ fi
 : "${HOSTINGER_USER:?defina HOSTINGER_USER}"
 PORT="${HOSTINGER_PORT:-65002}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/revskin_hostinger}"
-REMOTE_PATH="${HOSTINGER_REMOTE_PATH:-/home/u368085046/domains/clinicaweb.revskin.com.br/public_html}"
+REMOTE_PATH="${HOSTINGER_REMOTE_PATH:-/home/u368085046/domains/plataforma.revskin.com.br/public_html}"
 DEST_DIR="$REMOTE_PATH/revskin/storage/app/legado"
 
 SSH_CMD="ssh -i $SSH_KEY -p $PORT -o StrictHostKeyChecking=accept-new"

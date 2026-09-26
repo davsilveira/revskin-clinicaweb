@@ -114,7 +114,7 @@ class TinyIntegrationController extends Controller
         try {
             $client = new TinyErpClient();
             // URL de callback - deve corresponder exatamente ao configurado no app do Tiny
-            // Para produção: https://clinicaweb.revskin.com.br/integracoes/tiny/callback
+            // Para produção: https://plataforma.revskin.com.br/integracoes/tiny/callback
             // Para desenvolvimento: usar url() que detecta automaticamente
             $redirectUri = url('/integracoes/tiny/callback');
             $authUrl = $client->gerarUrlAutorizacao($redirectUri);

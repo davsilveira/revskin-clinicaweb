@@ -453,7 +453,7 @@ class DeployPackageCommand extends Command
 
     private function writeReadme(string $outPath, string $appDirName): void
     {
-        $appUrl = config('deploy.app_url') ?: 'https://clinicaweb.revskin.com.br';
+        $appUrl = config('deploy.app_url') ?: 'https://plataforma.revskin.com.br';
         $content = <<<TEXT
 REVSKIN - Pacote de deploy para Hostinger (FTP)
 

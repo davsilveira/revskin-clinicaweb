@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  APP_URL: https://clinicaweb.revskin.com.br
+  APP_URL: https://plataforma.revskin.com.br
 
 jobs:
   deploy:
@@ -49,7 +49,7 @@ jobs:
           REMOTE_PATH: ${{ vars.HOSTINGER_REMOTE_PATH }}
         run: |
           if [ -z "$REMOTE_PATH" ]; then
-            echo "Defina a variable HOSTINGER_REMOTE_PATH no repositório (ex.: /home/u123/domains/clinicaweb.revskin.com.br/public_html)"
+            echo "Defina a variable HOSTINGER_REMOTE_PATH no repositório (ex.: /home/u123/domains/plataforma.revskin.com.br/public_html)"
             exit 1
           fi
           rsync -avz --delete \
