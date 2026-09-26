@@ -117,6 +117,15 @@ No painel do app/integração do Tiny:
 O token atual continua valendo (não está amarrado ao domínio), mas na **próxima
 reautorização** o redirect URI precisa já estar certo.
 
+> **Verificado em 26/09/2026:** o campo no Tiny estava com `http://localhost:9090/...` — nunca
+> foi apontado para produção, nem no domínio antigo. Não quebrou nada porque a produção roda na
+> **API V2 (token estático)**, que não usa OAuth; e mesmo na V3 a renovação por `refresh_token`
+> não envia `redirect_uri`. É uma mina dormente: estoura no dia em que alguém clicar
+> "Autorizar". Detalhes em `tiny-url-redirecionamento.md`.
+
+### 6b. RD Station — mesmo padrão
+- **Redirect URI** → `https://plataforma.revskin.com.br/integracoes/rd-station/callback`
+
 ### 7. RD Station CRM
 Webhook → `https://plataforma.revskin.com.br/api/webhooks/rd/crm-deal-updated`
 
