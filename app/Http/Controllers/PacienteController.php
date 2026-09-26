@@ -1246,6 +1246,45 @@ class PacienteController extends Controller
     }
 
     /**
+     * Admin edita os campos privados (Indicado por, Nº Registro, Observações) de UM vínculo
+     * médico↔paciente já existente, a partir da seção "Médicos do paciente" do drawer.
+     */
+    public function atualizarVinculo(Request $request, Paciente $paciente, Medico $medico)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+
+        $pivot = \App\Models\MedicoPaciente::where('medico_id', $medico->id)
+            ->where('paciente_id', $paciente->id)
+            ->first();
+        abort_unless($pivot, 404, 'Vínculo não encontrado.');
+
+        $validated = $request->validate([
+            'indicado_por' => 'nullable|string|max:255',
+            'codigo' => 'nullable|string|max:255',
+            'anotacoes' => 'nullable|string',
+        ]);
+        foreach (['indicado_por', 'codigo', 'anotacoes'] as $campo) {
+            $valor = isset($validated[$campo]) ? trim((string) $validated[$campo]) : '';
+            $validated[$campo] = $valor === '' ? null : $valor;
+        }
+
+        if ($this->codigoDuplicadoNoMedico($medico->id, $validated['codigo'], $paciente->id)) {
+            $msg = 'Já existe um paciente com este Nº Registro para este médico.';
+
+            return response()->json(['message' => $msg, 'errors' => ['codigo' => [$msg]]], 422);
+        }
+
+        $pivot->fill($validated);
+        $pivot->updated_by_user_id = $request->user()->id;
+        $pivot->save();
+
+        return response()->json([
+            'success' => true,
+            'privados_por_medico' => $paciente->fresh()->privadosPorMedico(),
+        ]);
+    }
+
+    /**
      * Autosave - Store or update without redirect (for AJAX autosave).
      */
     public function autosave(Request $request)

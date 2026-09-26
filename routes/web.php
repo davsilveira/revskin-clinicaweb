@@ -84,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
     // paciente que já existe no sistema (ex.: cliente trazido do oList).
     Route::get('/api/pacientes/candidatos', [PacienteController::class, 'candidatos'])->name('pacientes.candidatos');
     Route::post('/api/pacientes/{paciente}/vincular', [PacienteController::class, 'vincular'])->name('pacientes.vincular');
+    Route::put('/api/pacientes/{paciente}/vinculos/{medico}', [PacienteController::class, 'atualizarVinculo'])->name('pacientes.vinculos.update');
     Route::post('/api/pacientes/autosave', [PacienteController::class, 'autosave'])->name('pacientes.autosave');
     Route::post('/api/pacientes/quick-create', [PacienteController::class, 'quickCreate'])->name('pacientes.quickCreate');
 

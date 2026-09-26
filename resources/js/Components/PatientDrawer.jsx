@@ -17,6 +17,7 @@ import debounce from 'lodash/debounce';
 import cloneDeep from 'lodash/cloneDeep';
 import isEqual from 'lodash/isEqual';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
+import VinculoMedicoCard from '@/Components/VinculoMedicoCard';
 
 const INITIAL_PACIENTE_FORM = {
     nome: '',
@@ -170,6 +171,11 @@ export default function PatientDrawer({
     const [loadingMedicos, setLoadingMedicos] = useState(false);
     const [auditNames, setAuditNames] = useState({ created: null, updated: null });
     const [formBaseline, setFormBaseline] = useState(null);
+    // Campos privados por médico (seção admin "Médicos do paciente"); editados inline por vínculo.
+    const [vinculosPrivados, setVinculosPrivados] = useState(paciente?.privados_por_medico || []);
+    useEffect(() => {
+        setVinculosPrivados(paciente?.privados_por_medico || []);
+    }, [paciente?.id, paciente?.privados_por_medico]);
 
     // Opção 2: com 2+ vínculos, o "Médico responsável" travado só confunde — a lista por médico basta.
     const vinculosMedicoCount = useMemo(() => {
@@ -1479,37 +1485,19 @@ export default function PatientDrawer({
                                 <div>
                                     <h3 className="text-sm font-semibold text-gray-900">Médicos do paciente</h3>
                                     <p className="mt-1 text-xs text-gray-500">
-                                        Indicado por, Nº Registro e Observações são privados de cada médico. Em modo admin, a visualização é somente leitura.
+                                        Indicado por, Nº Registro e Observações são privados de cada médico. Use o lápis para editar os dados de cada médico.
                                     </p>
                                 </div>
-                                {(paciente.privados_por_medico || []).length > 0 ? (
-                                    (paciente.privados_por_medico || []).map((vinculo) => (
-                                        <div key={vinculo.medico_id} className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 space-y-3">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <h4 className="text-sm font-semibold text-gray-900">
-                                                    {nomeExibicaoSemTitulo(vinculo.medico_nome) || `Médico #${vinculo.medico_id}`}
-                                                </h4>
-                                                {vinculo.ativo === false && (
-                                                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded">
-                                                        Vínculo inativo
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <dl className="space-y-2 text-sm">
-                                                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-3">
-                                                    <dt className="text-gray-500">Indicado por</dt>
-                                                    <dd className="text-gray-900">{vinculo.indicado_por?.trim() ? vinculo.indicado_por : '—'}</dd>
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-3">
-                                                    <dt className="text-gray-500">Nº Registro</dt>
-                                                    <dd className="text-gray-900 tabular-nums">{vinculo.codigo?.trim() ? vinculo.codigo : '—'}</dd>
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-3">
-                                                    <dt className="text-gray-500">Observações</dt>
-                                                    <dd className="text-gray-900 whitespace-pre-wrap">{vinculo.anotacoes?.trim() ? vinculo.anotacoes : '—'}</dd>
-                                                </div>
-                                            </dl>
-                                        </div>
+                                {vinculosPrivados.length > 0 ? (
+                                    vinculosPrivados.map((vinculo) => (
+                                        <VinculoMedicoCard
+                                            key={vinculo.medico_id}
+                                            pacienteId={paciente.id}
+                                            vinculo={vinculo}
+                                            csrfToken={csrfForRequests}
+                                            editable
+                                            onSaved={(lista) => lista && setVinculosPrivados(lista)}
+                                        />
                                     ))
                                 ) : (
                                     <p className="text-sm text-gray-500">Nenhum médico vinculado a este paciente.</p>
