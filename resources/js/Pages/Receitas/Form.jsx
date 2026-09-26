@@ -1180,7 +1180,7 @@ function ReceitaFormInner({
             title={
                 isEditing
                     ? tituloReceitaComSequencia(viewMode ? 'Receita' : 'Editar Receita', receita?.numero)
-                    : 'Nova Receita'
+                    : 'Receita sem assistente'
             }
         >
             <div className="py-4 lg:py-6 px-0">
@@ -1201,7 +1201,7 @@ function ReceitaFormInner({
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <h1 className="text-3xl font-bold text-gray-900">
                                     {!isEditing
-                                        ? 'Assistente de Receita'
+                                        ? 'Receita sem assistente'
                                         : viewMode
                                           ? tituloReceitaComSequencia('Receita', receita.numero)
                                           : tituloReceitaComSequencia('Editar Receita', receita.numero)}
