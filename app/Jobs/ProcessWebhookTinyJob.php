@@ -164,8 +164,9 @@ class ProcessWebhookTinyJob implements ShouldQueue
         $itensMarcados = 0;
         $linhasNovas = 0;
         $itensReimpressos = 0;
+        $itensRevertidos = 0;
 
-        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, $marcarVendido, &$itensMarcados, &$linhasNovas, &$itensReimpressos) {
+        DB::transaction(function () use ($receita, $parsed, $dataAquisicao, $marcarVendido, &$itensMarcados, &$linhasNovas, &$itensReimpressos, &$itensRevertidos) {
             // Trava a receita para serializar merges concorrentes do mesmo pedido.
             $receita = Receita::whereKey($receita->id)->lockForUpdate()->first();
             if (! $receita) {
@@ -190,6 +191,10 @@ class ProcessWebhookTinyJob implements ShouldQueue
                 }
 
                 if ($matchIndex === null) {
+                    if ($marcarVendido && $parsed !== [] && $this->reverterVendaForaDoPedido($receita, $item)) {
+                        $itensRevertidos++;
+                    }
+
                     continue;
                 }
 
@@ -289,7 +294,40 @@ class ProcessWebhookTinyJob implements ShouldQueue
             'aquisicoes_ou_atualizacoes_contagem' => $itensMarcados,
             'linhas_novas_inseridas' => $linhasNovas,
             'itens_marcados_imprimir' => $itensReimpressos,
+            'itens_revertidos_fora_do_pedido' => $itensRevertidos,
         ]);
+    }
+
+    /**
+     * Item que este pedido marcou como vendido, mas que saiu do pedido no oList
+     * (ex.: reabriram, trocaram o produto e faturaram de novo). Desfaz a venda
+     * deste pedido e tira a linha do total; vendas de outros pedidos ficam intactas.
+     * Caso real: receita 18008-0001 / pedido 991291713 (TONALITE 4,5 trocado por 2).
+     */
+    protected function reverterVendaForaDoPedido(Receita $receita, ReceitaItem $item): bool
+    {
+        $removidas = ReceitaItemAquisicao::where('receita_item_id', $item->id)
+            ->where('tiny_pedido_id', $this->pedidoId)
+            ->delete();
+
+        if ($removidas === 0) {
+            return false;
+        }
+
+        $aindaVendido = ReceitaItemAquisicao::where('receita_item_id', $item->id)->exists();
+        if (! $aindaVendido) {
+            $item->update(['vendido' => false, 'imprimir' => false]);
+        }
+
+        Log::info('Tiny ERP: Item saiu do pedido após faturamento, venda revertida', [
+            'receita_id' => $receita->id,
+            'receita_item_id' => $item->id,
+            'produto_tiny_id' => $item->produto->tiny_id,
+            'tiny_pedido_id' => $this->pedidoId,
+            'ainda_vendido_por_outro_pedido' => $aindaVendido,
+        ]);
+
+        return true;
     }
 
     /**
