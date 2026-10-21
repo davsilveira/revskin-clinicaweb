@@ -106,8 +106,9 @@ class CriarPedidoTinyJob implements ShouldQueue
         if ($receita->valor_frete > 0) {
             $dados['valorFrete'] = (float) $receita->valor_frete;
         }
-        if ($receita->desconto_valor > 0) {
-            $dados['valorDesconto'] = (float) $receita->desconto_valor;
+        $desconto = $this->valorDescontoPedido($receita, $itens);
+        if ($desconto > 0) {
+            $dados['valorDesconto'] = $desconto;
         }
 
         $result = $client->criarPedido($dados);
@@ -242,11 +243,29 @@ class CriarPedidoTinyJob implements ShouldQueue
         if ($receita->valor_frete > 0) {
             $dados['valorFrete'] = (float) $receita->valor_frete;
         }
-        if ($receita->desconto_valor > 0) {
-            $dados['valorDesconto'] = (float) $receita->desconto_valor;
+        $desconto = $this->valorDescontoPedido($receita, $itens);
+        if ($desconto > 0) {
+            $dados['valorDesconto'] = $desconto;
         }
 
         return $dados;
+    }
+
+    /**
+     * Cortesia: desconto de 100% sobre os itens enviados (mantém o preço de tabela visível no oList
+     * e zera o total; frete segue à parte). Os itens vão com preco_venda do produto, que pode diferir
+     * do valor gravado na receita — por isso o desconto é somado a partir do próprio payload.
+     */
+    protected function valorDescontoPedido(Receita $receita, array $itens): float
+    {
+        if ($receita->cortesia) {
+            return round(array_sum(array_map(
+                fn (array $item) => (float) $item['quantidade'] * (float) $item['valorUnitario'],
+                $itens,
+            )), 2);
+        }
+
+        return (float) $receita->desconto_valor;
     }
 
     /**

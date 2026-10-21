@@ -826,6 +826,8 @@ function ReceitaFormInner({
 
     const calcularDesconto = () => {
         const subtotal = calcularSubtotal();
+        // Cortesia = 100% de desconto nos itens (mesma regra de Receita::calcularTotais).
+        if (data.cortesia) return subtotal;
         return subtotal * (data.desconto_percentual / 100);
     };
 
@@ -1128,6 +1130,8 @@ function ReceitaFormInner({
         selectedPaciente?.id || receita?.paciente_id || initialPaciente?.id || null;
     const canOpenAssistenteReceita = (receitaFormIsAdmin || isMedico) && !!pacienteIdParaAssistente;
 
+    // Receita cancelada não oferece "Duplicar": a cópia deve partir da última receita válida.
+    const isReceitaCancelada = receita?.status === 'cancelada';
     const canDuplicar = isEditing && !(receita.receita_origem_id && data.status === 'aberta');
     const receitaOrigem = receita?.receita_origem;
     const duplicadaToastFiredRef = useRef(false);
@@ -1375,7 +1379,7 @@ function ReceitaFormInner({
                                         Assistente de Receita
                                     </Link>
                                 )}
-                                {isEditing && (
+                                {isEditing && (!isReceitaCancelada || canCancel) && (
                                     <details className="rounded-lg border border-gray-200 bg-gray-50">
                                         <summary className="min-h-[44px] px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 list-none flex items-center justify-between [&::-webkit-details-marker]:hidden">
                                             <span>Mais ações</span>
@@ -1384,23 +1388,25 @@ function ReceitaFormInner({
                                             </svg>
                                         </summary>
                                         <div className="px-2 pb-2 pt-0 flex flex-col gap-2 border-t border-gray-200">
-                                            <Tippy
-                                                content={duplicarTippy}
-                                                placement="top"
-                                                theme="light-border"
-                                                {...tippyAquisicaoProps}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={openDuplicarModal}
-                                                    aria-disabled={!canDuplicar}
-                                                    className={`min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg text-sm ${
-                                                        canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
-                                                    }`}
+                                            {!isReceitaCancelada && (
+                                                <Tippy
+                                                    content={duplicarTippy}
+                                                    placement="top"
+                                                    theme="light-border"
+                                                    {...tippyAquisicaoProps}
                                                 >
-                                                    Duplicar Receita
-                                                </button>
-                                            </Tippy>
+                                                    <button
+                                                        type="button"
+                                                        onClick={openDuplicarModal}
+                                                        aria-disabled={!canDuplicar}
+                                                        className={`min-h-[44px] flex w-full justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg text-sm ${
+                                                            canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
+                                                        }`}
+                                                    >
+                                                        Duplicar Receita
+                                                    </button>
+                                                </Tippy>
+                                            )}
                                             {canCancel && (
                                                 <button
                                                     type="button"
@@ -1545,26 +1551,28 @@ function ReceitaFormInner({
 
                                 {isEditing && (
                                     <>
-                                        <Tippy
-                                            content={duplicarTippy}
-                                            placement="top"
-                                            theme="light-border"
-                                            {...tippyAquisicaoProps}
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={openDuplicarModal}
-                                                aria-disabled={!canDuplicar}
-                                                className={`flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg transition-colors text-sm ${
-                                                    canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
-                                                }`}
+                                        {!isReceitaCancelada && (
+                                            <Tippy
+                                                content={duplicarTippy}
+                                                placement="top"
+                                                theme="light-border"
+                                                {...tippyAquisicaoProps}
                                             >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                                Duplicar Receita
-                                            </button>
-                                        </Tippy>
+                                                <button
+                                                    type="button"
+                                                    onClick={openDuplicarModal}
+                                                    aria-disabled={!canDuplicar}
+                                                    className={`flex sm:w-auto justify-center items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg transition-colors text-sm ${
+                                                        canDuplicar ? 'hover:bg-amber-700' : 'opacity-50 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                    </svg>
+                                                    Duplicar Receita
+                                                </button>
+                                            </Tippy>
+                                        )}
                                         {canCancel && (
                                             <button
                                                 type="button"
@@ -2103,9 +2111,9 @@ function ReceitaFormInner({
                                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularSubtotal())}
                                                 </span>
                                             </div>
-                                            {data.desconto_percentual > 0 && (
+                                            {(data.cortesia || data.desconto_percentual > 0) && (
                                                 <div className="flex justify-between text-sm text-red-600">
-                                                    <span>Desconto ({data.desconto_percentual}%):</span>
+                                                    <span>{data.cortesia ? 'Cortesia (100%):' : `Desconto (${data.desconto_percentual}%):`}</span>
                                                     <span>- {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calcularDesconto())}</span>
                                                 </div>
                                             )}

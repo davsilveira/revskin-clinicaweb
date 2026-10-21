@@ -207,6 +207,8 @@ Route::middleware(['auth'])->group(function () {
 
         // Settings
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::put('/settings/receitas', [SettingsController::class, 'updateReceitas'])
+            ->name('settings.receitas.update');
 
         // Settings - Tiny ERP integration
         Route::put('/settings/integrations/tiny', [SettingsController::class, 'updateTiny'])

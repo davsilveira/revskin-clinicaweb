@@ -28,6 +28,8 @@ function buildReceitasIndexParams(term, st, pacId) {
 
 export default function ReceitasIndex({
     receitas,
+    canceladasOcultas = 0,
+    ocultarCanceladas = false,
     filters,
     pacienteFiltrado = null,
     medicosPacienteDrawer = [],
@@ -39,13 +41,11 @@ export default function ReceitasIndex({
     const isMedico = auth.user.role === 'medico';
     const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
     const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
-    const [status, setStatus] = useState(() =>
-        filters?.paciente_id ? '' : filters?.status != null ? String(filters.status) : ''
-    );
+    const [status, setStatus] = useState(() => (filters?.status != null ? String(filters.status) : ''));
     const pacienteId = filters?.paciente_id;
     const listagemPorPaciente = Boolean(pacienteId);
     const receitasQuerySearch = listagemPorPaciente ? '' : search;
-    const receitasQueryStatus = listagemPorPaciente ? '' : status;
+    const receitasQueryStatus = status;
     const skipNextReceitasFetch = useRef(true);
 
     useEffect(() => {
@@ -59,11 +59,7 @@ export default function ReceitasIndex({
               ? String(filters.search)
               : '';
         setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-        const nextStatus = patientScoped
-            ? ''
-            : filters.status != null
-              ? String(filters.status)
-              : '';
+        const nextStatus = filters.status != null ? String(filters.status) : '';
         setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
     }, [filters?.search, filters?.status, filters?.paciente_id]);
 
@@ -78,7 +74,7 @@ export default function ReceitasIndex({
                     preserveState: true,
                     preserveScroll: true,
                     replace: true,
-                    only: ['receitas', 'filters'],
+                    only: ['receitas', 'canceladasOcultas', 'filters'],
                 });
             }, 350),
         []
@@ -112,7 +108,7 @@ export default function ReceitasIndex({
         router.get('/receitas', buildReceitasIndexParams(receitasQuerySearch, receitasQueryStatus, pacienteId), {
             preserveState: true,
             preserveScroll: true,
-            only: ['receitas', 'filters'],
+            only: ['receitas', 'canceladasOcultas', 'filters'],
         });
     };
 
@@ -122,7 +118,7 @@ export default function ReceitasIndex({
         router.get('/receitas', buildReceitasIndexParams(receitasQuerySearch, receitasQueryStatus, pacienteId), {
             preserveState: true,
             preserveScroll: true,
-            only: ['receitas', 'filters'],
+            only: ['receitas', 'canceladasOcultas', 'filters'],
         });
     };
 
@@ -282,10 +278,11 @@ export default function ReceitasIndex({
                                 onChange={(e) => setStatus(e.target.value)}
                                 className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                             >
-                                <option value="">Todos os status</option>
+                                <option value="">{ocultarCanceladas ? 'Abertas e finalizadas' : 'Todos os status'}</option>
                                 <option value="aberta">Aberta</option>
                                 <option value="finalizada">Finalizada</option>
                                 <option value="cancelada">Cancelada</option>
+                                {ocultarCanceladas && <option value="todas">Todas (inclusive canceladas)</option>}
                             </select>
                             <button
                                 type="submit"
@@ -294,6 +291,35 @@ export default function ReceitasIndex({
                                 Filtrar
                             </button>
                         </form>
+                    </div>
+                )}
+
+                {status === '' && canceladasOcultas > 0 && (
+                    <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm text-gray-500">
+                        <span>
+                            {canceladasOcultas === 1
+                                ? '1 receita cancelada não está sendo exibida.'
+                                : `${canceladasOcultas} receitas canceladas não estão sendo exibidas.`}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setStatus('todas')}
+                            className="font-medium text-emerald-600 hover:text-emerald-700"
+                        >
+                            Mostrar canceladas
+                        </button>
+                    </div>
+                )}
+                {ocultarCanceladas && status === 'todas' && listagemPorPaciente && (
+                    <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm text-gray-500">
+                        <span>Exibindo também as receitas canceladas.</span>
+                        <button
+                            type="button"
+                            onClick={() => setStatus('')}
+                            className="font-medium text-emerald-600 hover:text-emerald-700"
+                        >
+                            Ocultar canceladas
+                        </button>
                     </div>
                 )}
 

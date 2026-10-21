@@ -152,7 +152,10 @@ class Receita extends Model
         $subtotal = $this->itens->where('imprimir', true)->sum('valor_total');
         $this->subtotal = $subtotal;
 
-        if ($this->desconto_percentual > 0) {
+        // Cortesia = 100% de desconto nos itens; frete e caixa continuam somando.
+        if ($this->cortesia) {
+            $this->desconto_valor = $subtotal;
+        } elseif ($this->desconto_percentual > 0) {
             $this->desconto_valor = $subtotal * ($this->desconto_percentual / 100);
         } else {
             $this->desconto_valor = 0;
@@ -220,6 +223,15 @@ class Receita extends Model
             ?? $this->itens()->where('vendido', true)->count();
 
         return $vendidos > 0 ? 'Vendido' : 'Aberto';
+    }
+
+    /**
+     * Configurações → Receitas: canceladas saem da listagem padrão, da ficha e do clique no paciente.
+     * Desligado por padrão (comportamento anterior: canceladas aparecem junto com as demais).
+     */
+    public static function ocultarCanceladas(): bool
+    {
+        return filter_var(Setting::get('receitas_ocultar_canceladas', false), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

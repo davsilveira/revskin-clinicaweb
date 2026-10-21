@@ -436,6 +436,7 @@ class PacienteController extends Controller
         $ultimaReceitaSub = Receita::query()
             ->select('id')
             ->whereColumn('paciente_id', 'pacientes.id')
+            ->when(Receita::ocultarCanceladas(), fn ($q) => $q->where('status', '!=', 'cancelada')) // clicar no paciente não abre uma cancelada
             ->orderByDesc('data_receita')
             ->orderByDesc('id')
             ->limit(1);
@@ -690,7 +691,7 @@ class PacienteController extends Controller
         }
 
         $paciente->load(['medico:id', 'medico.linkedUser:id,name,medico_id', 'createdBy:id,name', 'updatedBy:id,name', 'receitas' => function ($q) {
-            $q->with('medico:id', 'medico.linkedUser:id,name,medico_id')->orderByDesc('data_receita')->limit(10);
+            $q->with('medico:id', 'medico.linkedUser:id,name,medico_id')->when(Receita::ocultarCanceladas(), fn ($q) => $q->where('status', '!=', 'cancelada'))->orderByDesc('data_receita')->limit(10);
         }]);
 
         if ($user->isAdmin() || $user->isCallcenter()) {

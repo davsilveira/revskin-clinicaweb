@@ -251,9 +251,11 @@ const formatDate = (dateString) => {
                                             {formatCurrency(receita.subtotal)}
                                         </p>
                                     </div>
-                                    {receita.desconto_percentual > 0 && (
+                                    {(receita.cortesia || receita.desconto_percentual > 0) && (
                                         <div>
-                                            <label className="text-sm text-gray-500">Desconto ({receita.desconto_percentual}%)</label>
+                                            <label className="text-sm text-gray-500">
+                                                {receita.cortesia ? 'Cortesia (100%)' : `Desconto (${receita.desconto_percentual}%)`}
+                                            </label>
                                             <p className="font-medium text-red-600">
                                                 - {formatCurrency(receita.desconto_valor)}
                                             </p>

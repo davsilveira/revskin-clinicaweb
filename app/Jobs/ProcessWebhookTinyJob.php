@@ -91,6 +91,19 @@ class ProcessWebhookTinyJob implements ShouldQueue
             'is_sincroniza_precos' => $isSincronizaPrecosSemVendido,
         ]);
 
+        // Receita cancelada no CLW3 não volta a vender, mesmo que o pedido seja faturado/alterado no oList
+        // (caso 17964-0001: cancelado pela integração e faturado à mão no oList 2 min depois).
+        if ($receita->status === 'cancelada' && ($isFinalizada || $isSincronizaPrecosSemVendido)) {
+            Log::warning('Tiny ERP: Pedido alterado no oList para receita já cancelada no ClinicaWeb — ignorado', [
+                'receita_id' => $receita->id,
+                'receita_numero' => $receita->numero,
+                'tiny_pedido_id' => $this->pedidoId,
+                'situacao' => $this->situacao,
+            ]);
+
+            return;
+        }
+
         if ($isFinalizada) {
             Log::info('Tiny ERP: Situação finalizada, chamando marcarItensVendidos');
             $this->marcarItensVendidos($receita);

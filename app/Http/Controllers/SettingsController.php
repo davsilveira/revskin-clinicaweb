@@ -57,7 +57,23 @@ class SettingsController extends Controller
                 'webhook_receipts' => RdWebhookAuditLog::all(),
                 'webhook_last_received_at' => RdWebhookAuditLog::lastReceivedAt(),
             ],
+            'receitas' => [
+                'ocultar_canceladas' => filter_var($settings['receitas_ocultar_canceladas'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            ],
         ]);
+    }
+
+    public function updateReceitas(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $validated = $request->validate([
+            'ocultar_canceladas' => 'boolean',
+        ]);
+
+        Setting::set('receitas_ocultar_canceladas', (bool) ($validated['ocultar_canceladas'] ?? false), 'receitas');
+
+        return back()->with('success', 'Configuracoes salvas com sucesso!');
     }
 
     public function updateTiny(Request $request)

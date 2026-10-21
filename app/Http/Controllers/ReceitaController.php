@@ -39,13 +39,21 @@ class ReceitaController extends Controller
             })
             ->when($request->paciente_id, fn ($q, $id) => $q->where('paciente_id', $id))
             ->when($request->medico_id, fn ($q, $medicoId) => $q->where('medico_id', $medicoId))
-            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
+            ->when($request->status && $request->status !== 'todas', fn ($q) => $q->where('status', $request->status))
             ->when($request->data_inicio, fn ($q, $data) => $q->whereDate('data_receita', '>=', $data))
             ->when($request->data_fim, fn ($q, $data) => $q->whereDate('data_receita', '<=', $data));
 
         // Filter by user access
         if ($user->isMedico() && $user->medico_id) {
             $query->where('medico_id', $user->medico_id);
+        }
+
+        // Canceladas saem da listagem padrão; só aparecem com status=cancelada ou status=todas.
+        $ocultarCanceladas = Receita::ocultarCanceladas();
+        $canceladasOcultas = 0;
+        if ($ocultarCanceladas && ! $request->filled('status')) {
+            $canceladasOcultas = (clone $query)->where('status', 'cancelada')->count();
+            $query->where('status', '!=', 'cancelada');
         }
 
         if ($request->filled('paciente_id')) {
@@ -96,6 +104,8 @@ class ReceitaController extends Controller
 
         return Inertia::render('Receitas/Index', [
             'receitas' => $receitas,
+            'canceladasOcultas' => $canceladasOcultas,
+            'ocultarCanceladas' => $ocultarCanceladas,
             'medicos' => $medicos,
             'pacienteFiltrado' => $pacienteFiltrado,
             'medicosPacienteDrawer' => $medicosPacienteDrawer,
@@ -946,6 +956,12 @@ class ReceitaController extends Controller
         $receita->load('paciente');
         if (! $request->user()->canAccessPaciente($receita->paciente)) {
             abort(403, 'Acesso não autorizado.');
+        }
+
+        if ($receita->status === 'cancelada') {
+            throw ValidationException::withMessages([
+                'copiar' => 'Receita cancelada não pode ser duplicada. Duplique a última receita válida do paciente.',
+            ]);
         }
 
         if ($receita->receita_origem_id && $receita->status === 'aberta') {

@@ -4,15 +4,17 @@ import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import TinySettings from '@/Pages/Settings/Integrations/Tiny';
 import RdStationSettings from '@/Pages/Settings/Integrations/RdStation';
+import ReceitasSettings from '@/Pages/Settings/Receitas';
 import Toast from '@/Components/Toast';
 
-export default function SettingsIndex({ tiny, rdstation }) {
+export default function SettingsIndex({ tiny, rdstation, receitas }) {
     const [activeTab, setActiveTab] = useState('tiny');
     const [toast, setToast] = useState(null);
 
     const tabs = [
         { key: 'tiny', label: 'Tiny ERP', enabled: true },
         { key: 'rdstation', label: 'RD Station CRM', enabled: true },
+        { key: 'receitas', label: 'Receitas', enabled: true },
     ];
 
     const enabledTabs = tabs.filter(tab => tab.enabled);
@@ -62,6 +64,12 @@ export default function SettingsIndex({ tiny, rdstation }) {
                                     isAuthenticated={rdstation?.isAuthenticated || false}
                                     webhookReceipts={rdstation?.webhook_receipts || []}
                                     webhookLastReceivedAt={rdstation?.webhook_last_received_at || null}
+                                    onToast={setToast}
+                                />
+                            )}
+                            {activeTab === 'receitas' && (
+                                <ReceitasSettings
+                                    settings={receitas || {}}
                                     onToast={setToast}
                                 />
                             )}
