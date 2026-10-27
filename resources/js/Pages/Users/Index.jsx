@@ -13,6 +13,7 @@ import isEqual from 'lodash/isEqual';
 import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MedicoFormFields from '@/Components/MedicoFormFields';
+import ClinicalToggleSwitch from '@/Components/AssistenteReceita/ClinicalToggleSwitch';
 import Pagination from '@/Components/Pagination';
 
 function userFormComparable(d) {
@@ -32,6 +33,7 @@ function userFormComparable(d) {
         assinatura: d.assinatura ? 1 : 0,
         remover_assinatura: !!d.remover_assinatura,
         ativo: d.ativo,
+        em_treinamento: !!d.em_treinamento,
         enderecos: (d.enderecos || []).map((e) => ({
             nome: e.nome ?? '',
             cep: e.cep ?? '',
@@ -100,6 +102,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         assinatura: null,
         remover_assinatura: false,
         ativo: true,
+        em_treinamento: false,
         enderecos: [],
     });
 
@@ -135,6 +138,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
             assinatura: null,
             remover_assinatura: false,
             ativo: medico?.ativo ?? true,
+            em_treinamento: !!medico?.em_treinamento,
             enderecos: rawEnderecos.map(e => ({
                 nome: e.nome || '',
                 cep: e.cep || '',
@@ -405,6 +409,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             <option value="medico">Médico</option>
                             <option value="secretaria">Secretária</option>
                             <option value="callcenter">Call Center</option>
+                            <option value="treinamento">Médicos em treinamento</option>
                         </select>
                     </div>
                 </div>
@@ -428,6 +433,9 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                             <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                                    {user.role === 'medico' && user.medico?.em_treinamento && (
+                                                        <div className="text-xs text-amber-700">em treinamento</div>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-gray-900">{user.email}</div>
@@ -471,6 +479,9 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                                 onClick={() => openEditDrawer(user)}
                                             >
                                                 <div className="font-medium text-gray-900 break-words">{user.name}</div>
+                                                {user.role === 'medico' && user.medico?.em_treinamento && (
+                                                    <div className="text-xs text-amber-700">em treinamento</div>
+                                                )}
                                                 <p className="text-sm text-gray-700 break-all mt-1">{user.email}</p>
                                                 <div className="flex flex-wrap gap-2 mt-3">
                                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
@@ -602,6 +613,21 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                 existingMedico={editingUser?.medico}
                                 showAtivo={!!editingUser}
                             />
+
+                                <div className="flex items-start justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                                    <div>
+                                        <p id="em-treinamento-label" className="text-sm font-medium text-gray-900">Médico em treinamento</p>
+                                        <p className="mt-1 text-xs text-gray-600">
+                                            Enquanto ativado, as receitas finalizadas por este médico não são enviadas
+                                            ao oList nem ao RD Station.
+                                        </p>
+                                    </div>
+                                    <ClinicalToggleSwitch
+                                        checked={!!data.em_treinamento}
+                                        onChange={(checked) => setData('em_treinamento', checked)}
+                                        aria-labelledby="em-treinamento-label"
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>

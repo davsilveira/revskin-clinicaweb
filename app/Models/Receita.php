@@ -34,6 +34,7 @@ class Receita extends Model
         'valor_total',
         'status',
         'cortesia',
+        'treinamento',
         'ativo',
         'tiny_pedido_id',
         'rd_deal_id',
@@ -50,6 +51,7 @@ class Receita extends Model
             'valor_frete' => 'decimal:2',
             'valor_total' => 'decimal:2',
             'cortesia' => 'boolean',
+            'treinamento' => 'boolean',
             'ativo' => 'boolean',
         ];
     }
@@ -65,6 +67,25 @@ class Receita extends Model
     /**
      * Get the medico.
      */
+    protected static function booted(): void
+    {
+        // Receita de médico em treinamento nasce marcada (vale para todos os fluxos de criação:
+        // nova, copiar, assistente, importação).
+        static::creating(function (Receita $receita) {
+            if (! $receita->treinamento && $receita->medico_id) {
+                $receita->treinamento = (bool) Medico::whereKey($receita->medico_id)->value('em_treinamento');
+            }
+        });
+    }
+
+    /**
+     * Receita de treinamento: não é enviada ao oList nem ao RD Station.
+     */
+    public function isTreinamento(): bool
+    {
+        return (bool) $this->treinamento;
+    }
+
     public function medico(): BelongsTo
     {
         return $this->belongsTo(Medico::class);

@@ -49,6 +49,16 @@ class SyncVendaTinyJob implements ShouldQueue
         }
 
         $receita = $atendimento->receita;
+
+        if ($receita->isTreinamento()) {
+            Log::info('Tiny ERP: Receita de médico em treinamento, venda não sincronizada', [
+                'atendimento_id' => $atendimento->id,
+                'receita_id' => $receita->id,
+            ]);
+
+            return;
+        }
+
         $paciente = $receita->paciente;
 
         // Garantir que paciente está sincronizado no Tiny

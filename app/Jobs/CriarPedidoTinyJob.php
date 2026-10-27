@@ -44,6 +44,14 @@ class CriarPedidoTinyJob implements ShouldQueue
 
         $receita = $this->receita->fresh(['paciente', 'medico.linkedUser', 'itens.produto']);
 
+        if ($receita->isTreinamento()) {
+            Log::info('Tiny ERP: Receita de médico em treinamento, pedido não enviado', [
+                'receita_id' => $receita->id,
+            ]);
+
+            return;
+        }
+
         if (! $receita->paciente) {
             Log::warning('Tiny ERP: Receita não possui paciente', [
                 'receita_id' => $receita->id,

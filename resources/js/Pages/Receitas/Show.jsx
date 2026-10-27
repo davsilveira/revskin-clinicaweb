@@ -136,6 +136,14 @@ const formatDate = (dateString) => {
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
+                            {receita.treinamento && (
+                                <span
+                                    className="px-3 py-1 text-sm font-medium rounded-full bg-amber-100 text-amber-800"
+                                    title="Receita de médico em treinamento: não é enviada ao oList nem ao RD Station"
+                                >
+                                    Treinamento
+                                </span>
+                            )}
                             {getStatusBadge(receita.status)}
                         </div>
                     </div>

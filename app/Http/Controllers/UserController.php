@@ -38,7 +38,8 @@ class UserController extends Controller
             }
         }
 
-        $allowedRoles = array_keys(User::getRoles());
+        // "treinamento" é um filtro extra do select de perfil: médicos com o toggle ligado.
+        $allowedRoles = [...array_keys(User::getRoles()), 'treinamento'];
         $role = $request->input('role');
         if (! is_string($role) || ! in_array($role, $allowedRoles, true)) {
             $role = null;
@@ -51,7 +52,9 @@ class UserController extends Controller
                         ->orWhere('email', 'like', "%{$s}%");
                 });
             })
-            ->when($role, fn ($q) => $q->where('role', $role))
+            ->when($role === 'treinamento', fn ($q) => $q->where('role', User::ROLE_MEDICO)
+                ->whereHas('medico', fn ($m) => $m->where('em_treinamento', true)))
+            ->when($role && $role !== 'treinamento', fn ($q) => $q->where('role', $role))
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();

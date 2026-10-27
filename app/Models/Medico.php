@@ -41,12 +41,14 @@ class Medico extends Model
         'assinatura_path',
         'anotacoes',
         'ativo',
+        'em_treinamento',
     ];
 
     protected function casts(): array
     {
         return [
             'ativo' => 'boolean',
+            'em_treinamento' => 'boolean',
         ];
     }
 

@@ -29,6 +29,7 @@ class MedicoService
             'rodape_receita' => 'nullable|string',
             'anotacoes' => 'nullable|string',
             'ativo' => 'boolean',
+            'em_treinamento' => 'nullable|boolean',
             'assinatura' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'remover_assinatura' => 'nullable|boolean',
             'enderecos' => 'nullable|array',
@@ -134,7 +135,7 @@ class MedicoService
      */
     private function mapToMedicoData(array $validated): array
     {
-        return [
+        $data = [
             'apelido' => $validated['apelido'] ?? null,
             'crm' => $validated['crm'] ?? null,
             'uf_crm' => $validated['uf_crm'] ?? null,
@@ -148,6 +149,13 @@ class MedicoService
             'anotacoes' => $validated['anotacoes'] ?? null,
             'ativo' => $validated['ativo'] ?? true,
         ];
+
+        // Só o cadastro de usuários envia o toggle; o form de Médicos não pode zerá-lo ao salvar.
+        if (array_key_exists('em_treinamento', $validated)) {
+            $data['em_treinamento'] = (bool) $validated['em_treinamento'];
+        }
+
+        return $data;
     }
 
     /**

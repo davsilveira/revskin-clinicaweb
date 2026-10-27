@@ -589,6 +589,22 @@ class ReceitaController extends Controller
                 'usuario_id' => $user->id,
             ]);
 
+            // Médico em treinamento: a receita fica só no sistema (fila do call center inclusa),
+            // sem pedido no oList nem negociação no RD.
+            if (! $receita->treinamento && $receita->medico?->em_treinamento) {
+                $receita->forceFill(['treinamento' => true])->saveQuietly();
+            }
+
+            if ($receita->isTreinamento()) {
+                Log::info('Receita de médico em treinamento: envio ao oList/RD ignorado', [
+                    'receita_id' => $receita->id,
+                    'receita_numero' => $receita->numero,
+                    'medico_id' => $receita->medico_id,
+                ]);
+
+                return;
+            }
+
             if (Setting::get('tiny_enabled', false)) {
                 CriarPedidoTinyJob::dispatch($receita)->delay(now()->addMinute());
                 Log::info('Tiny ERP: CriarPedidoTinyJob despachado', [
