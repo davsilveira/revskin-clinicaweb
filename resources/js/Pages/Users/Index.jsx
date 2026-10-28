@@ -66,6 +66,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showTreinamentoConfirm, setShowTreinamentoConfirm] = useState(false);
     const [toast, setToast] = useState(null);
 
     const isMedico = (role) => role === 'medico';
@@ -106,16 +107,31 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         enderecos: [],
     });
 
+    // Tirar do treinamento apaga as receitas de teste: o salvar pede confirmação no próprio drawer.
+    const receitasTreinamentoCount = editingUser?.medico?.receitas_treinamento_count ?? 0;
+    const removeraReceitasTreinamento = Boolean(
+        editingUser?.medico?.em_treinamento &&
+        isMedico(data.role) &&
+        !data.em_treinamento &&
+        receitasTreinamentoCount > 0
+    );
+
+    useEffect(() => {
+        if (!removeraReceitasTreinamento) setShowTreinamentoConfirm(false);
+    }, [removeraReceitasTreinamento]);
+
     const openCreateDrawer = () => {
         reset();
         setEditingUser(null);
         setShowDeleteConfirm(false);
+        setShowTreinamentoConfirm(false);
         setDrawerOpen(true);
     };
 
     const openEditDrawer = (user) => {
         setEditingUser(user);
         setShowDeleteConfirm(false);
+        setShowTreinamentoConfirm(false);
         const medico = user.medico;
         const rawEnderecos = medico?.enderecos || [];
         const enderecoUf = (rawEnderecos[0]?.uf || '').trim().toUpperCase();
@@ -157,6 +173,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         setDrawerOpen(false);
         setEditingUser(null);
         setShowDeleteConfirm(false);
+        setShowTreinamentoConfirm(false);
         reset();
     };
 
@@ -202,7 +219,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     }, [data, editingUser]);
 
     const trySaveUser = useCallback(
-        ({ onSuccess, onError, onInvalid }) => {
+        ({ onSuccess, onError, onInvalid, confirmaRemocaoTreinamento = false }) => {
             clearErrors();
             const baseErrs = validateBaseFields();
             if (Object.keys(baseErrs).length > 0) {
@@ -222,6 +239,16 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                     onInvalid?.();
                     return;
                 }
+
+                if (removeraReceitasTreinamento) {
+                    if (!confirmaRemocaoTreinamento) {
+                        setShowDeleteConfirm(false);
+                        setShowTreinamentoConfirm(true);
+                        onInvalid?.();
+                        return;
+                    }
+                    submitData.remover_receitas_treinamento = true;
+                }
             }
 
             const options = {
@@ -237,7 +264,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                 router.post('/users', submitData, options);
             }
         },
-        [data, editingUser, clearErrors, setError]
+        [data, editingUser, clearErrors, setError, removeraReceitasTreinamento]
     );
 
     const isDirty = useMemo(() => {
@@ -271,17 +298,24 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
         saveBeforeClose,
     });
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const submitUser = (confirmaRemocaoTreinamento = false) => {
         trySaveUser({
+            confirmaRemocaoTreinamento,
             onSuccess: () => {
                 forceCloseDrawer();
                 setToast({
-                    message: editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!',
+                    message: confirmaRemocaoTreinamento
+                        ? `Médico saiu do treinamento. ${receitasTreinamentoCount} receita(s) de treinamento excluída(s).`
+                        : editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!',
                     type: 'success',
                 });
             },
         });
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        submitUser();
     };
 
     const handleDelete = () => {
@@ -628,6 +662,16 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                                         aria-labelledby="em-treinamento-label"
                                     />
                                 </div>
+                                {removeraReceitasTreinamento && (
+                                    <p className="-mt-3 text-xs text-red-700">
+                                        Ao salvar, {receitasTreinamentoCount === 1
+                                            ? 'a receita criada em treinamento será excluída'
+                                            : `as ${receitasTreinamentoCount} receitas criadas em treinamento serão excluídas`}.
+                                    </p>
+                                )}
+                                {(errors.em_treinamento || serverErrors.em_treinamento) && (
+                                    <p className="-mt-3 text-xs text-red-600">{errors.em_treinamento || serverErrors.em_treinamento}</p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -667,6 +711,14 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
                             </div>
                         </div>
                     </div>
+                    <TreinamentoRemocaoModal
+                        open={showTreinamentoConfirm && removeraReceitasTreinamento}
+                        nome={data.name}
+                        quantidade={receitasTreinamentoCount}
+                        saving={processing}
+                        onCancel={() => setShowTreinamentoConfirm(false)}
+                        onConfirm={() => submitUser(true)}
+                    />
                 </form>
             </Drawer>
 
@@ -680,5 +732,77 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </DashboardLayout>
+    );
+}
+
+/**
+ * Confirmação de saída do treinamento: overlay dentro do painel do drawer (cobre só o drawer, não a página).
+ * Esc fecha só esta modal (captura antes do listener do Drawer, que fecharia o drawer).
+ */
+function TreinamentoRemocaoModal({ open, nome, quantidade, saving, onCancel, onConfirm }) {
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            onCancel();
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [open, onCancel]);
+
+    if (!open) return null;
+
+    return (
+        <div className="absolute inset-0 z-20 flex items-center justify-center overflow-y-auto p-4">
+            <button
+                type="button"
+                aria-label="Fechar"
+                className="absolute inset-0 bg-black/50 transition-opacity cursor-default border-0 p-0"
+                onClick={onCancel}
+            />
+            <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="treinamento-confirm-title"
+                className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+            >
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </div>
+                    <h3 id="treinamento-confirm-title" className="text-lg font-semibold text-gray-900">
+                        Tirar {nome || 'o médico'} do treinamento?
+                    </h3>
+                </div>
+
+                <p className="text-gray-600 mb-6">
+                    {quantidade === 1
+                        ? 'A receita criada durante o treinamento será excluída definitivamente.'
+                        : `As ${quantidade} receitas criadas durante o treinamento serão excluídas definitivamente.`}
+                    {' '}A numeração das próximas receitas continua a partir da última receita oficial.
+                </p>
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                        Voltar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={saving}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                        {saving ? 'Salvando...' : 'Excluir receitas e salvar'}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }

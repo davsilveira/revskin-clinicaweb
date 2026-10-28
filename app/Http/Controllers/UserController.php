@@ -6,10 +6,12 @@ use App\Models\Clinica;
 use App\Models\User;
 use App\Services\MedicoService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -45,7 +47,14 @@ class UserController extends Controller
             $role = null;
         }
 
-        $users = User::with(['clinica:id,nome', 'medico.linkedUser:id,name,medico_id', 'medico.enderecos', 'medico.clinicas'])
+        $users = User::with([
+            'clinica:id,nome',
+            // Usado pela confirmação de saída do treinamento (as receitas de teste são apagadas).
+            'medico' => fn ($q) => $q->withCount(['receitas as receitas_treinamento_count' => fn ($r) => $r->where('treinamento', true)]),
+            'medico.linkedUser:id,name,medico_id',
+            'medico.enderecos',
+            'medico.clinicas',
+        ])
             ->when($search, function ($q, string $s) {
                 $q->where(function ($query) use ($s) {
                     $query->where('name', 'like', "%{$s}%")
@@ -205,7 +214,24 @@ class UserController extends Controller
             $medico = $user->medico;
 
             if ($medico) {
-                $this->medicoService->update($medico, $validated, $request);
+                // Saindo do treinamento: as receitas de teste são apagadas, mas só com a confirmação do drawer.
+                $saindoDoTreinamento = $medico->em_treinamento
+                    && array_key_exists('em_treinamento', $validated)
+                    && ! $validated['em_treinamento'];
+                $receitasTreinamento = $saindoDoTreinamento ? MedicoService::receitasTreinamentoCount($medico) : 0;
+
+                if ($receitasTreinamento > 0 && ! $request->boolean('remover_receitas_treinamento')) {
+                    throw ValidationException::withMessages([
+                        'em_treinamento' => "Confirme a exclusão das {$receitasTreinamento} receita(s) criadas em treinamento para tirar o médico do treinamento.",
+                    ]);
+                }
+
+                DB::transaction(function () use ($medico, $validated, $request, $receitasTreinamento) {
+                    $this->medicoService->update($medico, $validated, $request);
+                    if ($receitasTreinamento > 0) {
+                        $this->medicoService->removerReceitasTreinamento($medico);
+                    }
+                });
             } else {
                 if ($user->medico_id) {
                     Log::warning('User update: medico_id órfão (sem registro em medicos); vínculo limpo e novo médico será criado.', [

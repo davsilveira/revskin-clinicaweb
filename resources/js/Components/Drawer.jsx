@@ -65,7 +65,7 @@ export default function Drawer({
             <div className="fixed inset-y-0 right-0 z-50 flex justify-end min-w-0">
                 <div
                     className={`
-                        ${width} min-w-0 h-full bg-white shadow-2xl flex flex-col
+                        ${width} relative min-w-0 h-full bg-white shadow-2xl flex flex-col
                         transform transition-transform duration-300 ease-out
                         ${isAnimating ? 'translate-x-0' : 'translate-x-full'}
                     `}

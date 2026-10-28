@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\CriarNegociacaoRdStationJob;
 use App\Jobs\CriarPedidoTinyJob;
+use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
 use App\Models\Paciente;
 use App\Models\Produto;
@@ -197,5 +198,115 @@ class MedicoEmTreinamentoTest extends TestCase
                 ->where('filters.role', 'treinamento')
                 ->has('users.data', 1)
                 ->where('users.data.0.id', $emTreino->id));
+    }
+    private function payloadUsuario(array $extra = []): array
+    {
+        return [
+            'name' => 'Dra. Treinamento',
+            'email' => 'treinamento@example.com',
+            'role' => 'medico',
+            'is_active' => true,
+            'crm' => '123456',
+            'uf_crm' => 'SP',
+            'telefone' => '1140028922',
+        ] + $extra;
+    }
+
+    private function novaReceita(User $user, Paciente $paciente): Receita
+    {
+        return Receita::create([
+            'numero' => Receita::gerarNumero($paciente->id),
+            'data_receita' => now()->toDateString(),
+            'paciente_id' => $paciente->id,
+            'medico_id' => $user->medico_id,
+            'status' => 'finalizada',
+        ]);
+    }
+
+    public function test_sair_do_treinamento_exige_confirmacao_quando_ha_receitas_de_treino(): void
+    {
+        $admin = $this->admin();
+        $user = $this->medicoUser(true);
+        $this->receitaAberta($user);
+
+        $this->actingAs($admin)->put(route('users.update', $user), $this->payloadUsuario(['em_treinamento' => '0']))
+            ->assertSessionHasErrors('em_treinamento');
+
+        $this->assertTrue($user->medico->fresh()->em_treinamento);
+        $this->assertSame(1, Receita::where('treinamento', true)->count());
+    }
+
+    public function test_medico_novo_sai_do_treinamento_e_numeracao_recomeca(): void
+    {
+        $admin = $this->admin();
+        $user = $this->medicoUser(true);
+        Bus::fake();
+        $paciente = Paciente::create(['nome' => 'Paciente Novo', 'medico_id' => $user->medico_id]);
+
+        foreach (range(1, 3) as $i) {
+            $receita = $this->novaReceita($user, $paciente);
+        }
+        $this->assertSame($paciente->id.'-0003', $receita->numero);
+        AtendimentoCallcenter::create([
+            'receita_id' => $receita->id,
+            'paciente_id' => $paciente->id,
+            'medico_id' => $user->medico_id,
+            'status' => 'entrar_em_contato',
+            'data_abertura' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('users.update', $user), $this->payloadUsuario([
+                'em_treinamento' => '0',
+                'remover_receitas_treinamento' => '1',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse($user->medico->fresh()->em_treinamento);
+        $this->assertSame(0, Receita::count());
+        $this->assertSame(0, AtendimentoCallcenter::count());
+        $this->assertSame($paciente->id.'-0001', Receita::gerarNumero($paciente->id));
+    }
+
+    public function test_medico_existente_sai_do_treinamento_e_mantem_receitas_oficiais(): void
+    {
+        $admin = $this->admin();
+        $user = $this->medicoUser(false);
+        Bus::fake();
+        $paciente = Paciente::create(['nome' => 'Paciente Antigo', 'medico_id' => $user->medico_id]);
+
+        $oficiais = [$this->novaReceita($user, $paciente), $this->novaReceita($user, $paciente)];
+
+        $user->medico->update(['em_treinamento' => true]);
+        $treino = [$this->novaReceita($user, $paciente), $this->novaReceita($user, $paciente)];
+        $this->assertTrue($treino[0]->fresh()->treinamento);
+        $this->assertSame($paciente->id.'-0004', $treino[1]->numero);
+
+        $this->actingAs($admin)
+            ->put(route('users.update', $user), $this->payloadUsuario([
+                'em_treinamento' => '0',
+                'remover_receitas_treinamento' => '1',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertEqualsCanonicalizing(
+            [$oficiais[0]->id, $oficiais[1]->id],
+            Receita::pluck('id')->all()
+        );
+        $this->assertSame($paciente->id.'-0003', Receita::gerarNumero($paciente->id));
+    }
+
+    public function test_listagem_de_usuarios_traz_contagem_de_receitas_de_treinamento(): void
+    {
+        $admin = $this->admin();
+        $user = $this->medicoUser(true);
+        $this->receitaAberta($user);
+
+        $this->actingAs($admin)
+            ->get(route('users.index', ['role' => 'treinamento']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('users.data.0.id', $user->id)
+                ->where('users.data.0.medico.receitas_treinamento_count', 1));
     }
 }

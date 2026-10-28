@@ -2,8 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\AcompanhamentoCallcenter;
+use App\Models\AtendimentoCallcenter;
 use App\Models\Medico;
+use App\Models\Receita;
+use App\Models\ReceitaItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Validator;
 
@@ -127,6 +133,43 @@ class MedicoService
         }
 
         return $medico;
+    }
+
+    /**
+     * Receitas criadas enquanto o médico estava em treinamento.
+     */
+    public static function receitasTreinamentoCount(Medico $medico): int
+    {
+        return $medico->receitas()->where('treinamento', true)->count();
+    }
+
+    /**
+     * Saída do treinamento: apaga as receitas de teste do médico (itens e fila do call center juntos).
+     * A numeração é por paciente (Receita::gerarNumero pega o maior número restante), então a próxima
+     * receita volta a seguir a última receita oficial.
+     */
+    public function removerReceitasTreinamento(Medico $medico): int
+    {
+        $ids = $medico->receitas()->where('treinamento', true)->pluck('id');
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        DB::transaction(function () use ($ids) {
+            $atendimentoIds = AtendimentoCallcenter::whereIn('receita_id', $ids)->pluck('id');
+            AcompanhamentoCallcenter::whereIn('atendimento_id', $atendimentoIds)->delete();
+            AtendimentoCallcenter::whereIn('id', $atendimentoIds)->delete();
+            ReceitaItem::whereIn('receita_id', $ids)->delete();
+            Receita::whereIn('receita_origem_id', $ids)->update(['receita_origem_id' => null]);
+            Receita::whereIn('id', $ids)->delete();
+        });
+
+        Log::info('Médico saiu do treinamento: receitas de treinamento removidas.', [
+            'medico_id' => $medico->id,
+            'receita_ids' => $ids->all(),
+        ]);
+
+        return $ids->count();
     }
 
     /**
