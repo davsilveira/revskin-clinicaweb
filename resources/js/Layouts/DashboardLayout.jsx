@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProfileDrawer from '@/Components/ProfileDrawer';
+import SessaoExpiradaModal from '@/Components/SessaoExpiradaModal';
 import {
     NavIconCallcenter,
     NavIconClinicas,
@@ -551,6 +552,8 @@ export default function DashboardLayout({ children, title }) {
             </div>
 
             <ProfileDrawer isOpen={showProfileDrawer} onClose={() => setShowProfileDrawer(false)} />
+
+            <SessaoExpiradaModal />
 
             <ToastContainer
                 className="max-lg:!top-2 max-lg:!right-auto max-lg:!left-1/2 max-lg:!-translate-x-1/2 max-lg:!w-[calc(100vw-1rem)] max-lg:!max-w-sm"

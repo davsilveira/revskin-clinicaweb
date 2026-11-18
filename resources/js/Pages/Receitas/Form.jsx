@@ -345,17 +345,6 @@ function ReceitaFormInner({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [receita?.itens]);
 
-    // Inertia mostra a tela branca "419 Page Expired" quando a sessão expira; trocar por um aviso.
-    useEffect(
-        () =>
-            router.on('invalid', (event) => {
-                if (event.detail?.response?.status !== 419) return;
-                event.preventDefault();
-                setToast({ message: mensagemSessaoExpirada, type: 'error', key: Date.now() });
-            }),
-        [],
-    );
-
     const annotationFirstRenderRef = useRef(true);
 
     const performAnnotationSave = useCallback(async () => {
@@ -375,10 +364,8 @@ function ReceitaFormInner({
                     .map((row) => ({ id: row.id, produto_id: row.produto_id, anotacoes: row.anotacoes ?? '' })),
             }),
         });
-        if (response.status === 419) {
-            setToast({ message: mensagemSessaoExpirada, type: 'error', key: Date.now() });
-            throw new Error(mensagemSessaoExpirada);
-        }
+        // 419: a modal global de sessão expirada já abriu (bootstrap.js); só interrompe aqui.
+        if (response.status === 419) throw new Error(mensagemSessaoExpirada);
         if (!response.ok) {
             let msg = 'Falha ao salvar anotações';
             try {
@@ -1178,6 +1165,8 @@ function ReceitaFormInner({
                 key: Date.now(),
             });
         } catch (e) {
+            // Sessão expirada já tem a modal global; não repetir em toast.
+            if (e?.message === mensagemSessaoExpirada) return;
             setToast({
                 message: e?.message || 'Não foi possível salvar as anotações.',
                 type: 'error',
