@@ -124,7 +124,7 @@ class ReceitaItensAnotacoesPatchTest extends TestCase
         $this->assertSame('Original', $item->anotacoes);
     }
 
-    public function test_receita_aberta_retorna_422(): void
+    public function test_receita_aberta_em_visualizacao_tambem_salva_anotacoes(): void
     {
         [$receita, $item] = $this->seedReceitaFinalizadaComItem();
         $receita->update(['status' => 'aberta']);
@@ -132,8 +132,65 @@ class ReceitaItensAnotacoesPatchTest extends TestCase
         $this->actingAs($this->admin());
 
         $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
+            'itens' => [['id' => $item->id, 'anotacoes' => 'Anotei sem entrar em Editar']],
+        ])->assertOk();
+
+        $this->assertSame('Anotei sem entrar em Editar', $item->fresh()->anotacoes);
+    }
+
+    public function test_receita_cancelada_retorna_422(): void
+    {
+        [$receita, $item] = $this->seedReceitaFinalizadaComItem();
+        $receita->update(['status' => 'cancelada']);
+
+        $this->actingAs($this->admin());
+
+        $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
             'itens' => [['id' => $item->id, 'anotacoes' => 'X']],
         ])->assertStatus(422);
+
+        $this->assertSame('Original', $item->fresh()->anotacoes);
+    }
+
+    /**
+     * Receita 28608 (Valéria, 17/11/2026): Finalizar recria as linhas e a tela continuou com os
+     * ids antigos; o PATCH respondia "itens.0.id inválido" e a anotação do Demerane se perdia.
+     */
+    public function test_ids_antigos_apos_finalizar_sao_remapeados_pela_posicao_e_produto(): void
+    {
+        [$receita, $item] = $this->seedReceitaFinalizadaComItem();
+        $idAntigo = $item->id;
+        $receita->itens()->delete();
+        $novo = $receita->itens()->create([
+            'produto_id' => $item->produto_id,
+            'quantidade' => 1,
+            'valor_unitario' => 10,
+            'valor_total' => 10,
+            'imprimir' => true,
+            'grupo' => 'recomendado',
+            'ordem' => 0,
+        ]);
+
+        $this->actingAs($this->admin());
+
+        $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
+            'itens' => [['id' => $idAntigo, 'produto_id' => $item->produto_id, 'anotacoes' => 'Pode não fazer agora']],
+        ])->assertOk();
+
+        $this->assertSame('Pode não fazer agora', $novo->fresh()->anotacoes);
+    }
+
+    public function test_id_antigo_sem_linha_correspondente_retorna_409_sem_gravar(): void
+    {
+        [$receita, $item] = $this->seedReceitaFinalizadaComItem();
+
+        $this->actingAs($this->admin());
+
+        $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
+            'itens' => [['id' => $item->id + 999, 'produto_id' => $item->produto_id + 999, 'anotacoes' => 'X']],
+        ])->assertStatus(409);
+
+        $this->assertSame('Original', $item->fresh()->anotacoes);
     }
 
     public function test_call_center_nao_acessa_rota(): void

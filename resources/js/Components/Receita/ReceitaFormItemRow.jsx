@@ -36,9 +36,9 @@ export default function ReceitaFormItemRow({
     formatItemTotal,
 }) {
     const anotacoesRef = useRef(null);
-    // Anotações ficam ocultas por padrão; abrem só ao clicar (pedido da clínica).
+    // Anotação sempre visível numa linha só (o excesso some à direita); ao clicar abre o campo
+    // inteiro e volta a uma linha ao sair dele (pedido da clínica).
     const [anotacoesAbertas, setAnotacoesAbertas] = useState(false);
-    const focarAoAbrir = useRef(false);
 
     const produtoObj = useMemo(() => {
         const id = item.produto_id ? parseInt(String(item.produto_id), 10) : null;
@@ -59,20 +59,20 @@ export default function ReceitaFormItemRow({
         el.style.height = 'auto';
         // Match ProductCombobox single-line height (~30px with py-1 + text-sm)
         el.style.height = `${Math.min(Math.max(el.scrollHeight, 30), 320)}px`;
-        if (focarAoAbrir.current) {
-            focarAoAbrir.current = false;
-            el.focus();
-            el.setSelectionRange(el.value.length, el.value.length);
-        }
     }, [item.anotacoes, anotacoesAbertas]);
+
+    // Foca ao abrir (inclusive em só leitura) para o blur fechar de volta a uma linha.
+    useLayoutEffect(() => {
+        const el = anotacoesRef.current;
+        if (!anotacoesAbertas || !el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+    }, [anotacoesAbertas]);
 
     const annFieldDisabled = annotationsReadOnly ?? isReadOnly;
     const temAnotacao = String(item.anotacoes || '').trim() !== '';
 
-    const abrirAnotacoes = () => {
-        focarAoAbrir.current = !annFieldDisabled;
-        setAnotacoesAbertas(true);
-    };
+    const abrirAnotacoes = () => setAnotacoesAbertas(true);
 
     const rowTone =
         item.vendido
@@ -174,34 +174,19 @@ export default function ReceitaFormItemRow({
                             placeholder="Anotações…"
                             value={item.anotacoes || ''}
                             onChange={(e) => onUpdateItem(index, 'anotacoes', e.target.value)}
-                            disabled={annFieldDisabled}
-                            className="w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50 resize-none overflow-hidden"
+                            onBlur={() => setAnotacoesAbertas(false)}
+                            readOnly={annFieldDisabled}
+                            className={`w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 resize-none overflow-hidden ${annFieldDisabled ? 'bg-gray-100 text-gray-600' : 'bg-white'}`}
                         />
-                        <button
-                            type="button"
-                            onClick={() => setAnotacoesAbertas(false)}
-                            className="mt-0.5 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-                        >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                            Ocultar anotação
-                        </button>
                     </>
                 ) : temAnotacao ? (
                     <button
                         type="button"
                         onClick={abrirAnotacoes}
-                        title="Clique para ver a anotação"
-                        className="w-full min-h-[30px] inline-flex items-center gap-1.5 px-2 py-1 border border-gray-300 rounded text-sm text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-800 transition-colors"
+                        title={item.anotacoes}
+                        className={`w-full min-w-0 min-h-[30px] flex items-center px-2 py-1 border border-gray-300 rounded text-sm text-left text-gray-800 bg-gray-50 transition-colors ${annFieldDisabled ? 'cursor-default' : 'cursor-text hover:border-gray-400 hover:bg-white'}`}
                     >
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        <span className="font-medium">Ver anotação</span>
-                        <svg className="w-3 h-3 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                        <span className="block min-w-0 truncate">{item.anotacoes}</span>
                     </button>
                 ) : annFieldDisabled ? (
                     <span className="block min-h-[30px] px-2 py-1 text-xs text-gray-400 lg:flex lg:items-center">—</span>

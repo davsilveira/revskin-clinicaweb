@@ -21,7 +21,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -374,9 +373,10 @@ class ReceitaController extends Controller
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
         $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
+        // Anotações (da receita e por produto) seguem editáveis na visualização: em aberto ou já finalizada.
         $permiteEditarAnotacoesInternasItens =
             ($user->isAdmin() || $user->isMedico())
-            && $receita->status === 'finalizada'
+            && in_array($receita->status, ['aberta', 'finalizada'], true)
             && ! $user->isCallcenter();
 
         $props = [
@@ -927,22 +927,32 @@ class ReceitaController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        if ($receita->status !== 'finalizada') {
+        if (! in_array($receita->status, ['aberta', 'finalizada'], true)) {
             return response()->json([
-                'message' => 'Só é permitido editar anotações internas em receitas finalizadas.',
+                'message' => 'Só é permitido editar anotações em receitas em aberto ou finalizadas.',
             ], 422);
         }
 
         $validated = $request->validate([
             'anotacoes' => 'nullable|string',
             'itens' => 'nullable|array',
-            'itens.*.id' => [
-                'required',
-                'integer',
-                Rule::exists('receita_itens', 'id')->where(fn ($q) => $q->where('receita_id', $receita->id)),
-            ],
+            // Salvar/Finalizar recriam as linhas: a tela pode mandar ids antigos; remapeados abaixo.
+            'itens.*.id' => 'required|integer',
+            'itens.*.produto_id' => 'nullable|integer',
             'itens.*.anotacoes' => 'nullable|string',
         ]);
+
+        if (! empty($validated['itens'])) {
+            $validated['itens'] = $this->remapIncomingReceitaItemIds($receita, $validated['itens']);
+            $idsAtuais = $receita->itens()->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($validated['itens'] as $row) {
+                if (! in_array((int) $row['id'], $idsAtuais, true)) {
+                    return response()->json([
+                        'message' => 'A receita foi alterada em outra tela. Copie a anotação, recarregue a página (F5) e salve de novo.',
+                    ], 409);
+                }
+            }
+        }
 
         if (! $request->exists('anotacoes') && empty($validated['itens'])) {
             return response()->json([

@@ -146,6 +146,20 @@ function OutrasReceitaAquisicaoBadge({ item, tippyAquisicaoProps }) {
     );
 }
 
+/**
+ * Guarda do Voltar do navegador na receita montada. O listener é registrado no carregamento do
+ * módulo (as páginas são importadas antes do createInertiaApp) para rodar ANTES do `popstate` do
+ * Inertia, que desmonta a página de forma síncrona; registrado num useEffect, chegaria tarde.
+ */
+let voltarDoNavegador = null;
+if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', (event) => voltarDoNavegador?.(event), true);
+}
+
+/** 419 = sessão expirou (mais de SESSION_LIFETIME sem uso): o token CSRF da página não vale mais. */
+const mensagemSessaoExpirada =
+    'Sua sessão expirou. Copie o que digitou, recarregue a página (F5) e entre de novo para salvar.';
+
 export default function ReceitaFormPage(props) {
     return <ReceitaFormInner key={props.receita?.id ?? 'new'} {...props} />;
 }
@@ -174,8 +188,12 @@ function ReceitaFormInner({
     const isEditing = !!receita;
     const [viewMode, setViewMode] = useState(initialViewMode && isEditing);
     const isReadOnly = bloqueadaParaEdicao || viewMode || isCallcenter;
+    // Na visualização (aberta ou finalizada) as anotações seguem editáveis e salvam à parte;
+    // em modo edição elas vão junto com o autosave da receita.
     const annotationsEditable =
-        !!permiteEditarAnotacoesInternasItens && receita?.status === 'finalizada';
+        !!permiteEditarAnotacoesInternasItens &&
+        isReadOnly &&
+        ['aberta', 'finalizada'].includes(receita?.status);
     const annotationsReadOnly = isReadOnly && !annotationsEditable;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);
@@ -280,6 +298,7 @@ function ReceitaFormInner({
             }),
         });
         
+        if (response.status === 419) throw new Error(mensagemSessaoExpirada);
         if (!response.ok) throw new Error('Autosave failed');
         
         const result = await response.json();
@@ -309,6 +328,34 @@ function ReceitaFormInner({
 
     const canAutoSave = data.paciente_id && data.medico_id && !isReadOnly;
 
+    // Salvar/Finalizar (PUT) recriam as linhas no servidor, e o Inertia mantém o estado do form
+    // (preserveState): sem isto, as anotações salvas depois mandariam ids que não existem mais.
+    useEffect(() => {
+        const doServidor = receita?.itens;
+        if (!Array.isArray(doServidor) || doServidor.length !== data.itens.length) return;
+        const mesmasLinhas = doServidor.every(
+            (it, i) => String(it.produto_id) === String(data.itens[i]?.produto_id),
+        );
+        if (!mesmasLinhas || doServidor.every((it, i) => it.id === data.itens[i]?.id)) return;
+        suppressAutosaveOnceRef.current = true;
+        setData(
+            'itens',
+            data.itens.map((row, i) => ({ ...row, id: doServidor[i].id })),
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [receita?.itens]);
+
+    // Inertia mostra a tela branca "419 Page Expired" quando a sessão expira; trocar por um aviso.
+    useEffect(
+        () =>
+            router.on('invalid', (event) => {
+                if (event.detail?.response?.status !== 419) return;
+                event.preventDefault();
+                setToast({ message: mensagemSessaoExpirada, type: 'error', key: Date.now() });
+            }),
+        [],
+    );
+
     const annotationFirstRenderRef = useRef(true);
 
     const performAnnotationSave = useCallback(async () => {
@@ -325,9 +372,13 @@ function ReceitaFormInner({
                 anotacoes: data.anotacoes ?? '',
                 itens: data.itens
                     .filter((row) => row.id)
-                    .map((row) => ({ id: row.id, anotacoes: row.anotacoes ?? '' })),
+                    .map((row) => ({ id: row.id, produto_id: row.produto_id, anotacoes: row.anotacoes ?? '' })),
             }),
         });
+        if (response.status === 419) {
+            setToast({ message: mensagemSessaoExpirada, type: 'error', key: Date.now() });
+            throw new Error(mensagemSessaoExpirada);
+        }
         if (!response.ok) {
             let msg = 'Falha ao salvar anotações';
             try {
@@ -336,6 +387,8 @@ function ReceitaFormInner({
             } catch {
                 /* ignore */
             }
+            // O autosave das anotações só loga no console: avisar para o texto não se perder calado.
+            setToast({ message: msg, type: 'error', key: Date.now() });
             throw new Error(msg);
         }
     }, [receita?.id, data.itens, data.anotacoes]);
@@ -352,10 +405,11 @@ function ReceitaFormInner({
         clearDirtyState: clearAnnotationDirtyState,
     } = useAutoSave(performAnnotationSave, 2000, canAnnotationAutoSave);
 
+    // Só o texto: a troca de ids das linhas (após salvar/finalizar) não é alteração de anotação.
     const anotacoesKey = useMemo(
         () => JSON.stringify({
             receita: data.anotacoes ?? '',
-            itens: data.itens.map((i) => [i.id, i.anotacoes ?? '']),
+            itens: data.itens.map((i) => i.anotacoes ?? ''),
         }),
         [data.anotacoes, data.itens],
     );
@@ -411,6 +465,60 @@ function ReceitaFormInner({
         clearAnnotationDirtyState();
     };
 
+    /** Entrada do histórico desta tela, para restaurar quando o Voltar do navegador é barrado. */
+    const historicoAtualRef = useRef({ state: null, url: '' });
+    useEffect(() => {
+        historicoAtualRef.current = { state: window.history.state, url: window.location.href };
+    });
+
+    /**
+     * Decide se a saída para `visit` deve parar numa modal (alterações não salvas ou lembrete de
+     * finalizar / renovar). Abre a modal e devolve true quando intercepta.
+     */
+    const interceptarSaida = (visit) => {
+        const anyUnsaved =
+            (!isReadOnly && hasUnsavedChanges) ||
+            (annotationsEditable && hasAnnotationUnsavedChanges);
+        if (anyUnsaved) {
+            cancelAutoSave();
+            cancelAnnotationAutoSave();
+            pendingVisitRef.current = visit;
+            setShowUnsavedModal(true);
+            return true;
+        }
+
+        if (!isEditing) {
+            return false;
+        }
+
+        const status = data.status ?? receita?.status;
+        if (status === 'cancelada') {
+            return false;
+        }
+
+        const medicoSomenteVisualizacao = isMedico && viewMode;
+
+        if (status === 'aberta' && medicoSomenteVisualizacao) {
+            workflowExitVisitRef.current = visit;
+            setWorkflowExitKind('finalize_and_renew');
+            return true;
+        }
+
+        if (status === 'aberta') {
+            workflowExitVisitRef.current = visit;
+            setWorkflowExitKind('finalize');
+            return true;
+        }
+
+        if (status === 'finalizada' && medicoSomenteVisualizacao) {
+            workflowExitVisitRef.current = visit;
+            setWorkflowExitKind('renew');
+            return true;
+        }
+
+        return false;
+    };
+
     // Intercept Inertia navigation: alterações não salvas e lembretes de fluxo (finalizar / nova receita)
     useEffect(() => {
         const removeListener = router.on('before', (event) => {
@@ -432,51 +540,31 @@ function ReceitaFormInner({
                 return;
             }
 
-            const anyUnsaved =
-                (!isReadOnly && hasUnsavedChanges) ||
-                (annotationsEditable && hasAnnotationUnsavedChanges);
-            if (anyUnsaved) {
+            if (interceptarSaida(visit)) {
                 event.preventDefault();
-                cancelAutoSave();
-                cancelAnnotationAutoSave();
-                pendingVisitRef.current = visit;
-                setShowUnsavedModal(true);
-                return;
-            }
-
-            if (!isEditing) {
-                return;
-            }
-
-            const status = data.status ?? receita?.status;
-            if (status === 'cancelada') {
-                return;
-            }
-
-            const medicoSomenteVisualizacao = isMedico && viewMode;
-
-            if (status === 'aberta' && medicoSomenteVisualizacao) {
-                event.preventDefault();
-                workflowExitVisitRef.current = visit;
-                setWorkflowExitKind('finalize_and_renew');
-                return;
-            }
-
-            if (status === 'aberta') {
-                event.preventDefault();
-                workflowExitVisitRef.current = visit;
-                setWorkflowExitKind('finalize');
-                return;
-            }
-
-            if (status === 'finalizada' && medicoSomenteVisualizacao) {
-                event.preventDefault();
-                workflowExitVisitRef.current = visit;
-                setWorkflowExitKind('renew');
             }
         });
 
-        return removeListener;
+        // Botão Voltar/Avançar do navegador: o Inertia troca de página no `popstate` sem passar pelo
+        // 'before'. Se a saída precisa de confirmação, barra o Inertia, devolve a URL desta receita
+        // e a modal leva ao destino ao confirmar (ver `voltarDoNavegador` no topo do arquivo).
+        const onPopstate = (event) => {
+            if (allowLeaveWithoutGuardsRef.current) {
+                return;
+            }
+            const destino = window.location.href;
+            if (!interceptarSaida({ url: destino, method: 'get' })) {
+                return;
+            }
+            event.stopImmediatePropagation();
+            window.history.pushState(historicoAtualRef.current.state, '', historicoAtualRef.current.url);
+        };
+        voltarDoNavegador = onPopstate;
+
+        return () => {
+            removeListener();
+            if (voltarDoNavegador === onPopstate) voltarDoNavegador = null;
+        };
     }, [
         hasUnsavedChanges,
         hasAnnotationUnsavedChanges,
