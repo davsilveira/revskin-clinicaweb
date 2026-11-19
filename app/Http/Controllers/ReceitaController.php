@@ -373,11 +373,8 @@ class ReceitaController extends Controller
         $bloqueadaPorMedicoFinalizada = $user->isMedico() && $receita->status === 'finalizada';
         $bloqueadaParaEdicao = $bloqueadaPorAtendimento || $bloqueadaPorMedicoFinalizada;
 
-        // Anotações (da receita e por produto) seguem editáveis na visualização: em aberto ou já finalizada.
-        $permiteEditarAnotacoesInternasItens =
-            ($user->isAdmin() || $user->isMedico())
-            && in_array($receita->status, ['aberta', 'finalizada'], true)
-            && ! $user->isCallcenter();
+        // Anotações (da receita e por produto) seguem editáveis na visualização, em qualquer status.
+        $permiteEditarAnotacoesInternasItens = $this->podeEditarAnotacoes($user, $receita);
 
         $props = [
             'receita' => $receita,
@@ -923,14 +920,8 @@ class ReceitaController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        if ($user->isMedico() && $user->medico_id && (int) $receita->medico_id !== (int) $user->medico_id) {
+        if (! $this->podeEditarAnotacoes($user, $receita)) {
             abort(403, 'Acesso não autorizado.');
-        }
-
-        if (! in_array($receita->status, ['aberta', 'finalizada'], true)) {
-            return response()->json([
-                'message' => 'Só é permitido editar anotações em receitas em aberto ou finalizadas.',
-            ], 422);
         }
 
         $validated = $request->validate([
@@ -972,6 +963,23 @@ class ReceitaController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Mesma regra para a tela e para o PATCH: a clínica pediu o campo de anotações sempre
+     * visível e editável (aberta, finalizada ou cancelada). Médico só na própria receita.
+     */
+    private function podeEditarAnotacoes(User $user, Receita $receita): bool
+    {
+        if ($user->isCallcenter()) {
+            return false;
+        }
+
+        if ($user->isMedico()) {
+            return $user->medico_id && (int) $receita->medico_id === (int) $user->medico_id;
+        }
+
+        return $user->isAdmin() || $user->isSecretaria();
     }
 
     /**

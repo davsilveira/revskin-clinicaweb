@@ -188,12 +188,9 @@ function ReceitaFormInner({
     const isEditing = !!receita;
     const [viewMode, setViewMode] = useState(initialViewMode && isEditing);
     const isReadOnly = bloqueadaParaEdicao || viewMode || isCallcenter;
-    // Na visualização (aberta ou finalizada) as anotações seguem editáveis e salvam à parte;
-    // em modo edição elas vão junto com o autosave da receita.
-    const annotationsEditable =
-        !!permiteEditarAnotacoesInternasItens &&
-        isReadOnly &&
-        ['aberta', 'finalizada'].includes(receita?.status);
+    // Na visualização (qualquer status) as anotações seguem editáveis e salvam à parte;
+    // em modo edição elas vão junto com o autosave da receita. A permissão vem do servidor.
+    const annotationsEditable = !!permiteEditarAnotacoesInternasItens && isReadOnly && !!receita?.id;
     const annotationsReadOnly = isReadOnly && !annotationsEditable;
     const [currentReceitaId, setCurrentReceitaId] = useState(receita?.id || null);
     const isFirstRender = useRef(true);

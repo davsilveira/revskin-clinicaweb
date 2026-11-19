@@ -179,27 +179,18 @@ export default function ReceitaFormItemRow({
                             className={`w-full min-w-0 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 resize-none overflow-hidden ${annFieldDisabled ? 'bg-gray-100 text-gray-600' : 'bg-white'}`}
                         />
                     </>
-                ) : temAnotacao ? (
-                    <button
-                        type="button"
-                        onClick={abrirAnotacoes}
-                        title={item.anotacoes}
-                        className={`w-full min-w-0 min-h-[30px] flex items-center px-2 py-1 border border-gray-300 rounded text-sm text-left text-gray-800 bg-gray-50 transition-colors ${annFieldDisabled ? 'cursor-default' : 'cursor-text hover:border-gray-400 hover:bg-white'}`}
-                    >
-                        <span className="block min-w-0 truncate">{item.anotacoes}</span>
-                    </button>
-                ) : annFieldDisabled ? (
-                    <span className="block min-h-[30px] px-2 py-1 text-xs text-gray-400 lg:flex lg:items-center">—</span>
                 ) : (
+                    // Mesmo campo em toda linha, com ou sem texto: nada de "—" ou "Adicionar anotação"
+                    // variando de um paciente para o outro (pedido da clínica, 19/11/2026).
                     <button
                         type="button"
                         onClick={abrirAnotacoes}
-                        className="w-full min-h-[30px] inline-flex items-center gap-1 px-2 py-1 border border-dashed border-gray-300 rounded text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+                        title={temAnotacao ? item.anotacoes : undefined}
+                        className={`w-full min-w-0 min-h-[30px] flex items-center px-2 py-1 border border-gray-300 rounded text-sm text-left transition-colors ${annFieldDisabled ? 'bg-gray-100 text-gray-600 cursor-default' : 'bg-white text-gray-800 cursor-text hover:border-gray-400'}`}
                     >
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Adicionar anotação
+                        <span className={`block min-w-0 truncate ${temAnotacao ? '' : 'text-gray-400'}`}>
+                            {temAnotacao ? item.anotacoes : 'Anotações…'}
+                        </span>
                     </button>
                 )}
             </div>

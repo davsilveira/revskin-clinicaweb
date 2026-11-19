@@ -138,7 +138,8 @@ class ReceitaItensAnotacoesPatchTest extends TestCase
         $this->assertSame('Anotei sem entrar em Editar', $item->fresh()->anotacoes);
     }
 
-    public function test_receita_cancelada_retorna_422(): void
+    /** Clínica (19/11/2026): o campo de anotações tem de ser sempre editável, inclusive em cancelada. */
+    public function test_receita_cancelada_tambem_salva_anotacoes(): void
     {
         [$receita, $item] = $this->seedReceitaFinalizadaComItem();
         $receita->update(['status' => 'cancelada']);
@@ -146,10 +147,10 @@ class ReceitaItensAnotacoesPatchTest extends TestCase
         $this->actingAs($this->admin());
 
         $this->patchJson(route('receitas.itens-anotacoes.patch', $receita), [
-            'itens' => [['id' => $item->id, 'anotacoes' => 'X']],
-        ])->assertStatus(422);
+            'itens' => [['id' => $item->id, 'anotacoes' => 'Anotei na cancelada']],
+        ])->assertOk();
 
-        $this->assertSame('Original', $item->fresh()->anotacoes);
+        $this->assertSame('Anotei na cancelada', $item->fresh()->anotacoes);
     }
 
     /**
