@@ -189,6 +189,8 @@ class ReceitaController extends Controller
     {
         $user = $request->user();
 
+        $this->descartarLinhasSemProduto($request);
+
         $validated = $request->validate([
             'paciente_id' => 'required|exists:pacientes,id',
             'medico_id' => 'required|exists:medicos,id',
@@ -451,6 +453,8 @@ class ReceitaController extends Controller
             return redirect()->route('receitas.show', $receita)
                 ->with('error', 'Esta receita não pode ser editada pois já está finalizada.');
         }
+
+        $this->descartarLinhasSemProduto($request);
 
         $validated = $request->validate(array_merge([
             'data_receita' => 'required|date',
@@ -755,6 +759,8 @@ class ReceitaController extends Controller
      */
     public function autosave(Request $request)
     {
+        $this->descartarLinhasSemProduto($request);
+
         $validated = $request->validate([
             'id' => 'nullable|exists:receitas,id',
             'paciente_id' => 'required|exists:pacientes,id',
@@ -867,8 +873,8 @@ class ReceitaController extends Controller
             }
         }
 
-        // Sync items if provided
-        if (! empty($validated['itens'])) {
+        // Sync items if provided (na receita já existente, lista vazia = médico limpou todas as linhas)
+        if (! empty($validated['itens']) || ($id && is_array($validated['itens'] ?? null))) {
             if ($id) {
                 $validated['itens'] = $this->remapIncomingReceitaItemIds($receita, $validated['itens']);
                 ReceitaProdutoLegadoGuard::assertItensLegadoInalterados($receita, $validated['itens']);
@@ -1085,6 +1091,27 @@ class ReceitaController extends Controller
         ]);
 
         return $pdf->download("receita-{$receita->numero}.pdf");
+    }
+
+    /**
+     * Linha com o produto apagado (×) é linha em branco na tela, não item da receita. Sem isto o
+     * autosave caía em 422 calado a partir da primeira linha limpa e a receita ficava parada na
+     * última versão válida (o Call Center via a receita antiga) — e o Finalizar barrava com
+     * "itens.N.produto_id obrigatório".
+     */
+    private function descartarLinhasSemProduto(Request $request): void
+    {
+        $itens = $request->input('itens');
+        if (! is_array($itens)) {
+            return;
+        }
+
+        $request->merge([
+            'itens' => array_values(array_filter(
+                $itens,
+                fn ($item) => ! is_array($item) || filled($item['produto_id'] ?? null),
+            )),
+        ]);
     }
 
     /**

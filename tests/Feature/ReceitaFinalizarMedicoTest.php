@@ -134,4 +134,67 @@ class ReceitaFinalizarMedicoTest extends TestCase
 
         $this->assertSame('finalizada', $receita->fresh()->status);
     }
+    /** Linha com o produto apagado (×): antes derrubava o autosave e o Finalizar com 422. */
+    private function linhaEmBranco(): array
+    {
+        return [
+            'id' => null,
+            'produto_id' => '',
+            'local_uso' => '',
+            'anotacoes' => '',
+            'quantidade' => 1,
+            'valor_unitario' => 0,
+            'imprimir' => false,
+            'grupo' => 'recomendado',
+        ];
+    }
+
+    public function test_autosave_ignora_linhas_sem_produto_e_salva_as_demais(): void
+    {
+        [$user, $receita, $item, $produto] = $this->seedMedicoComReceitaAberta();
+        $outro = Produto::create([
+            'codigo' => 'FIN-002',
+            'nome' => 'Creme da noite novo',
+            'preco' => 80,
+            'ativo' => true,
+            'legado_somente_leitura' => false,
+        ]);
+
+        $payload = $this->putPayload($receita, $item, $produto);
+        $payload['itens'][0]['produto_id'] = $outro->id;
+        $payload['itens'][0]['valor_unitario'] = 80;
+        $payload['itens'][] = $this->linhaEmBranco();
+        $payload['itens'][] = $this->linhaEmBranco();
+
+        $this->actingAs($user)
+            ->postJson('/api/receitas/autosave', array_merge($payload, [
+                'id' => $receita->id,
+                'paciente_id' => $receita->paciente_id,
+                'medico_id' => $receita->medico_id,
+                'status' => 'aberta',
+            ]))
+            ->assertOk()
+            ->assertJsonCount(1, 'itens');
+
+        $itens = $receita->fresh()->itens;
+        $this->assertCount(1, $itens);
+        $this->assertSame($outro->id, (int) $itens->first()->produto_id);
+    }
+
+    public function test_finalizar_via_put_ignora_linhas_sem_produto(): void
+    {
+        [$user, $receita, $item, $produto] = $this->seedMedicoComReceitaAberta();
+
+        $payload = $this->putPayload($receita, $item, $produto);
+        array_unshift($payload['itens'], $this->linhaEmBranco());
+        $payload['itens'][] = $this->linhaEmBranco();
+
+        $this->actingAs($user)
+            ->put(route('receitas.update', $receita), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('receitas.show', $receita));
+
+        $this->assertSame('finalizada', $receita->fresh()->status);
+        $this->assertCount(1, $receita->fresh()->itens);
+    }
 }

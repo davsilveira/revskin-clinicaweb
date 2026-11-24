@@ -160,6 +160,12 @@ if (typeof window !== 'undefined') {
 const mensagemSessaoExpirada =
     'Sua sessão expirou. Copie o que digitou, recarregue a página (F5) e entre de novo para salvar.';
 
+/**
+ * Linha com o produto apagado (×) fica em branco na tela, mas não é item da receita: não vai ao
+ * servidor. Antes ia, o autosave caía em 422 calado e a receita parava na última versão válida.
+ */
+const linhaTemProduto = (item) => item.produto_id !== '' && item.produto_id != null;
+
 export default function ReceitaFormPage(props) {
     return <ReceitaFormInner key={props.receita?.id ?? 'new'} {...props} />;
 }
@@ -209,7 +215,7 @@ function ReceitaFormInner({
     });
     const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
     
-    const { data, setData, post, put, processing, errors } = useForm({
+    const { data, setData, post, put, processing, errors, transform } = useForm({
         paciente_id: receita?.paciente_id || initialPaciente?.id || '',
         medico_id: receita?.medico_id || defaultMedicoId || '',
         data_receita: receita?.data_receita ? receita.data_receita.split('T')[0] : new Date().toISOString().split('T')[0],
@@ -281,7 +287,8 @@ function ReceitaFormInner({
         if (!data.paciente_id || !data.medico_id) return;
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
+        const itensComProduto = data.itens.filter(linhaTemProduto);
+
         const response = await fetch('/api/receitas/autosave', {
             method: 'POST',
             headers: {
@@ -292,11 +299,22 @@ function ReceitaFormInner({
             body: JSON.stringify({
                 id: currentReceitaId,
                 ...data,
+                itens: itensComProduto,
             }),
         });
         
         if (response.status === 419) throw new Error(mensagemSessaoExpirada);
-        if (!response.ok) throw new Error('Autosave failed');
+        if (!response.ok) {
+            let msg = 'Não foi possível salvar a receita.';
+            try {
+                const err = await response.json();
+                const primeiroErro = err.errors && Object.values(err.errors).flat()[0];
+                msg = primeiroErro || err.message || err.error || msg;
+            } catch {
+                /* ignore */
+            }
+            throw new Error(msg);
+        }
         
         const result = await response.json();
         if (result.id && !currentReceitaId) {
@@ -304,15 +322,21 @@ function ReceitaFormInner({
             // Update URL to edit mode without full page reload
             window.history.replaceState({}, '', `/receitas/${result.id}/edit`);
         }
-        if (Array.isArray(result.itens) && result.itens.length === data.itens.length) {
+        if (Array.isArray(result.itens) && result.itens.length === itensComProduto.length) {
+            // A resposta só traz as linhas com produto: as em branco seguem na tela sem id.
+            let k = 0;
             suppressAutosaveOnceRef.current = true;
             setData(
                 'itens',
-                data.itens.map((row, i) => ({
-                    ...row,
-                    id: result.itens[i]?.id ?? row.id,
-                    produto_id: result.itens[i]?.produto_id ?? row.produto_id,
-                }))
+                data.itens.map((row) => {
+                    if (!linhaTemProduto(row)) return { ...row, id: undefined };
+                    const doServidor = result.itens[k++];
+                    return {
+                        ...row,
+                        id: doServidor?.id ?? row.id,
+                        produto_id: doServidor?.produto_id ?? row.produto_id,
+                    };
+                })
             );
         }
         setToast({
@@ -328,16 +352,19 @@ function ReceitaFormInner({
     // Salvar/Finalizar (PUT) recriam as linhas no servidor, e o Inertia mantém o estado do form
     // (preserveState): sem isto, as anotações salvas depois mandariam ids que não existem mais.
     useEffect(() => {
+        // O servidor descarta as linhas em branco: depois de salvar, elas saem da tela também.
         const doServidor = receita?.itens;
-        if (!Array.isArray(doServidor) || doServidor.length !== data.itens.length) return;
+        const comProduto = data.itens.filter(linhaTemProduto);
+        if (!Array.isArray(doServidor) || doServidor.length !== comProduto.length) return;
         const mesmasLinhas = doServidor.every(
-            (it, i) => String(it.produto_id) === String(data.itens[i]?.produto_id),
+            (it, i) => String(it.produto_id) === String(comProduto[i]?.produto_id),
         );
-        if (!mesmasLinhas || doServidor.every((it, i) => it.id === data.itens[i]?.id)) return;
+        if (!mesmasLinhas) return;
+        if (comProduto.length === data.itens.length && doServidor.every((it, i) => it.id === comProduto[i]?.id)) return;
         suppressAutosaveOnceRef.current = true;
         setData(
             'itens',
-            data.itens.map((row, i) => ({ ...row, id: doServidor[i].id })),
+            comProduto.map((row, i) => ({ ...row, id: doServidor[i].id })),
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [receita?.itens]);
@@ -357,7 +384,7 @@ function ReceitaFormInner({
             body: JSON.stringify({
                 anotacoes: data.anotacoes ?? '',
                 itens: data.itens
-                    .filter((row) => row.id)
+                    .filter((row) => row.id && linhaTemProduto(row))
                     .map((row) => ({ id: row.id, produto_id: row.produto_id, anotacoes: row.anotacoes ?? '' })),
             }),
         });
@@ -417,7 +444,13 @@ function ReceitaFormInner({
         clearDirtyState,
         markUnsaved,
         bumpLastSaved,
+        lastError: autoSaveError,
     } = useAutoSave(performAutoSave, 2000, canAutoSave);
+
+    // Autosave que falha não pode ficar calado: a tela mostraria "Salvo às…" de uma versão antiga.
+    useEffect(() => {
+        if (autoSaveError) setToast({ message: autoSaveError, type: 'error', key: Date.now() });
+    }, [autoSaveError]);
 
     // Unsaved changes modal state
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -928,6 +961,7 @@ function ReceitaFormInner({
 
     const handleSubmit = (e) => {
         e?.preventDefault();
+        transform((d) => ({ ...d, itens: d.itens.filter(linhaTemProduto) }));
         if (isEditing) {
             put(`/receitas/${receita.id}`, {
                 ...inertiaPersistReceitaOptions,
@@ -979,6 +1013,7 @@ function ReceitaFormInner({
 
         router.put(`/receitas/${receitaId}`, {
             ...data,
+            itens: data.itens.filter(linhaTemProduto),
             status: 'finalizada',
         }, {
             ...inertiaPersistReceitaOptions,
@@ -1188,7 +1223,7 @@ function ReceitaFormInner({
         !isCallcenter &&
         receita.status !== 'cancelada';
 
-    const showMainSaveIndicator = !isReadOnly && (isAutoSaving || lastSavedText);
+    const showMainSaveIndicator = !isReadOnly && (isAutoSaving || lastSavedText || autoSaveError);
     const showAnnotationSaveIndicator =
         annotationsEditable && (isAnnotationSaving || annotationLastSavedText);
     const savingReceitaOuAnotacoes = isAutoSaving || isAnnotationSaving;
@@ -1302,6 +1337,10 @@ function ReceitaFormInner({
                                                 </svg>
                                                 <span>Salvando...</span>
                                             </>
+                                        ) : autoSaveError && !isReadOnly ? (
+                                            <span className="text-red-600 font-medium" title={autoSaveError}>
+                                                Alterações NÃO salvas
+                                            </span>
                                         ) : salvoAnotacoesOuReceitaText ? (
                                             <>
                                                 <svg className="h-3 w-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -11,6 +11,8 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
     const [lastSaved, setLastSaved] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    /** Mensagem do último autosave que falhou; some no próximo que der certo. */
+    const [lastError, setLastError] = useState(null);
     const saveRef = useRef(saveFunction);
 
     // Keep the save function reference up to date
@@ -34,8 +36,10 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
                 await saveRef.current();
                 setLastSaved(new Date());
                 setHasUnsavedChanges(false);
+                setLastError(null);
             } catch (error) {
                 console.error('Autosave error:', error);
+                setLastError(error?.message || 'Falha ao salvar');
             } finally {
                 setIsSaving(false);
             }
@@ -69,6 +73,7 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
     /** Update “last saved” clock without calling the save API (e.g. after manual Inertia save). */
     const bumpLastSaved = useCallback(() => {
         setLastSaved(new Date());
+        setLastError(null);
     }, []);
 
     // Force immediate save
@@ -83,6 +88,7 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
             await saveRef.current();
             setLastSaved(new Date());
             setHasUnsavedChanges(false);
+            setLastError(null);
         } catch (error) {
             console.error('Save error:', error);
             throw error;
@@ -111,6 +117,7 @@ export default function useAutoSave(saveFunction, delay = 2000, enabled = true) 
     return {
         lastSaved,
         lastSavedText: getLastSavedText(),
+        lastError,
         isSaving,
         hasUnsavedChanges,
         triggerAutoSave,
