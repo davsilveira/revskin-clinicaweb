@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import debounce from 'lodash/debounce';
+import useSearchFilter from '@/hooks/useSearchFilter';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -40,7 +41,9 @@ export default function ReceitasIndex({
     const { auth } = usePage().props;
     const isMedico = auth.user.role === 'medico';
     const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
-    const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
+    const [search, setSearch] = useSearchFilter(filters?.paciente_id ? '' : filters?.search, {
+        force: Boolean(filters?.paciente_id),
+    });
     const [status, setStatus] = useState(() => (filters?.status != null ? String(filters.status) : ''));
     const pacienteId = filters?.paciente_id;
     const listagemPorPaciente = Boolean(pacienteId);
@@ -52,13 +55,6 @@ export default function ReceitasIndex({
         if (!filters) {
             return;
         }
-        const patientScoped = Boolean(filters.paciente_id);
-        const nextSearch = patientScoped
-            ? ''
-            : filters.search != null && filters.search !== ''
-              ? String(filters.search)
-              : '';
-        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
         const nextStatus = filters.status != null ? String(filters.status) : '';
         setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
     }, [filters?.search, filters?.status, filters?.paciente_id]);

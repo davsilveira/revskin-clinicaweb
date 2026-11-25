@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import debounce from 'lodash/debounce';
+import useSearchFilter from '@/hooks/useSearchFilter';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PatientDrawer from '@/Components/PatientDrawer';
 import Toast from '@/Components/Toast';
@@ -42,7 +43,7 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [editingPaciente, setEditingPaciente] = useState(null);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(() => (filters?.search != null && filters.search !== '' ? String(filters.search) : ''));
+    const [search, setSearch] = useSearchFilter(filters?.search);
     const [status, setStatus] = useState(() => normalizarAtivoFiltro(filters));
     const skipNextPacientesFetch = useRef(true);
 
@@ -51,8 +52,6 @@ export default function PacientesIndex({ pacientes, medicos = [], tiposTelefone 
         if (!filters) {
             return;
         }
-        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
-        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
         const nextStatus = normalizarAtivoFiltro(filters);
         setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
     }, [filters?.search, filters?.ativo]);

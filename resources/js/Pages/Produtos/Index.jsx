@@ -1,6 +1,7 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import debounce from 'lodash/debounce';
+import useSearchFilter from '@/hooks/useSearchFilter';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -31,9 +32,7 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
     const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
     const [editingProduto, setEditingProduto] = useState(null);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(() =>
-        filters?.search != null && filters.search !== '' ? String(filters.search) : ''
-    );
+    const [search, setSearch] = useSearchFilter(filters?.search);
     const [statusFilter, setStatusFilter] = useState(() => statusFilterFromFilters(filters));
     const skipNextProdutosFetch = useRef(true);
     const [syncing, setSyncing] = useState(false);
@@ -79,8 +78,6 @@ export default function ProdutosIndex({ produtos, totalGeral, totalLegadoPendent
 
     useEffect(() => {
         if (!filters) return;
-        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
-        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
         const nextStatus = statusFilterFromFilters(filters);
         setStatusFilter((prev) => (prev === nextStatus ? prev : nextStatus));
     }, [filters?.search, filters?.ativo, filters?.pendentes, filters?.legado_somente_leitura]);

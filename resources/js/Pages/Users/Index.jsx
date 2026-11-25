@@ -1,6 +1,7 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import debounce from 'lodash/debounce';
+import useSearchFilter from '@/hooks/useSearchFilter';
 import DashboardLayout from '@/Layouts/DashboardLayout';
 import PageHeader from '@/Components/PageHeader';
 import ResponsiveEntityList from '@/Components/ResponsiveEntityList';
@@ -58,9 +59,7 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     const auth = props.auth || {};
     const serverErrors = props.errors || {};
 
-    const [search, setSearch] = useState(() =>
-        filters.search != null && filters.search !== '' ? String(filters.search) : ''
-    );
+    const [search, setSearch] = useSearchFilter(filters?.search);
     const [roleFilter, setRoleFilter] = useState(() => roleFilterFromFilters(filters));
     const skipNextUsersFetch = useRef(true);
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -78,8 +77,6 @@ export default function UsersIndex({ users, clinicas = [], filters = {} }) {
     );
 
     useEffect(() => {
-        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
-        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
         const nextRole = roleFilterFromFilters(filters);
         setRoleFilter((prev) => (prev === nextRole ? prev : nextRole));
     }, [filters?.search, filters?.role]);

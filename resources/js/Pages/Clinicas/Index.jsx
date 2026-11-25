@@ -13,6 +13,7 @@ import Input from '@/Components/Form/Input';
 import Select from '@/Components/Form/Select';
 import MaskedInput from '@/Components/Form/MaskedInput';
 import debounce from 'lodash/debounce';
+import useSearchFilter from '@/hooks/useSearchFilter';
 import { validateCNPJ } from '@/utils/validations';
 import { nomeExibicaoSemTitulo } from '@/utils/nomeExibicao';
 
@@ -42,9 +43,7 @@ export default function ClinicasIndex({ clinicas, filters }) {
     const [editingClinica, setEditingClinica] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [toast, setToast] = useState(null);
-    const [search, setSearch] = useState(() =>
-        filters?.search != null && filters.search !== '' ? String(filters.search) : ''
-    );
+    const [search, setSearch] = useSearchFilter(filters?.search);
     const [loadingCep, setLoadingCep] = useState(false);
     const skipNextClinicasFetch = useRef(true);
 
@@ -105,12 +104,6 @@ export default function ClinicasIndex({ clinicas, filters }) {
             searchMedicosApi(searchMedico);
         }
     }, [searchMedico, searchMedicosApi]);
-
-    useEffect(() => {
-        if (!filters) return;
-        const nextSearch = filters.search != null && filters.search !== '' ? String(filters.search) : '';
-        setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-    }, [filters?.search]);
 
     const runClinicasQuery = useMemo(
         () =>
